@@ -1,0 +1,9 @@
+pythonpddl2
+*.pyc
+venv*
+essay
+stanford-parser-full*
+jars
+candc-1.00
+.ipynb_checkpoints
+paper-organiser
