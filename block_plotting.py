@@ -7,14 +7,16 @@ import copy
 import random
 import data
 
-def generate_start_position(problem):
+WIDTH = HEIGHT = 0.2
+
+def generate_start_position(problem, width=0.2):
     objects = pddl_functions.get_objects(problem)
     y_pos = 0
     starting_positions = []
     x_pos = 0.2
     for o in objects:
         starting_positions.append((x_pos, y_pos))
-        x_pos += width*2
+        x_pos += WIDTH*2
     return starting_positions
 
 
@@ -29,7 +31,7 @@ def plot_blocks(posns, colours):
                    'green':(0, 1, 0)}
     patches = []
     for (x1, y1), c in zip(posns, colours):
-        rectangle = Rectangle((x1, y1), width=width, height=height,
+        rectangle = Rectangle((x1, y1), width=WIDTH, height=HEIGHT,
             edgecolor= (0,0,0), facecolor=c)
         #patches.append(rectangle)
         ax.add_artist(rectangle)
@@ -62,7 +64,7 @@ def place_objects(objects, state, y_start):
             if 'on' in predicates[o].keys():
                 x, y = map(lambda x: x.arg_name, predicates[o]['on'].args.args)
                 if y_pos[y] != -1:
-                    y_pos[x] = y_pos[y] + height
+                    y_pos[x] = y_pos[y] + HEIGHT
                     x_pos[x] = x_pos[y]
     return [(x_pos[o], y_pos[o]) for o in objects]
 
