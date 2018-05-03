@@ -81,6 +81,19 @@ def parse(domain, problem):
 def create_action_dict(domain):
     return {action.name:action for action in domain.actions}
 
+def get_predicates(object_, state):
+    predicates = []
+    for formula in state:
+        predicate = formula.get_predicates(1)[0]
+        if object_ in [arg.arg_name for arg in predicate.args.args]:
+            predicates.append(predicate)
+    return predicates
+
+
+def get_objects(problem):
+    return [arg.arg_name for arg in problem.objects.args]
+
+
 if __name__ == "__main__":
     domain, problem = pythonpddl2.pddl.parseDomainAndProblem(
     '../FF-v2.3/wumpus-a.pddl', '../FF-v2.3/wumpus-a-1.pddl')
