@@ -93,6 +93,8 @@ def get_predicates(object_, state):
 def get_objects(problem):
     return [arg.arg_name for arg in problem.objects.args]
 
+def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow']):
+    return [p for p in state if p.get_predicates(1)[0].name not in obscured_predicates]
 
 if __name__ == "__main__":
     domain, problem = pythonpddl2.pddl.parseDomainAndProblem(
