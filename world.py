@@ -3,7 +3,7 @@ import ff
 import pddl_functions
 import block_plotting
 
-Observation = namedtuple("Observation", ['objects', 'colours', 'relations'])
+Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
 
 class World(object):
 
@@ -27,16 +27,19 @@ class PDDLWorld(World):
         self.start_positions = block_plotting.generate_start_position(self.problem)
 
     def update(self, action, args):
-        self.state = pddl_functions.apply_action(args, action, self.state)
+        actions = pddl_functions.create_action_dict(self.domain)
+        self.state = pddl_functions.apply_action(args, actions[action], self.state)
 
 
     def sense(self):
         relations = block_plotting.get_predicates(self.objects, self.state, obscure='True')
-        return Observation(self.objects, self.colours, relations)
+        obscured_state = pddl_functions.obscure_state(self.state)
+        return Observation(self.objects, self.colours, relations,  obscured_state)
 
     def get_actions(self):
         return self.domain.actions
 
     def draw(self):
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
+
         block_plotting.plot_blocks(positions, [self.colours[o] for o in self.objects])

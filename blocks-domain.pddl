@@ -9,7 +9,10 @@
              (on ?x ?y)
 	           (blue ?x)
              (red ?x)
-	     (in-tower ?x))
+	           (in-tower ?x)
+             (green ?x)
+             (yellow ?x))
+
 
 
 (:action put

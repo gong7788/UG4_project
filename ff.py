@@ -16,6 +16,7 @@ def ff(domain, problem):
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE)
     if "problem proven unsolvable" in out.stdout.decode():
+        print(out.stdout.decode())
         raise NoPlanError('No plan could be found')
     if out.stderr:
         raise FailedParseError('Could not parse domain or problem file' + out.stderr.decode())
