@@ -8,6 +8,9 @@ class NoPlanError(Exception):
 class FailedParseError(Exception):
     pass
 
+class Solved(Exception):
+    pass
+
 def ff(domain, problem):
     out = subprocess.run(
     [ff_location,
@@ -15,9 +18,14 @@ def ff(domain, problem):
     '-f', problem],
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE)
+    output = out.stdout.decode()
     if "problem proven unsolvable" in out.stdout.decode():
         print(out.stdout.decode())
         raise NoPlanError('No plan could be found')
+
+    if "goal can be simplified to TRUE" in output:
+        raise Solved('The state satifies the goal')
+
     if out.stderr:
         raise FailedParseError('Could not parse domain or problem file' + out.stderr.decode())
     return out.stdout.decode()

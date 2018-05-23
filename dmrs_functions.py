@@ -33,6 +33,12 @@ def full_parse(sentence):
     nodes = p['nodes']
     return links, nodes
 
+def get_pred(string):
+    parts = string.strip('_').split('_')
+    try:
+        return parts[0]
+    except IndexError:
+        return ''
 
 def get_pos(string):
     parts = string.strip('_').split('_')
@@ -81,6 +87,10 @@ def get_tripple(links, nodes):
 def sent_to_tripple(sentence):
     links, nodes = full_parse(sentence)
     return get_tripple(links, nodes)
+
+def get_adjectives(obj):
+    return [get_pred(node['predicate']) for node in obj if get_pos(node['predicate']) == 'a']
+
 
 if __name__ == "__main__":
     l, n = full_parse('put red blocks on blue blocks')

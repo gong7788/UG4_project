@@ -2,7 +2,7 @@ from collections import namedtuple
 import ff
 import pddl_functions
 import block_plotting
-
+import numpy as np
 Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
 
 class World(object):
@@ -20,16 +20,23 @@ class PDDLWorld(World):
 
     def __init__(self, domain_file, problem_file):
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
+        self.domain_file = domain_file
         self.objects = pddl_functions.get_objects(self.problem)
+        self.previous_state = None
         self.state = self.problem.initialstate
-        self.colours = {o:c for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
+        self.colours = {o:np.array(c) for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
 
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)
+        self.previous_state = self.state
         self.state = pddl_functions.apply_action(args, actions[action], self.state)
 
+
+    def back_track(self):
+        self.state = self.previous_state
+        self.previous_state = None
 
     def sense(self):
         relations = block_plotting.get_predicates(self.objects, self.state, obscure='True')
@@ -43,3 +50,12 @@ class PDDLWorld(World):
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
 
         block_plotting.plot_blocks(positions, [self.colours[o] for o in self.objects])
+
+    def to_pddl(self):
+        problem = self.problem
+        problem.initialstate = self.state
+        problem_pddl = problem.asPDDL()
+        problem_file_name = 'tmp/world_problem.pddl'
+        with open(problem_file_name, 'w') as f:
+            f.write(problem_pddl)
+        return self.domain_file, problem_file_name

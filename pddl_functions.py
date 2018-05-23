@@ -1,9 +1,13 @@
 import pythonpddl2.pddl
 import copy
-
+from pythonpddl2.pddl import Predicate, TypedArg, TypedArgList, Formula
 
 class InvalidActionError(Exception):
     pass
+
+def make_variable_list(variables):
+    var_list = [TypedArg(arg) for arg in variables]
+    return TypedArgList(var_list)
 
 
 def update_args(args, action):
@@ -89,6 +93,11 @@ def get_predicates(object_, state):
             predicates.append(predicate)
     return predicates
 
+
+def create_formula(predicate, variables, op=None):
+    variables = make_variable_list(variables)
+    predicate = Predicate(predicate, variables)
+    return Formula([predicate], op=op)
 
 def get_objects(problem):
     return [arg.arg_name for arg in problem.objects.args]
