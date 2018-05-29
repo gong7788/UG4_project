@@ -1,6 +1,6 @@
-import pythonpddl2.pddl
+import pythonpddl.pddl
 import copy
-from pythonpddl2.pddl import Predicate, TypedArg, TypedArgList, Formula
+from pythonpddl.pddl import Predicate, TypedArg, TypedArgList, Formula
 
 class InvalidActionError(Exception):
     pass
@@ -13,7 +13,7 @@ def make_variable_list(variables):
 def update_args(args, action):
     action = copy.deepcopy(action)
     for i, arg in enumerate(args):
-        action.parameters.args[i] = pythonpddl2.pddl.TypedArg(arg)
+        action.parameters.args[i] = pythonpddl.pddl.TypedArg(arg)
     return action
 
 
@@ -59,7 +59,7 @@ def apply_action(arguments, action, state):
                     continue
         except AttributeError:
             pass
-        formula = pythonpddl2.pddl.Formula([update_predicate(eff, pred_dict)])
+        formula = pythonpddl.pddl.Formula([update_predicate(eff, pred_dict)])
         new_state.append(formula)
 
     for eff in action.get_eff(0):
@@ -79,7 +79,7 @@ def apply_action(arguments, action, state):
     return new_state
 
 def parse(domain, problem):
-    return pythonpddl2.pddl.parseDomainAndProblem(domain, problem)
+    return pythonpddl.pddl.parseDomainAndProblem(domain, problem)
 
 
 def create_action_dict(domain):
@@ -106,7 +106,7 @@ def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow'])
     return [p for p in state if p.get_predicates(1)[0].name not in obscured_predicates]
 
 if __name__ == "__main__":
-    domain, problem = pythonpddl2.pddl.parseDomainAndProblem(
+    domain, problem = pythonpddl.pddl.parseDomainAndProblem(
     '../FF-v2.3/wumpus-a.pddl', '../FF-v2.3/wumpus-a-1.pddl')
     print("Before action:")
     for predicate in problem.initialstate:

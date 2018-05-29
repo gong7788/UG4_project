@@ -1,7 +1,7 @@
 import pddl_functions
 import ff
 import block_plotting
-from pythonpddl2.pddl import Predicate, TypedArg, TypedArgList, Formula
+from pythonpddl.pddl import Predicate, TypedArg, TypedArgList, Formula
 import copy
 
 
