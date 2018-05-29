@@ -5,7 +5,7 @@ from collections import namedtuple
 import goal_updates
 import prob_model
 import pddl_functions
-
+from ff import NoPlanError
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
@@ -56,7 +56,13 @@ class CorrectingAgent(Agent):
         with open('tmp/problem.pddl', 'w') as f:
             f.write(self.problem.asPDDL())
 
-        plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        try:
+            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        except NoPlanError:
+            self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+            with open('tmp/problem.pddl', 'w') as f:
+                f.write(self.problem.asPDDL())
+            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         return plan
 
     def _print_goal(self):
@@ -68,7 +74,7 @@ class CorrectingAgent(Agent):
         message = read_sentence(user_input)
         rule_model, rules = self.build_model(message)
 
-        if rule_model.name in self.rule_models.keys():
+        if rule_model.rules in self.rule_models.keys():
             rule_model = rule_model
 
         data = self.get_data(message, args)
@@ -84,11 +90,12 @@ class CorrectingAgent(Agent):
         elif rule_beliefs[1] > self.threshold:
             self.goal = goal_updates.update_goal(self.goal, rules[1])
 
-
         else:
             answer = input('Is the top object {}?'.format(message.o1[0]))
             bin_answer = int(answer.lower() == 'yes')
             rule_beliefs = rule_model.update_belief_r(data, visible={message.o1[0]:bin_answer})
+            print(rule_beliefs)
+            self.rule_beliefs[rule_model.rules] = rule_beliefs
             if rule_beliefs[0] > self.threshold:
                 self.goal = goal_updates.update_goal(self.goal, rules[0])
 
@@ -100,6 +107,7 @@ class CorrectingAgent(Agent):
         rule_model.update_c(data)
         self.world.back_track()
         self.sense()
+        self.rule_models[rule_model.rules] = rule_model
 
 
     def no_correction(self, action, args):

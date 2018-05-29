@@ -13,7 +13,7 @@ class ColourModel(object):
     def __init__(self, name, mu0=np.array([0.5, 0.5, 0.5]),
                  alpha0=np.array([1., 1., 1.]),
                  beta0=np.array([1., 1., 1.]),
-                 gamma=np.array(10),
+                 gamma=np.array(5),
                  p_c=np.array([0.5, 0.5]),
                  mu1=np.array([0.5, 0.5, 0.5]),
                  alpha1=np.array([1., 1., 1.]),
@@ -113,10 +113,14 @@ class CorrectionModel(object):
     def p_no_corr(self, data, visible):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
+            if isinstance(self, TableCorrectionModel):
+                corr = CorrectionModel.evaluate_correction(self, visible)
+            else:
+                corr = self.evaluate_correction(visible)
             return (self.rule_belief[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name]) *
                     self.c2.p(visible[self.c2.name], data[self.c2.name]) *
-                    (1 - self.evaluate_correction(visible)))
+                    (1 - corr))
         else:
             h = hidden.pop()
             #print('adding {} to visible'.format(h))
@@ -151,10 +155,18 @@ class CorrectionModel(object):
         self.c2.update(data[self.c2.name], self.rule_belief[1])
 
     def update_c_no_corr(self, data):
-        w1 = self.p_no_corr(data, visible={self.c1.name:1})
-        w2 = self.p_no_corr(data, visible={self.c2.name:1})
-        self.c1.update(data[self.c1.name], w1)
-        self.c2.update(data[self.c2.name], w2)
+        c1_pos = self.p_no_corr(data, visible={self.c1.name:1})
+        c1_neg = self.p_no_corr(data, visible={self.c1.name:0})
+        w1 = c1_pos/(c1_pos+c1_neg)
+        c2_pos = self.p_no_corr(data, visible={self.c2.name:1})
+        c2_neg = self.p_no_corr(data, visible={self.c2.name:0})
+        w2 = c2_pos/(c2_pos+c2_neg)
+        print(w1, w2)
+        print(self.c1.p(1, data[self.c1.name]))
+        r1, r2 = self.rule_belief
+        if (r1 > r2) and w1 > 0.5 or (r2 > r1) and w2 > 0.5:
+            self.c1.update(data[self.c1.name], w1)
+            self.c2.update(data[self.c2.name], w2)
 
     def update_model(self, data):
         self.update_belief_r(data)
@@ -167,6 +179,17 @@ class CorrectionModel(object):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 0 and visible[self.c2.name] == 1
         return float(rule0 or rule1)
 
+    def p_c_no_corr(self, c, data):
+        c1_pos = self.p_no_corr(data, visible={c:1})
+        c1_neg = self.p_no_corr(data, visible={c:0})
+        w1 = c1_pos/(c1_pos+c1_neg)
+        return w1
+
+    def p_c(self, c, data):
+        c_pos = self.p(data, visible={c:1})
+        c_neg = self.p(data, visible={c:0})
+        p_c = c_pos/(c_pos+c_neg)
+        return p_c
 
 class TableCorrectionModel(CorrectionModel):
     def __init__(self, rules, c1, c2, rule_belief=(0.5, 0.5)):
@@ -174,8 +197,8 @@ class TableCorrectionModel(CorrectionModel):
         self.c1 = c1
         self.c2 = c2
         self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
-                              mu = c1.mu, sigma=c1.sigma,
-                              mu_nill=c2.mu, sigma_nill=c2.sigma)
+                              mu0 = c1.mu0, beta0=c1.beta0, alpha0=c1.alpha0,
+                              mu1=c2.mu0, beta1=c2.beta0, alpha1=c2.alpha0)
         self.rule_belief = rule_belief
         self.variables = ['r', c1.name, c2.name, self.c3.name]
 
@@ -211,3 +234,13 @@ class TableCorrectionModel(CorrectionModel):
         rule0 = visible['r'] == 0 and visible[self.c1.name] == 0 and visible[self.c2.name] == 1 and visible[self.c3.name] == 0
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 1
         return float(rule0 or rule1)
+
+    def update_c(self, data):
+        w1 = self.p_c(self.c1.name, data)
+        w2 = self.p_c(self.c2.name, data)
+        w4 = self.p_c(self.c3.name, data)
+        w3 = 1-w4 # these are in the other direction because 0 for c3 means it is equivalent to c1 and p_c returns probability that c=1
+        self.c1.update(data[self.c1.name], w1)
+        self.c2.update(data[self.c2.name], w2)
+        self.c1.update(data[self.c3.name], w3)
+        self.c2.update(data[self.c3.name], w4)
