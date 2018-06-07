@@ -6,11 +6,26 @@ class InvalidActionError(Exception):
     pass
 
 def make_variable_list(variables):
+    """Creates a TypedArgList from a list of strings
+
+    variables: list of strings: ["o1", "o2", "o3"]
+    returns TypedArgList: pythonpddl representation of a list of arguments
+    """
     var_list = [TypedArg(arg) for arg in variables]
     return TypedArgList(var_list)
 
 
 def update_args(args, action):
+    """Helper function that fills in arguments in a function
+
+    takes args as list of strings: ["b1", "b2"]
+    An action put(?ob, ?underob)
+    with precondition (clear ?ob) (clear ?underob)
+    would be updated with put(b1, b2)
+    (clear b1) (clear b2)
+
+    returns the updated action
+    """
     action = copy.deepcopy(action)
     for i, arg in enumerate(args):
         action.parameters.args[i] = pythonpddl.pddl.TypedArg(arg)
@@ -18,6 +33,12 @@ def update_args(args, action):
 
 
 def equivalent(p1, p2):
+    """Checks if two predicates are equal
+
+    (on o1 o2) == (on o1 o2)
+    (on o1 o2) != (blue o1)
+    (on o1 o2) != (on ?o ?a)
+    """
     equal = p1.name == p2.name
     if len(p1.args.args) != len(p2.args.args):
         return False
@@ -28,6 +49,7 @@ def equivalent(p1, p2):
 
 
 def predicate_holds(predicate, state):
+    """Check if a predicate holds in a particular state"""
     for f in state:
         ps = f.get_predicates(True)
         for p in ps:
@@ -37,12 +59,14 @@ def predicate_holds(predicate, state):
 
 
 def update_predicate(predicate, arg_dict):
+    """Replaces variables inside a predicate with an argument from arg_dict"""
     new_pred = copy.deepcopy(predicate)
     for i, arg in enumerate(predicate.args.args):
         new_pred.args.args[i].arg_name = arg_dict[arg.arg_name]
     return new_pred
 
 def apply_action(arguments, action, state):
+    """update a state by applying action with arguments to the state """
     action_args = action.parameters.args
     pred_dict = {param.arg_name:arg for param, arg in zip(action_args, arguments)}
     #specific_action = update_args(arguments, action)
@@ -79,10 +103,18 @@ def apply_action(arguments, action, state):
     return new_state
 
 def parse(domain, problem):
+    """wrapper for the pythonpddl parse function
+
+    creates a domain and problem object
+     """
     return pythonpddl.pddl.parseDomainAndProblem(domain, problem)
 
 
 def create_action_dict(domain):
+    """Creates a dictionary of available actions from a domain
+
+    returns {action.name: action}
+    """
     return {action.name:action for action in domain.actions}
 
 def get_predicates(object_, state):
@@ -95,6 +127,13 @@ def get_predicates(object_, state):
 
 
 def create_formula(predicate, variables, op=None):
+    """Builds a pythonpddl Formula for one predicate
+
+    predicate - string name of predicate: "pred"
+    variables - list of strings: ["a1", "a2"]
+    op - str or None for example "not"
+    returns: pythonpddl of (pred a1 a2) or (not (pred a1 a2)) etc
+    """
     variables = make_variable_list(variables)
     predicate = Predicate(predicate, variables)
     return Formula([predicate], op=op)
@@ -103,6 +142,10 @@ def get_objects(problem):
     return [arg.arg_name for arg in problem.objects.args]
 
 def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow']):
+    """removes a set of preicates from a state
+
+    used when observing a pddl state but for example colours are unknown
+    """
     return [p for p in state if p.get_predicates(1)[0].name not in obscured_predicates]
 
 if __name__ == "__main__":

@@ -20,10 +20,13 @@ def create_goal(obj1, obj2, variables=("?x", "?y")):
         obj2_formula = Formula(obj2_preds, op='and')
     else:
         obj2_formula = Formula(obj2_preds)
-    neg_o1 = Formula([obj1_formula], op='not')
-    subformula = Formula([neg_o1, obj2_formula], op='or')
 
-    return Formula([subformula], op='forall', variables=variables)
+    second_part = Formula([obj2_formula, on], op='and')
+    existential = Formula([second_part], op='exists', variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
+    neg_o1 = Formula([obj1_formula], op='not')
+    subformula = Formula([neg_o1, existential], op='or')
+
+    return Formula([subformula], op='forall', variables=pddl_functions.make_variable_list([variables.args[0].arg_name]))
 
 def create_default_goal():
     var = pddl_functions.make_variable_list(['?x'])
