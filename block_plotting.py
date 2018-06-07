@@ -6,7 +6,12 @@ import pddl_functions, ff
 import copy
 import random
 import data
+import webcolors
+from matplotlib import colors
+import six
 
+colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in color]
+colour_names = set([c for c, _ in colors_])
 WIDTH = HEIGHT = 0.2
 
 def generate_start_position(problem, width=0.2):
@@ -20,29 +25,23 @@ def generate_start_position(problem, width=0.2):
     return starting_positions
 
 
-def plot_blocks(posns, colours):
+def plot_blocks(posns, colours, height = 0.2, width=0.2, object_separation=0.1):
     fig, ax = plt.subplots()
     resolution = 50
-
-    height = width = 0.2
-    colour_dict = {'blue':(0,0,1),
-                   'yellow':(1,1,0),
-                   'red':(1,0,0),
-                   'green':(0, 1, 0)}
+    
     patches = []
     for (x1, y1), c in zip(posns, colours):
-        rectangle = Rectangle((x1, y1), width=WIDTH, height=HEIGHT,
+        rectangle = Rectangle((x1, y1), width=width, height=height,
             edgecolor= (0,0,0), facecolor=c)
-        #patches.append(rectangle)
         ax.add_artist(rectangle)
-    #p = PatchCollection(patches, match_original=True)
+    x_pos = posns[:][0]
+    y_pos = posns[:][1]
+    plt.xlim(0, (width+object_separation)*len(posns))
+    plt.ylim(0, (height*len(posns)+object_separation))
+    plt.axis('off')
 
-    #ax.add_collection(p)
-    #p.set_array(np.array(colours))
-    plt.xlim(0, 2.2)
-    plt.ylim(0, 2.2)
-    #fig.colorbar(p, ax=ax)
     plt.show()
+    
 
 def get_predicates(objects, state, obscure=False):
     if not(obscure):
@@ -69,19 +68,15 @@ def place_objects(objects, state, y_start):
     return [(x_pos[o], y_pos[o]) for o in objects]
 
 
-
+def namedtuple_to_rgb(rgb):
+    return np.array(rgb, dtype=np.float32)/255
 
 
 def get_colours(objects, state):
-    colour_dict = {'blue':(0,0,1),
-                   'yellow':(1,1,0),
-                   'red':(1,0,0),
-                   'green':(0, 1, 0)}
     predicates = get_predicates(objects, state)
-    available_colours = ['red', 'blue', 'green', 'yellow']
-    colours = {o:list(filter(lambda x: x in available_colours, predicates[o].keys()))[0] for o in objects}
-    c = [colour_dict[colours[o]] for o in objects]
-    return map(data.colour_model, c)
+    colours = {o:list(filter(lambda x: x in colour_names, predicates[o].keys()))[0] for o in objects}
+    c = [webcolors.name_to_rgb(colours[o]) for o in objects]
+    return map(namedtuple_to_rgb, c)
 
 if __name__ == '__main__':
     height = width = 0.2
