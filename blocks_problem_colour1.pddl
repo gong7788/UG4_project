@@ -30,7 +30,7 @@
    (in-tower b4)
    (green b2)
    (yellow b4)
-   (red b5)
+   (blue b5)
 )
 
   ;; The goal is for the agent to get the gold and make it safely
@@ -38,7 +38,8 @@
   (:goal
     (and
      (forall (?x) (in-tower ?x))
-     (forall (?x ?y) (or (not (and (blue ?x) (red ?y))) (on ?x ?y)))
+     ;(forall (?x ?y) (or (not (and (blue ?x) (red ?y))) (on ?x ?y)))
+     (forall (?x) (or (not (red ?x)) (exists (?y) (and (blue ?y) (on ?x ?y)))))
     )
   )
 )
