@@ -6,7 +6,8 @@
     b3
     b4
     b5
-    b6)
+    b6
+    t0)
 
   (:init
 
@@ -28,7 +29,8 @@
    (arm-empty)
    (red b1)
    (red b3)
-   (in-tower b4)
+   (in-tower t0)
+   (clear t0)
    (blue b2)
    (blue b4)
    (red b5)
@@ -40,6 +42,7 @@
   ;; The goal is for the agent to get the gold and make it safely
   ;; back to the starting square.
   (:goal
-     (forall (?x) (in-tower ?x))
+     (and (forall (?x) (or (not (red ?x)) (exists (?y) (and (blue ?y) (on ?x ?y)))))
+     (forall (?x) (in-tower ?x)))
   )
 )

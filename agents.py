@@ -35,7 +35,7 @@ def read_sentence(sentence):
 
 class CorrectingAgent(Agent):
 
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl'):
+    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None):
         self.world = world
         self.domain = world.domain
         self.domain_file = domain_file
@@ -49,6 +49,7 @@ class CorrectingAgent(Agent):
         self.threshold = 0.7
         self.tau = 0.6
         self.rule_models = {}
+        self.teacher = teacher
 
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal,self.tmp_goal)
@@ -91,10 +92,14 @@ class CorrectingAgent(Agent):
             self.goal = goal_updates.update_goal(self.goal, rules[1])
 
         else:
-            answer = input('Is the top object {}?'.format(message.o1[0]))
+            question = 'Is the top object {}?'.format(message.o1[0])
+            print("R:", question)
+            answer = self.teacher.answer_question(question, self.world)
+            print("T:", answer)
+
             bin_answer = int(answer.lower() == 'yes')
             rule_beliefs = rule_model.update_belief_r(data, visible={message.o1[0]:bin_answer})
-            print(rule_beliefs)
+            #print(rule_beliefs)
             self.rule_beliefs[rule_model.rules] = rule_beliefs
             if rule_beliefs[0] > self.threshold:
                 self.goal = goal_updates.update_goal(self.goal, rules[0])
