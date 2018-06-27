@@ -14,21 +14,33 @@ colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in c
 colour_names = set([c for c, _ in colors_])
 WIDTH = HEIGHT = 0.2
 
+
+
+
 def generate_start_position(problem, width=0.2):
+
     objects = pddl_functions.get_objects(problem)
+    tower_locations = pddl_functions.filter_tower_locations(objects, get_locations=True)
+    blocks = pddl_functions.filter_tower_locations(objects, get_locations=False)
     y_pos = 0
     starting_positions = []
     x_pos = 0.2
-    for o in objects:
+    for t in tower_locations:
+        starting_positions.append((x_pos, y_pos))
+        x_pos += WIDTH*2
+    for b in blocks:
         starting_positions.append((x_pos, y_pos))
         x_pos += WIDTH*2
     return starting_positions
 
 
 def plot_blocks(posns, colours, height = 0.2, width=0.2, object_separation=0.1):
+    n_c = len(colours)
+    n_p = len(posns)
+    posns = posns[n_p-n_c:]
     fig, ax = plt.subplots()
     resolution = 50
-    
+
     patches = []
     for (x1, y1), c in zip(posns, colours):
         rectangle = Rectangle((x1, y1), width=width, height=height,
@@ -41,7 +53,7 @@ def plot_blocks(posns, colours, height = 0.2, width=0.2, object_separation=0.1):
     plt.axis('off')
 
     plt.show()
-    
+
 
 def get_predicates(objects, state, obscure=False):
     if not(obscure):
@@ -52,18 +64,24 @@ def get_predicates(objects, state, obscure=False):
 
 
 def place_objects(objects, state, y_start):
+    tower_locations = pddl_functions.filter_tower_locations(objects, get_locations=True)
+    blocks = pddl_functions.filter_tower_locations(objects, get_locations=False)
+    objects = tower_locations + blocks
     y_pos = {o:-1 for o in objects}
     x_pos = {o:x for o, (x, y) in zip(objects, y_start)}
     predicates = get_predicates(objects, state)
     for o in objects:
-        if 'on-table' in predicates[o].keys():
+        if 'on-table' in predicates[o].keys() or 't' in o:
             y_pos[o] = 0
     while -1 in y_pos.values():
         for o in objects:
             if 'on' in predicates[o].keys():
                 x, y = map(lambda x: x.arg_name, predicates[o]['on'].args.args)
                 if y_pos[y] != -1:
-                    y_pos[x] = y_pos[y] + HEIGHT
+                    if 't' in y:
+                        y_pos[x] = y_pos[y]
+                    else:
+                        y_pos[x] = y_pos[y] + HEIGHT
                     x_pos[x] = x_pos[y]
     return [(x_pos[o], y_pos[o]) for o in objects]
 
@@ -73,6 +91,7 @@ def namedtuple_to_rgb(rgb):
 
 
 def get_colours(objects, state):
+    objects = pddl_functions.filter_tower_locations(objects, get_locations=False)
     predicates = get_predicates(objects, state)
     colours = {o:list(filter(lambda x: x in colour_names, predicates[o].keys()))[0] for o in objects}
     c = [webcolors.name_to_rgb(colours[o]) for o in objects]

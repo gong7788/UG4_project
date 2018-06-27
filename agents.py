@@ -132,9 +132,15 @@ class CorrectingAgent(Agent):
         o3 = message.o3
         colour_data = observation.colours
         try:
-            data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
+            if 't' not in o2:
+                data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
+            else:
+                data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}
         except KeyError:
-            data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
+            if 't' not in o2:
+                data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
+            else:
+                data_dict = {c1:colour_data[o1], c2:None}
         return data_dict
 
 
@@ -173,7 +179,7 @@ class CorrectingAgent(Agent):
         self.problem.initialstate = observation.state
 
         for colour, model in self.colour_models.items():
-            for obj in observation.objects:
+            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): # these objects include tower locations, which they should not
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
                 if p_colour > self.tau:
