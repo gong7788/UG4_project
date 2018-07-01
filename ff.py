@@ -1,6 +1,6 @@
 import subprocess
 
-ff_location = '/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
+ff_location = 'ff/ff' #'/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
 
 class NoPlanError(Exception):
     pass
