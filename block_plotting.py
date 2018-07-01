@@ -9,6 +9,8 @@ import data
 import webcolors
 from matplotlib import colors
 import six
+from colour_dict import colour_dict
+
 
 colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in color]
 colour_names = set([c for c, _ in colors_])
@@ -93,7 +95,15 @@ def namedtuple_to_rgb(rgb):
 def get_colours(objects, state):
     objects = pddl_functions.filter_tower_locations(objects, get_locations=False)
     predicates = get_predicates(objects, state)
-    colours = {o:list(filter(lambda x: x in colour_names, predicates[o].keys()))[0] for o in objects}
+    colours = {o:list(filter(lambda x: x in colour_names, predicates[o].keys())) for o in objects}
+    for o, c in colours.items():
+        if len(c) > 1:
+            for c_i in c:
+                if c_i not in colour_dict.keys():
+                    colours[o] = c_i
+        else:
+            colours[o] = c[0]
+
     c = [webcolors.name_to_rgb(colours[o]) for o in objects]
     return map(namedtuple_to_rgb, c)
 
