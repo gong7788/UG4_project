@@ -51,6 +51,15 @@ class CorrectingAgent(Agent):
         self.rule_models = {}
         self.teacher = teacher
 
+
+    def new_world(self, world):
+        self.world = world
+        observation = world.sense()
+        self.problem = copy.deepcopy(world.problem)
+        self.tmp_goal = None
+        self.problem.initialstate = observation.state
+
+
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal,self.tmp_goal)
         self.sense()
