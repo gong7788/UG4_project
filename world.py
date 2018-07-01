@@ -1,5 +1,6 @@
 from collections import namedtuple
 import ff
+from ff import Solved, NoPlanError
 import pddl_functions
 import block_plotting
 import numpy as np
@@ -48,8 +49,9 @@ class PDDLWorld(World):
 
     def draw(self):
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
-
-        block_plotting.plot_blocks(positions, [self.colours[o] for o in self.objects])
+        print(positions)
+        objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
+        block_plotting.plot_blocks(positions, [self.colours[o] for o in objects])
 
     def to_pddl(self):
         problem = self.problem
@@ -59,3 +61,23 @@ class PDDLWorld(World):
         with open(problem_file_name, 'w') as f:
             f.write(problem_pddl)
         return self.domain_file, problem_file_name
+
+    def test_success(self):
+        domain, problem = self.to_pddl()
+        try:
+            ff.run(domain, problem)
+        except Solved:
+            return True
+        except NoPlanError:
+            return False
+        return False
+
+    def test_failure(self):
+        domain, problem = self.to_pddl()
+        try:
+            ff.run(domain, problem)
+        except NoPlanError:
+            return True
+        except Solved:
+            return False
+        return False

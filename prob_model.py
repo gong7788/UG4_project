@@ -33,11 +33,15 @@ class ColourModel(object):
 
 
     def p(self, c, fx):
+        if fx is None:
+            return [1, 0][c]
         p1 = self.p_c[1] * np.sum(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
         p0 = self.p_c[0] * np.sum(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
         return [p0, p1][c]/(p1 + p0)
 
     def update(self, fx, w):
+        if fx is None:
+            return self.mu0, self.alpha0, self.beta0
         asquigle = 1/self.gamma + 1*w
         bsquigle = self.mu0/self.gamma + fx*w
         csquigle = self.mu0**2/self.gamma + (fx*w)**2

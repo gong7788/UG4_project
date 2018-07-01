@@ -20,7 +20,6 @@ def ff(domain, problem):
     stderr=subprocess.PIPE)
     output = out.stdout.decode()
     if "problem proven unsolvable" in out.stdout.decode():
-        print(out.stdout.decode())
         raise NoPlanError('No plan could be found')
 
     if "goal can be simplified to TRUE" in output:

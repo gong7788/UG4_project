@@ -5,6 +5,10 @@ from pythonpddl.pddl import Predicate, TypedArg, TypedArgList, Formula
 class InvalidActionError(Exception):
     pass
 
+
+def filter_tower_locations(objects, get_locations=True):
+    return list(filter(lambda x: ('t' in x) == get_locations, objects))
+
 def make_variable_list(variables):
     """Creates a TypedArgList from a list of strings
 

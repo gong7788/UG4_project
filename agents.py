@@ -35,7 +35,7 @@ def read_sentence(sentence):
 
 class CorrectingAgent(Agent):
 
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl'):
+    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None):
         self.world = world
         self.domain = world.domain
         self.domain_file = domain_file
@@ -49,6 +49,7 @@ class CorrectingAgent(Agent):
         self.threshold = 0.7
         self.tau = 0.6
         self.rule_models = {}
+        self.teacher = teacher
 
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal,self.tmp_goal)
@@ -91,10 +92,14 @@ class CorrectingAgent(Agent):
             self.goal = goal_updates.update_goal(self.goal, rules[1])
 
         else:
-            answer = input('Is the top object {}?'.format(message.o1[0]))
+            question = 'Is the top object {}?'.format(message.o1[0])
+            print("R:", question)
+            answer = self.teacher.answer_question(question, self.world)
+            print("T:", answer)
+
             bin_answer = int(answer.lower() == 'yes')
             rule_beliefs = rule_model.update_belief_r(data, visible={message.o1[0]:bin_answer})
-            print(rule_beliefs)
+            #print(rule_beliefs)
             self.rule_beliefs[rule_model.rules] = rule_beliefs
             if rule_beliefs[0] > self.threshold:
                 self.goal = goal_updates.update_goal(self.goal, rules[0])
@@ -127,9 +132,15 @@ class CorrectingAgent(Agent):
         o3 = message.o3
         colour_data = observation.colours
         try:
-            data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
+            if 't' not in o2:
+                data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
+            else:
+                data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}
         except KeyError:
-            data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
+            if 't' not in o2:
+                data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
+            else:
+                data_dict = {c1:colour_data[o1], c2:None}
         return data_dict
 
 
@@ -168,7 +179,7 @@ class CorrectingAgent(Agent):
         self.problem.initialstate = observation.state
 
         for colour, model in self.colour_models.items():
-            for obj in observation.objects:
+            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): # these objects include tower locations, which they should not
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
                 if p_colour > self.tau:

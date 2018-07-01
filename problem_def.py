@@ -2,11 +2,15 @@ import pddl_functions
 from collections import namedtuple
 import goal_updates
 from pythonpddl.pddl import Problem
+from colour_dict import colour_dict
 
 Ruledef = namedtuple('Ruledef', ['first_obj', 'second_obj', 'constrained_obj'])
 
-def create_objects(n):
+
+def create_objects(n, m=1):
     obj_names = ['b{}'.format(i) for i in range(n)]
+    tower_posns = ['t{}'.format(i) for i in range(m)]
+    obj_names.extend(tower_posns)
     return pddl_functions.make_variable_list(obj_names)
 
 def generate_default_position(objects):
@@ -15,9 +19,14 @@ def generate_default_position(objects):
     for o in objects.args:
         obj = o.arg_name
         #create on-table
-        initstate.append(pddl_functions.create_formula('on-table', [obj]))
+        if 't' in obj:
+            initstate.append(pddl_functions.create_formula('in-tower', [obj]))
+        else:
+            initstate.append(pddl_functions.create_formula('on-table', [obj]))
         #create clear
         initstate.append(pddl_functions.create_formula('clear', [obj]))
+
+
     return initstate
 
 
@@ -25,6 +34,10 @@ def add_colours(state, objects, colours):
     for o, c in zip(objects.args, colours):
         o = o.arg_name
         state.append(pddl_functions.create_formula(c, [o]))
+        for key, value in colour_dict.items():
+            if c in value and c != key:
+                state.append(pddl_functions.create_formula(key, [o]))
+                break
     return state
 
 def generate_rule(ruledef):
