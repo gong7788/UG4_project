@@ -18,7 +18,7 @@ class Agent(object):
     def act(self, action):
         raise NotImplementedError()
 
-def read_sentence(sentence):
+def read_sentence(sentence, use_dmrs=True):
     sentence = sentence.lower().strip('no,')
     o3 = None
     T = 'tower'
@@ -26,11 +26,18 @@ def read_sentence(sentence):
         T = 'table'
         o3 = sentence.split('put')[1].split('in')[0].strip()
         sentence = sentence.split('because you must')[1].strip()
-    rel, o1, o2= dmrs_functions.sent_to_tripple(sentence)
-    o1 = dmrs_functions.get_adjectives(o1)
-    o2 = dmrs_functions.get_adjectives(o2)
-    rel = dmrs_functions.get_pred(rel['predicate'])
-    return Message(rel, o1, o2, T, o3)
+    if use_dmrs:
+        rel, o1, o2= dmrs_functions.sent_to_tripple(sentence)
+        o1 = dmrs_functions.get_adjectives(o1)
+        o2 = dmrs_functions.get_adjectives(o2)
+        rel = dmrs_functions.get_pred(rel['predicate'])
+        return Message(rel, o1, o2, T, o3)
+    else:
+        rel = 'on'
+        o1, o2 = sentence.strip('no, ').strip('put').split('on')
+        o1 = o1.strip().split()[0]
+        o2 = o2.strip().split()[0]
+        return Message(rel, o1, o2, T, o3)
 
 
 class CorrectingAgent(Agent):
@@ -72,7 +79,7 @@ class CorrectingAgent(Agent):
     def get_correction(self, user_input, action, args):
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
-        message = read_sentence(user_input)
+        message = read_sentence(user_input, use_dmrs=False)
         rule_model, rules = self.build_model(message)
 
         if rule_model.rules in self.rule_models.keys():
@@ -117,7 +124,7 @@ class CorrectingAgent(Agent):
 
     def no_correction(self, action, args):
         for rule_model in self.rule_models.values():
-            message = read_sentence('no, put {} blocks on {} blocks'.format(rule_model.c1.name, rule_model.c2.name))
+            message = read_sentence('no, put {} blocks on {} blocks'.format(rule_model.c1.name, rule_model.c2.name), use_dmrs=False)
             data = self.get_data(message, args)
             rule_model.update_c_no_corr(data)
 
