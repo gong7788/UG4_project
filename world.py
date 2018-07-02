@@ -28,16 +28,19 @@ class PDDLWorld(World):
         self.colours = {o:np.array(c) for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
+        self.reward = 0
 
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)
         self.previous_state = self.state
         self.state = pddl_functions.apply_action(args, actions[action], self.state)
+        self.reward += -1
 
 
     def back_track(self):
         self.state = self.previous_state
         self.previous_state = None
+        self.reward += -1
 
     def sense(self):
         relations = block_plotting.get_predicates(self.objects, self.state, obscure='True')
@@ -49,7 +52,6 @@ class PDDLWorld(World):
 
     def draw(self):
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
-        print(positions)
         objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
         block_plotting.plot_blocks(positions, [self.colours[o] for o in objects])
 
