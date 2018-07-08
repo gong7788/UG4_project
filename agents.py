@@ -9,6 +9,9 @@ from ff import NoPlanError
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
+
+
+
 class Agent(object):
 
 
@@ -37,7 +40,7 @@ def read_sentence(sentence, use_dmrs=True):
         o1, o2 = sentence.strip('no, ').strip('put').split('on')
         o1 = o1.strip().split()[0]
         o2 = o2.strip().split()[0]
-        return Message(rel, o1, o2, T, o3)
+        return Message(rel, [o1], [o2], T, o3)
 
 
 class CorrectingAgent(Agent):
@@ -189,6 +192,9 @@ class CorrectingAgent(Agent):
             rule_model = prob_model.TableCorrectionModel(rule_names, colour_model1, colour_model2, rule_belief=rule_probs)
         return rule_model, rules
 
+
+    def update_goal(self):
+        pass
 
     def sense(self):
         observation = self.world.sense()

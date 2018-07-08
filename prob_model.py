@@ -6,6 +6,33 @@ import copy
 ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 rule_belief = (0.5, 0.5)
 
+class RuleBelief(object):
+
+    def __init__(self, colours, rule1, rule2, prior=0.001):
+        # [[(r1,r2), (r1,-r2)],[(-r1,r2), (-r1, -r2)]]
+        self.colours = colours
+        self.rule1 = rule1
+        self.rule2 = rule2
+        self.belief = np.array([[prior*prior, prior*(1-prior)], [(1-prior)*prior, (1-prior)**2]])
+    
+    def p_r1(self):
+        return np.sum(self.belief, axis=1)[0]
+    
+    def p_r2(self):
+        return np.sum(self.belief, axis=0)[0]
+    
+    def update(self, message_probs):
+        # message_probs: [P(m=r1|x), P(m=r2|x)]
+        m_r1, m_r2 = message_probs
+        self.belief = np.array(
+        [[1*self.p_r2()*m_r1 + 1*self.p_r1()*m_r2,     1*(1-self.p_r2())*m_r1 + 0*self.p_r1()*m_r2],
+         [0*self.p_r2()*m_r1 + 1*(1-self.p_r1())*m_r2, 0*(1-self.p_r2())*m_r1 + 0*(1-self.p_r1())*m_r2]])
+
+    def get_as_priors(self):
+        r1 = self.p_r1()
+        r2 = self.p_r2()
+        return np.array([r1, r2])/(r1+r2)
+        
 
 
 class ColourModel(object):
@@ -51,7 +78,8 @@ class ColourModel(object):
         self.mu0 = mu_post
         self.alpha0 = alpha
         self.beta0 = beta
-        return mu_post, alpha, beta
+        self.sigma0 = beta/(alpha + 3/2)
+        return mu_post, self.sigma0, alpha, beta
         #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
         #return updated_mu
 
@@ -91,7 +119,8 @@ class CorrectionModel(object):
         self.rules = rules
         self.c1 = c1
         self.c2 = c2
-        self.rule_belief = rule_belief
+        self.rule_belief = RuleBelief((c1, c2), rules[0], rules[1])
+        self.rule_prior = self.rule_belief.get_as_priors()
         self.variables = [c1.name, c2.name, 'r']
 
     # data and hidden seem to be some kind of dictionary while hidden seems to be a list of keys
@@ -99,7 +128,7 @@ class CorrectionModel(object):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
             #print('reached here with hidden={}'.format(hidden))
-            return (self.rule_belief[visible['r']] *
+            return (self.rule_prior[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name]) *
                     self.c2.p(visible[self.c2.name], data[self.c2.name]) *
                     self.evaluate_correction(visible))
@@ -121,7 +150,7 @@ class CorrectionModel(object):
                 corr = CorrectionModel.evaluate_correction(self, visible)
             else:
                 corr = self.evaluate_correction(visible)
-            return (self.rule_belief[visible['r']] *
+            return (self.rule_prior[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name]) *
                     self.c2.p(visible[self.c2.name], data[self.c2.name]) *
                     (1 - corr))
@@ -151,12 +180,13 @@ class CorrectionModel(object):
     def update_belief_r(self, data,visible={}):
         r0 = self.p_r(0, data, visible=visible.copy())
         r1 = self.p_r(1, data, visible=visible.copy())
-        self.rule_belief = (r0, r1)
-        return self.rule_belief
+        self.rule_belief.update((r0, r1))
+        self.rule_prior = self.rule_belief.get_as_priors()
+        return self.rule_prior
 
     def update_c(self, data):
-        self.c1.update(data[self.c1.name], self.rule_belief[0])
-        self.c2.update(data[self.c2.name], self.rule_belief[1])
+        self.c1.update(data[self.c1.name], self.rule_prior[0])
+        self.c2.update(data[self.c2.name], self.rule_prior[1])
 
     def update_c_no_corr(self, data):
         c1_pos = self.p_no_corr(data, visible={self.c1.name:1})
@@ -167,7 +197,7 @@ class CorrectionModel(object):
         w2 = c2_pos/(c2_pos+c2_neg)
         print(w1, w2)
         print(self.c1.p(1, data[self.c1.name]))
-        r1, r2 = self.rule_belief
+        r1, r2 = self.rule_prior
         if (r1 > r2) and w1 > 0.5 or (r2 > r1) and w2 > 0.5:
             self.c1.update(data[self.c1.name], w1)
             self.c2.update(data[self.c2.name], w2)
@@ -197,21 +227,24 @@ class CorrectionModel(object):
 
 class TableCorrectionModel(CorrectionModel):
     def __init__(self, rules, c1, c2, rule_belief=(0.5, 0.5)):
-        self.rules = rules
-        self.c1 = c1
-        self.c2 = c2
+        
+        super().__init__(rules, c1, c2, rule_belief = rule_belief)
+        #self.rules = rules
+        #self.c1 = c1
+        #self.c2 = c2
         self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
                               mu0 = c1.mu0, beta0=c1.beta0, alpha0=c1.alpha0,
                               mu1=c2.mu0, beta1=c2.beta0, alpha1=c2.alpha0)
-        self.rule_belief = rule_belief
-        self.variables = ['r', c1.name, c2.name, self.c3.name]
+        #self.rule_prior = rule_belief
+        #self.variables = ['r', c1.name, c2.name, self.c3.name]
+        self.variables.append(self.c3.name)
 
     # data and hidden seem to be some kind of dictionary while hidden seems to be a list of keys
     def p(self, data, visible):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
             #print('reached here with hidden={}'.format(hidden))
-            return (self.rule_belief[visible['r']] *
+            return (self.rule_prior[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name]) *
                     self.c2.p(visible[self.c2.name], data[self.c2.name]) *
                     self.evaluate_correction(visible) *
@@ -228,8 +261,8 @@ class TableCorrectionModel(CorrectionModel):
             #print('finished recursion for {}=1 with value {}'.format(h, v1))
             return v0 + v1
 
-    def p_r(self, r, data, visible={}):
-        return super().p_r(r, data.copy(), visible.copy())
+    #def p_r(self, r, data, visible={}):
+    #    return super().p_r(r, data.copy(), visible.copy())
 
 
     def evaluate_correction(self, visible):
