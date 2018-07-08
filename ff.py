@@ -39,14 +39,17 @@ def get_actions(ff_result):
         if (i+1) == len(lines):
             raise NoPlanError('No plan could be found')
     actions = []
-    for line in out:
-        line = line.strip('step').strip()
-        try:
-            nr, action = line.split(':')
-            nr = int(nr)
-            actions.append(get_action(action.strip()))
-        except ValueError:
-            break
+    try:
+        for line in out:
+            line = line.strip('step').strip()
+            try:
+                nr, action = line.split(':')
+                nr = int(nr)
+                actions.append(get_action(action.strip()))
+            except ValueError:
+                break
+    except UnboundLocalError:
+        print(ff_result)
     return actions
 
 def get_action(action_string):
