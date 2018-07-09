@@ -5,12 +5,14 @@ from collections import namedtuple
 import goal_updates
 import prob_model
 import pddl_functions
+import numpy as np
 from ff import NoPlanError
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
 
-
+class State(object):
+    pass
 
 class Agent(object):
 
@@ -89,49 +91,65 @@ class CorrectingAgent(Agent):
         print(self.goal.asPDDL())
 
     def get_correction(self, user_input, action, args):
+        # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        
+        # get the relevant parts of the message
         message = read_sentence(user_input, use_dmrs=False)
+        
+        # build the rule model
         rule_model, rules = self.build_model(message)
-
-        if rule_model.rules in self.rule_models.keys():
+        if rule_model.rule_names in self.rule_models.keys():
             rule_model = rule_model
 
+        # gets F(o1), F(o2), and optionally F(o3)
         data = self.get_data(message, args)
 
-        rule_beliefs = rule_model.update_belief_r(data)
-        print(rule_beliefs)
-
-        self.rule_beliefs[rule_model.rules] = rule_beliefs
-        if rule_beliefs[0] > self.threshold:
-            self.goal = goal_updates.update_goal(self.goal, rules[0])
+        r1, r2 = rule_model.get_message_probs(data)
+        #rule_beliefs = rule_model.update_belief_r(data)
+        #print(rule_beliefs)
 
 
-        elif rule_beliefs[1] > self.threshold:
-            self.goal = goal_updates.update_goal(self.goal, rules[1])
 
-        else:
+        #self.rule_beliefs[rule_model.rules] = rule_beliefs
+        # if rule_beliefs[0] > self.threshold:
+        #     self.goal = goal_updates.update_goal(self.goal, rules[0])
+
+
+        # elif rule_beliefs[1] > self.threshold:
+        #     self.goal = goal_updates.update_goal(self.goal, rules[1])
+
+        # if there is no confidence in the update then ask for help
+        if max(r1, r2) < self.threshold:
             question = 'Is the top object {}?'.format(message.o1[0])
             print("R:", question)
             answer = self.teacher.answer_question(question, self.world)
             print("T:", answer)
 
             bin_answer = int(answer.lower() == 'yes')
-            rule_beliefs = rule_model.update_belief_r(data, visible={message.o1[0]:bin_answer})
+            message_probs = rule_model.get_message_probs(data, visible={message.o1[0]:bin_answer})
             #print(rule_beliefs)
-            self.rule_beliefs[rule_model.rules] = rule_beliefs
-            if rule_beliefs[0] > self.threshold:
-                self.goal = goal_updates.update_goal(self.goal, rules[0])
+        
+        # update the goal belief
+        rule_model.update_belief_r(r1, r2)
 
 
-            elif rule_beliefs[1] > self.threshold:
-                self.goal = goal_updates.update_goal(self.goal, rules[1])
+        #self.rule_beliefs[rule_model.rules] = rule_beliefs
+
+            # if rule_beliefs[0] > self.threshold:
+            #     self.goal = goal_updates.update_goal(self.goal, rules[0])
+
+
+            # elif rule_beliefs[1] > self.threshold:
+            #     self.goal = goal_updates.update_goal(self.goal, rules[1])
 
 
         rule_model.update_c(data)
+        self.update_goal()
         self.world.back_track()
         self.sense()
-        self.rule_models[rule_model.rules] = rule_model
+        self.rule_models[rule_model.rule_names] = rule_model
 
 
     def no_correction(self, action, args):
@@ -186,22 +204,28 @@ class CorrectingAgent(Agent):
             self.colour_models[c2] = colour_model2
 
         if message.T == 'tower':
-            rule_model = prob_model.CorrectionModel(rule_names, colour_model1, colour_model2, rule_belief=rule_probs)
+            rule_model = prob_model.CorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
 
         else:
-            rule_model = prob_model.TableCorrectionModel(rule_names, colour_model1, colour_model2, rule_belief=rule_probs)
+            rule_model = prob_model.TableCorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
         return rule_model, rules
 
 
     def update_goal(self):
-        pass
+        rules = []
+        for correction_model in self.rule_models.values():
+            rule_belief = correction_model.rule_belief
+            rules.extend(rule_belief.get_best_rules())
+        self.goal = goal_updates.goal_from_list(rules)
+
 
     def sense(self):
         observation = self.world.sense()
         self.problem.initialstate = observation.state
 
         for colour, model in self.colour_models.items():
-            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): # these objects include tower locations, which they should not
+            # these objects include tower locations, which they should not # I don't htink thats true?
+            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): 
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
                 if p_colour > self.tau:

@@ -49,3 +49,10 @@ def update_goal(goal, rule):
     else:
         goal = Formula([goal, rule], op='and')
     return goal
+
+def goal_from_list(rules):
+    goal = create_default_goal()
+    for rule in rules:
+        goal = update_goal(goal, rule)
+    return goal
+    

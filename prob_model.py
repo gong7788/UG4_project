@@ -33,7 +33,10 @@ class RuleBelief(object):
         r2 = self.p_r2()
         return np.array([r1, r2])/(r1+r2)
         
-
+    def get_best_rules(self):
+        highest_belief = np.argmax(self.belief)
+        rule_positions = np.array([[True, True], [True, False], [False, True], [False, False]]) # [[[r1, r2],[r1,-r2]], [[-r1, r2], [-r1, -r2]]]
+        return np.array([self.rule1, self.rule2])[rule_positions[highest_belief]]
 
 class ColourModel(object):
 
@@ -115,8 +118,9 @@ class ColourModel(object):
 
 
 class CorrectionModel(object):
-    def __init__(self, rules, c1, c2, rule_belief=(0.5, 0.5)):
+    def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
         self.rules = rules
+        self.rule_names = rule_names
         self.c1 = c1
         self.c2 = c2
         self.rule_belief = RuleBelief((c1, c2), rules[0], rules[1])
@@ -177,12 +181,18 @@ class CorrectionModel(object):
         eta = r0 + r1
         return [r0, r1][r]/eta
 
-    def update_belief_r(self, data,visible={}):
+
+    def get_message_probs(self, data, visible={}):
         r0 = self.p_r(0, data, visible=visible.copy())
         r1 = self.p_r(1, data, visible=visible.copy())
+        return (r0, r1)
+
+    def update_belief_r(self, r0, r1):
+        #r0 = self.p_r(0, data, visible=visible.copy())
+        #r1 = self.p_r(1, data, visible=visible.copy())
         self.rule_belief.update((r0, r1))
         self.rule_prior = self.rule_belief.get_as_priors()
-        return self.rule_prior
+        return (r0, r1)
 
     def update_c(self, data):
         self.c1.update(data[self.c1.name], self.rule_prior[0])
@@ -226,9 +236,9 @@ class CorrectionModel(object):
         return p_c
 
 class TableCorrectionModel(CorrectionModel):
-    def __init__(self, rules, c1, c2, rule_belief=(0.5, 0.5)):
+    def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
         
-        super().__init__(rules, c1, c2, rule_belief = rule_belief)
+        super().__init__(rule_names, rules, c1, c2, rule_belief = rule_belief)
         #self.rules = rules
         #self.c1 = c1
         #self.c2 = c2
