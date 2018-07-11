@@ -9,14 +9,16 @@ import data
 import webcolors
 from matplotlib import colors
 import six
-from colour_dict import colour_dict
+from colour_dict import colour_dict, colour_names
 
 
-colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in color]
-colour_names = set([c for c, _ in colors_])
+# colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in color]
+# colour_names = set([c for c, _ in colors_])
 WIDTH = HEIGHT = 0.2
 
-
+# colour_names = []
+# for v in colour_dict.values():
+#     colour_names.extend(v)
 
 
 def generate_start_position(problem, width=0.2):
@@ -61,8 +63,7 @@ def get_predicates(objects, state, obscure=False):
     if not(obscure):
         return {o:{p.name:p for p in pddl_functions.get_predicates(o, state)} for o in objects}
     else:
-        available_colours = ['red', 'blue', 'green', 'yellow']
-        return {o:{p.name:p for p in pddl_functions.get_predicates(o, state) if p.name not in available_colours} for o in objects}
+        return {o:{p.name:p for p in pddl_functions.get_predicates(o, state) if p.name not in colour_names} for o in objects}
 
 
 def place_objects(objects, state, y_start):

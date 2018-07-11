@@ -1,18 +1,63 @@
 import copy
 import ff
 import dmrs_functions
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import goal_updates
 import prob_model
 import pddl_functions
 import numpy as np
+import multiprocessing as mp
+import time
 from ff import NoPlanError
+import logging
+
+
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
+
+
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
 
-class State(object):
-    pass
+
+
+
+
+def queuer(q, domain, problem):
+    try:
+        q.put(ff.run(domain, problem))
+    except NoPlanError:
+        q.put('ERROR')
+
+
+
+
+
+class Priors(object):
+    def __init__(self, objects):
+        self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
+
+    def get_priors(self, message, args):
+        o1 = self.priors[args[0]][message.o1[0]]
+        o2 = self.priors[args[1]][message.o2[0]]
+        prior = [o1, o2]
+        if message.T == 'table':
+            c1 = self.priors[message.o3][message.o1[0]]
+            c2 = self.priors[message.o3][message.o2[0]]
+            o3 = c1/(c1+c2)
+            prior.append(o3)
+        return tuple(prior)
+
+    def update(self, prior_dict):
+        for obj, dict_ in prior_dict.items():
+            for colour, value in dict_.items():
+                self.priors[obj][colour] = value
+
+
+
 
 class Agent(object):
 
@@ -47,21 +92,22 @@ def read_sentence(sentence, use_dmrs=True):
 
 class CorrectingAgent(Agent):
 
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None):
+    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
         self.world = world
         self.domain = world.domain
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goal_updates.create_default_goal()#self.problem.goal # change this to ``forall x in-tower(x)
+        self.goal = goal_updates.create_default_goal() 
         self.tmp_goal = None
         self.problem.initialstate = observation.state
         self.colour_models = colour_models
         self.rule_beliefs = rule_beliefs
-        self.threshold = 0.7
+        self.threshold = threshold
         self.tau = 0.6
         self.rule_models = {}
         self.teacher = teacher
+        self.priors = Priors(world.objects)
 
 
     def new_world(self, world):
@@ -70,6 +116,9 @@ class CorrectingAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
         self.problem.initialstate = observation.state
+        self.priors = Priors(world.objects)
+
+
 
 
     def plan(self):
@@ -79,7 +128,21 @@ class CorrectingAgent(Agent):
             f.write(self.problem.asPDDL())
 
         try:
-            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+            q = mp.Queue()
+            p = mp.Process(target=queuer, name="plan", args=(q, self.domain_file, 'tmp/problem.pddl'))
+            p.start()
+            time.sleep(2)
+            if p.is_alive():
+                # Terminate foo
+                p.terminate()
+                p.join()
+                raise NoPlanError('No plan')
+            plan = q.get()
+            if plan == 'ERROR':
+                p.join()
+                raise NoPlanError('No plan')
+            p.join()
+            # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         except NoPlanError:
             self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
             with open('tmp/problem.pddl', 'w') as f:
@@ -91,6 +154,7 @@ class CorrectingAgent(Agent):
         print(self.goal.asPDDL())
 
     def get_correction(self, user_input, action, args):
+        visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
@@ -106,12 +170,16 @@ class CorrectingAgent(Agent):
         # gets F(o1), F(o2), and optionally F(o3)
         data = self.get_data(message, args)
 
-        r1, r2 = rule_model.get_message_probs(data)
+        priors = self.priors.get_priors(message, args)
+        r1, r2 = rule_model.get_message_probs(data, priors=priors)
         #rule_beliefs = rule_model.update_belief_r(data)
         #print(rule_beliefs)
+        objs = [args[0], args[1], message.o3]
 
 
 
+        # c1 = rule_model.p_c(message.o1[0], data, priors=prors)
+        # c2 = 
         #self.rule_beliefs[rule_model.rules] = rule_beliefs
         # if rule_beliefs[0] > self.threshold:
         #     self.goal = goal_updates.update_goal(self.goal, rules[0])
@@ -128,28 +196,39 @@ class CorrectingAgent(Agent):
             print("T:", answer)
 
             bin_answer = int(answer.lower() == 'yes')
-            message_probs = rule_model.get_message_probs(data, visible={message.o1[0]:bin_answer})
-            #print(rule_beliefs)
+            visible[message.o1[0]] = bin_answer
+            message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
+        
+
+        prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
         
         # update the goal belief
+        logger.debug(prior_updates)
+
         rule_model.update_belief_r(r1, r2)
 
-
-        #self.rule_beliefs[rule_model.rules] = rule_beliefs
-
-            # if rule_beliefs[0] > self.threshold:
-            #     self.goal = goal_updates.update_goal(self.goal, rules[0])
+        
 
 
-            # elif rule_beliefs[1] > self.threshold:
-            #     self.goal = goal_updates.update_goal(self.goal, rules[1])
 
 
-        rule_model.update_c(data)
+        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible)
+        # for colour in self.colour_models.values():
+        #     logger.debug(colour.mu0)
+        #     logger.debug(colour.sigma0)
+
+        self.priors.update(prior_updates)
         self.update_goal()
         self.world.back_track()
         self.sense()
         self.rule_models[rule_model.rule_names] = rule_model
+
+
+
+    def tracking(self):
+        for colour in self.colour_models.values():
+            logger.debug(colour.mu0)
+            logger.debug(colour.sigma0)
 
 
     def no_correction(self, action, args):

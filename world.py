@@ -5,6 +5,7 @@ import pddl_functions
 import block_plotting
 import numpy as np
 Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
+from colour_dict import colour_names
 
 class World(object):
 
@@ -44,7 +45,7 @@ class PDDLWorld(World):
 
     def sense(self):
         relations = block_plotting.get_predicates(self.objects, self.state, obscure='True')
-        obscured_state = pddl_functions.obscure_state(self.state)
+        obscured_state = pddl_functions.obscure_state(self.state, colour_names)
         return Observation(self.objects, self.colours, relations,  obscured_state)
 
     def get_actions(self):

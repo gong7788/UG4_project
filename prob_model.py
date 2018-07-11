@@ -2,9 +2,15 @@ from collections import namedtuple
 import numpy as np
 from scipy.stats import norm
 import copy
+import matplotlib.pyplot as plt
+
 
 ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
-rule_belief = (0.5, 0.5)
+#rule_belief = (0.5, 0.5)
+
+
+
+
 
 class RuleBelief(object):
 
@@ -40,51 +46,78 @@ class RuleBelief(object):
 
 class ColourModel(object):
 
-    def __init__(self, name, mu0=np.array([0.5, 0.5, 0.5]),
-                 alpha0=np.array([1., 1., 1.]),
-                 beta0=np.array([1., 1., 1.]),
-                 gamma=np.array(5),
-                 p_c=np.array([0.5, 0.5]),
-                 mu1=np.array([0.5, 0.5, 0.5]),
-                 alpha1=np.array([1., 1., 1.]),
-                 beta1=np.array([1., 1., 1.])):
+    def __init__(self, name, mu0=np.array([0.5, 0.5, 0.5]), sigma0=np.array([1, 1, 1]),
+                 mu1=np.array([0.5, 0.5, 0.5]), sigma1 = np.array([1,1,1])
+                 ):
 
         self.name = name
         self.mu0 = mu0
-        self.alpha0 = alpha0
-        self.beta0 = beta0
-        self.mu1 = mu0
-        self.alpha1 = alpha0
-        self.beta1 = beta0
-        self.sigma0 = beta0/(alpha0 + 3/2)
-        self.sigma1 = beta1/(alpha1 + 3/2)
-        self.p_c = p_c
-        self.gamma = gamma
+        
+        self.mu1 = mu1
+        self.sigma0 = sigma0
+        self.sigma1 = sigma1
+
+        self.n0 = 1
+        self.v0 = 1
 
 
-    def p(self, c, fx):
+    def p(self, c, fx, p_c=0.5):
         if fx is None:
             return [1, 0][c]
-        p1 = self.p_c[1] * np.sum(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
-        p0 = self.p_c[0] * np.sum(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
+        p_c_0 = 1-p_c
+        p1 = p_c * np.sum(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
+        p0 = p_c_0 * np.sum(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
         return [p0, p1][c]/(p1 + p0)
+
 
     def update(self, fx, w):
         if fx is None:
-            return self.mu0, self.alpha0, self.beta0
-        asquigle = 1/self.gamma + 1*w
-        bsquigle = self.mu0/self.gamma + fx*w
-        csquigle = self.mu0**2/self.gamma + (fx*w)**2
-        mu_post = bsquigle/asquigle
-        alpha = self.alpha0 + 1/2
-        beta = self.beta0 +  0.5*(csquigle - bsquigle**2/asquigle)
-        self.mu0 = mu_post
-        self.alpha0 = alpha
-        self.beta0 = beta
-        self.sigma0 = beta/(alpha + 3/2)
-        return mu_post, self.sigma0, alpha, beta
-        #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
-        #return updated_mu
+            return
+
+        new_mu0 = (self.n0 * self.mu0 + w*fx)/(self.n0+w)
+        v_times_sigma = self.v0 * self.sigma0 + (self.n0 * w)/(self.n0 + w) * (self.mu0 - fx)**2
+        self.v0 += w
+        self.n0 += w
+
+        self.mu0 = new_mu0
+        self.sigma0 = v_times_sigma/self.v0
+
+    # def update(self, fx, w):
+    #     if fx is None:
+    #         return self.mu0, self.alpha0, self.beta0
+    #     asquigle = 1/self.gamma + 1*w
+    #     bsquigle = self.mu0/self.gamma + fx*w
+    #     csquigle = self.mu0**2/self.gamma + (fx*w)**2
+    #     mu_post = bsquigle/asquigle
+    #     alpha = self.alpha0 + 1/2
+    #     beta = self.beta0 +  0.5*(csquigle - bsquigle**2/asquigle)
+    #     self.mu0 = mu_post
+    #     self.alpha0 = alpha
+    #     self.beta0 = beta
+    #     self.sigma0 = beta/(alpha + 3/2)
+    #     return mu_post, self.sigma0, alpha, beta
+    #     #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
+    #     #return updated_mu
+
+
+    def draw(self, show=False, save_location_basename=None):
+        x = np.linspace(0, 1, 100)
+        mu_r,mu_g,mu_b = self.mu0
+        sigma_r, sigma_g, sigma_b = self.sigma0
+        plt.plot(x,norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
+        plt.plot(x,norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
+        plt.plot(x,norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+        plt.title(self.name)
+        plt.legend()
+        if show:
+            plt.show()
+        else:
+            if save_location_basename==None:
+                save_location = '{}.png'.format(self.name)
+            else:
+                save_location = save_location_basename + self.name + '.png'
+            plt.savefig(save_location)
+            plt.show()
 
 # class ColourModel(object):
 #
@@ -128,26 +161,29 @@ class CorrectionModel(object):
         self.variables = [c1.name, c2.name, 'r']
 
     # data and hidden seem to be some kind of dictionary while hidden seems to be a list of keys
-    def p(self, data, visible):
+    def p(self, data, visible, priors=(0.5,0.5,0.5)):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
             #print('reached here with hidden={}'.format(hidden))
+            prior_c1 = priors[0] #if visible[self.c1.name] == 1 else 1-priors[0]
+            prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
+
             return (self.rule_prior[visible['r']] *
-                    self.c1.p(visible[self.c1.name], data[self.c1.name]) *
-                    self.c2.p(visible[self.c2.name], data[self.c2.name]) *
+                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
+                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
                     self.evaluate_correction(visible))
         else:
             h = hidden.pop()
             #print('adding {} to visible'.format(h))
             visible[h] = 0
-            v0 = self.p(data, copy.copy(visible))
+            v0 = self.p(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=0 with value {}'.format(h, v0))
             visible[h] = 1
-            v1 = self.p(data, copy.copy(visible))
+            v1 = self.p(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=1 with value {}'.format(h, v1))
             return v0 + v1
 
-    def p_no_corr(self, data, visible):
+    def p_no_corr(self, data, visible, priors=(0.5,0.5,0.5)):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
             if isinstance(self, TableCorrectionModel):
@@ -155,36 +191,45 @@ class CorrectionModel(object):
             else:
                 corr = self.evaluate_correction(visible)
             return (self.rule_prior[visible['r']] *
-                    self.c1.p(visible[self.c1.name], data[self.c1.name]) *
-                    self.c2.p(visible[self.c2.name], data[self.c2.name]) *
+                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=priors[0]) *
+                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=priors[1]) *
                     (1 - corr))
         else:
             h = hidden.pop()
             #print('adding {} to visible'.format(h))
             visible[h] = 0
-            v0 = self.p_no_corr(data, copy.copy(visible))
+            v0 = self.p_no_corr(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=0 with value {}'.format(h, v0))
             visible[h] = 1
-            v1 = self.p_no_corr(data, copy.copy(visible))
+            v1 = self.p_no_corr(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=1 with value {}'.format(h, v1))
             return v0 + v1
 
 
 
-    def p_r(self, r, data, visible={}):
+    def p_r(self, r, data, visible={}, priors=(0.5,0.5,0.5)):
         v0 = copy.copy(visible)
-        v0.update({'r':0})
-        r0 = self.p(data, visible=v0)
         v1 = copy.copy(visible)
+        v0.update({'r':0})
         v1.update({'r':1})
-        r1 = self.p(data, visible=v1)
+        r0 = self.p(data, visible=v0, priors=priors)
+        r1 = self.p(data, visible=v1, priors=priors)
         eta = r0 + r1
+        if np.isnan([r0, r1][r]/eta):
+            print('r0, r1', r0, r1)
+            print('visible', visible)
+            print('priors', priors)
+            print('v0 v1', v0, v1)
+            print('eta', eta)
+            import pdb; pdb.set_trace()
+            #raise ValueError('NAN')
+        
         return [r0, r1][r]/eta
 
 
-    def get_message_probs(self, data, visible={}):
-        r0 = self.p_r(0, data, visible=visible.copy())
-        r1 = self.p_r(1, data, visible=visible.copy())
+    def get_message_probs(self, data, visible={}, priors=(0.5,0.5,0.5)):
+        r0 = self.p_r(0, data, visible=copy.copy(visible), priors=priors)
+        r1 = self.p_r(1, data, visible=copy.copy(visible), priors=priors)
         return (r0, r1)
 
     def update_belief_r(self, r0, r1):
@@ -194,19 +239,23 @@ class CorrectionModel(object):
         self.rule_prior = self.rule_belief.get_as_priors()
         return (r0, r1)
 
-    def update_c(self, data):
-        self.c1.update(data[self.c1.name], self.rule_prior[0])
-        self.c2.update(data[self.c2.name], self.rule_prior[1])
+    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}):
+        p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
+        p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
-    def update_c_no_corr(self, data):
-        c1_pos = self.p_no_corr(data, visible={self.c1.name:1})
-        c1_neg = self.p_no_corr(data, visible={self.c1.name:0})
+
+        self.c1.update(data[self.c1.name], p_c1)
+        self.c2.update(data[self.c2.name], p_c2)
+
+    def update_c_no_corr(self, data, priors=(0.5, 0.5, 0.5)):
+        c1_pos = self.p_no_corr(data, visible={self.c1.name:1}, priors=priors)
+        c1_neg = self.p_no_corr(data, visible={self.c1.name:0}, priors=priors)
         w1 = c1_pos/(c1_pos+c1_neg)
-        c2_pos = self.p_no_corr(data, visible={self.c2.name:1})
-        c2_neg = self.p_no_corr(data, visible={self.c2.name:0})
+        c2_pos = self.p_no_corr(data, visible={self.c2.name:1}, priors=priors)
+        c2_neg = self.p_no_corr(data, visible={self.c2.name:0}, priors=priors)
         w2 = c2_pos/(c2_pos+c2_neg)
         print(w1, w2)
-        print(self.c1.p(1, data[self.c1.name]))
+        #print(self.c1.p(1, data[self.c1.name]))
         r1, r2 = self.rule_prior
         if (r1 > r2) and w1 > 0.5 or (r2 > r1) and w2 > 0.5:
             self.c1.update(data[self.c1.name], w1)
@@ -223,17 +272,41 @@ class CorrectionModel(object):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 0 and visible[self.c2.name] == 1
         return float(rule0 or rule1)
 
-    def p_c_no_corr(self, c, data):
-        c1_pos = self.p_no_corr(data, visible={c:1})
-        c1_neg = self.p_no_corr(data, visible={c:0})
+    def p_c_no_corr(self, c, data, priors=(0.5, 0.5, 0.5)):
+        c1_pos = self.p_no_corr(data, visible={c:1}, priors=priors)
+        c1_neg = self.p_no_corr(data, visible={c:0}, priors=priors)
         w1 = c1_pos/(c1_pos+c1_neg)
         return w1
 
-    def p_c(self, c, data):
-        c_pos = self.p(data, visible={c:1})
-        c_neg = self.p(data, visible={c:0})
+    def p_c(self, c, data, priors=(0.5, 0.5, 0.5), visible={}):
+
+        if c in visible:
+            if visible[c] == 1:
+                return 1.0
+            if visible[c] == 0:
+                return 0.0
+
+        vis1 = copy.copy(visible)
+        vis0 = copy.copy(visible)
+    
+        vis1[c] = 1
+        vis0[c] = 0
+
+
+        #visible[c] = 1
+        c_pos = self.p(data, visible=vis1, priors=priors)
+        #print(c_pos)
+        #c_pos = self.p(data, visible={c:1}, priors=priors)
+        #visible[c] = 0
+        c_neg = self.p(data, visible=vis0, priors=priors)
+        #print(c_neg)
+        #c_neg = self.p(data, visible={c:0}, priors=priors)
         p_c = c_pos/(c_pos+c_neg)
         return p_c
+
+    def updated_object_priors(self, data, objs, priors, visible={}):
+        return {objs[0]: {self.c1.name:self.p_c(self.c1.name, data, priors=priors, visible=copy.copy(visible))},
+                objs[1]: {self.c2.name:self.p_c(self.c2.name, data, priors=priors, visible=copy.copy(visible))}}
 
 class TableCorrectionModel(CorrectionModel):
     def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
@@ -242,32 +315,38 @@ class TableCorrectionModel(CorrectionModel):
         #self.rules = rules
         #self.c1 = c1
         #self.c2 = c2
+        # self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
+        #                       mu0 = c1.mu0, beta0=c1.beta0, alpha0=c1.alpha0,
+        #                       mu1=c2.mu0, beta1=c2.beta0, alpha1=c2.alpha0)
         self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
-                              mu0 = c1.mu0, beta0=c1.beta0, alpha0=c1.alpha0,
-                              mu1=c2.mu0, beta1=c2.beta0, alpha1=c2.alpha0)
+                                mu0=c1.mu0, sigma0=c1.sigma0,
+                                mu1=c2.mu0, sigma1=c2.sigma0)
         #self.rule_prior = rule_belief
         #self.variables = ['r', c1.name, c2.name, self.c3.name]
         self.variables.append(self.c3.name)
 
     # data and hidden seem to be some kind of dictionary while hidden seems to be a list of keys
-    def p(self, data, visible):
+    def p(self, data, visible, priors=(0.5, 0.5, 0.5)):
         hidden = set(self.variables) - visible.keys()
         if not hidden:
             #print('reached here with hidden={}'.format(hidden))
+            prior_c1 = priors[0] #if visible[self.c1.name] == 1 else 1-priors[0]
+            prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
+            prior_c3 = priors[2] #if visible[self.c3.name] == 1 else 1-priors[2]
             return (self.rule_prior[visible['r']] *
-                    self.c1.p(visible[self.c1.name], data[self.c1.name]) *
-                    self.c2.p(visible[self.c2.name], data[self.c2.name]) *
+                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
+                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
                     self.evaluate_correction(visible) *
-                    self.c3.p(visible[self.c3.name], data[self.c3.name])
+                    self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
                    )
         else:
             h = hidden.pop()
             #print('adding {} to visible'.format(h))
             visible[h] = 0
-            v0 = self.p(data, copy.copy(visible))
+            v0 = self.p(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=0 with value {}'.format(h, v0))
             visible[h] = 1
-            v1 = self.p(data, copy.copy(visible))
+            v1 = self.p(data, copy.copy(visible), priors=priors)
             #print('finished recursion for {}=1 with value {}'.format(h, v1))
             return v0 + v1
 
@@ -278,16 +357,29 @@ class TableCorrectionModel(CorrectionModel):
     def evaluate_correction(self, visible):
         # r=0: \forall x. y. c1(x) & on(x,y) -> c2(y). => on(x,y) -c1(x) c2(y) c1(z)
         # r=1 \forall x.y. c2(y) & on(x,y) -> c1(x). => on(x, y) c1(x) -c2(y) c2(z)
-        rule0 = visible['r'] == 0 and visible[self.c1.name] == 0 and visible[self.c2.name] == 1 and visible[self.c3.name] == 0
-        rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 1
+        rule0 = visible['r'] == 0 and visible[self.c1.name] == 0 and visible[self.c2.name] == 1 and visible[self.c3.name] == 1
+        rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 0
         return float(rule0 or rule1)
 
-    def update_c(self, data):
-        w1 = self.p_c(self.c1.name, data)
-        w2 = self.p_c(self.c2.name, data)
-        w4 = self.p_c(self.c3.name, data)
-        w3 = 1-w4 # these are in the other direction because 0 for c3 means it is equivalent to c1 and p_c returns probability that c=1
+    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}):
+        prior_dict = self.updated_object_priors(data, ['o1', 'o2', 'o3'], priors, visible=visible)
+
+        w1 = prior_dict['o1'][self.c1.name]
+        w2 = prior_dict['o2'][self.c2.name]
+        w3 = prior_dict['o3'][self.c1.name]
+        w4 = prior_dict['o3'][self.c2.name]
+        # w1 = self.p_c(self.c1.name, data, priors=priors)
+        # w2 = self.p_c(self.c2.name, data, priors=priors)
+        # w4 = self.p_c(self.c3.name, data, priors=priors)
+        # w3 = 1-w4 # these are in the other direction because 0 for c3 means it is equivalent to c1 and p_c returns probability that c=1
         self.c1.update(data[self.c1.name], w1)
         self.c2.update(data[self.c2.name], w2)
         self.c1.update(data[self.c3.name], w3)
         self.c2.update(data[self.c3.name], w4)
+
+    def updated_object_priors(self, data, objs, priors, visible={}):
+        obj_dict = super().updated_object_priors(data, objs, priors, visible=copy.copy(visible))
+        p3 = self.p_c(self.c3.name, data, priors=priors, visible=copy.copy(visible))
+        obj_dict[objs[2]] = {self.c1.name: p3, self.c2.name:1-p3}
+        return obj_dict
+        

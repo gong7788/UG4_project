@@ -26,7 +26,6 @@ def generate_default_position(objects):
         #create clear
         initstate.append(pddl_functions.create_formula('clear', [obj]))
 
-
     return initstate
 
 
