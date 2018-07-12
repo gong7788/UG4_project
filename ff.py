@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 ff_location = 'ff/ff' #'/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
 
@@ -12,22 +13,38 @@ class Solved(Exception):
     pass
 
 def ff(domain, problem):
-    out = subprocess.run(
-    [ff_location,
+    process = subprocess.Popen([ff_location,
     '-o', domain,
     '-f', problem],
     stdout=subprocess.PIPE,
     stderr=subprocess.PIPE)
-    output = out.stdout.decode()
-    if "problem proven unsolvable" in out.stdout.decode():
+    # out = subprocess.run(
+    # [ff_location,
+    # '-o', domain,
+    # '-f', problem],
+    # stdout=subprocess.PIPE,
+    # stderr=subprocess.PIPE)
+
+    for i in range(10):
+        code = process.poll()
+        if code == 0 or code == 1:
+            break
+        time.sleep(0.4)
+    else:
+        process.terminate()
         raise NoPlanError('No plan could be found')
 
-    if "goal can be simplified to TRUE" in output:
+    output = process.stdout.read().decode()
+    exitCode = process.returncode
+    if "problem proven unsolvable" in output or "goal can be simplified to FALSE" in output:
+        raise NoPlanError('No plan could be found')
+
+    elif "goal can be simplified to TRUE" in output:
         raise Solved('The state satifies the goal')
 
-    if out.stderr:
-        raise FailedParseError('Could not parse domain or problem file' + out.stderr.decode())
-    return out.stdout.decode()
+    elif exitCode:
+        raise FailedParseError('Could not parse domain or problem file' + output)
+    return output
 
 
 def get_actions(ff_result):

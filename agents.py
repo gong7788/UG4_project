@@ -128,21 +128,21 @@ class CorrectingAgent(Agent):
             f.write(self.problem.asPDDL())
 
         try:
-            q = mp.Queue()
-            p = mp.Process(target=queuer, name="plan", args=(q, self.domain_file, 'tmp/problem.pddl'))
-            p.start()
-            time.sleep(2)
-            if p.is_alive():
-                # Terminate foo
-                p.terminate()
-                p.join()
-                raise NoPlanError('No plan')
-            plan = q.get()
-            if plan == 'ERROR':
-                p.join()
-                raise NoPlanError('No plan')
-            p.join()
-            # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        #     q = mp.Queue()
+        #     p = mp.Process(target=queuer, name="plan", args=(q, self.domain_file, 'tmp/problem.pddl'))
+        #     p.start()
+        #     time.sleep(2)
+        #     if p.is_alive():
+        #         # Terminate foo
+        #         p.terminate()
+        #         p.join()
+        #         raise NoPlanError('No plan')
+        #     plan = q.get()
+        #     if plan == 'ERROR':
+        #         p.join()
+        #         raise NoPlanError('No plan')
+        #     p.join()
+            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         except NoPlanError:
             self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
             with open('tmp/problem.pddl', 'w') as f:

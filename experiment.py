@@ -10,6 +10,8 @@ from scipy.stats import norm
 from IPython.display import clear_output
 import matplotlib.pyplot as plt
 import pandas as pd
+import gc
+
 
 
 def run_experiment(problem_dir, vis=True, threshold=0.7):
@@ -46,7 +48,7 @@ def run_experiment(problem_dir, vis=True, threshold=0.7):
         clear_output()
         total_reward += w.reward
         print('{} reward: {}'.format(problem, w.reward))
-        
+        gc.collect()
         with open(results_file, 'a') as f:
             f.write('{} reward: {}\n'.format(problem, w.reward))
             f.write('{} cumulative reward: {}\n'.format(problem, total_reward))
