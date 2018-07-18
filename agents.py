@@ -8,8 +8,9 @@ import pddl_functions
 import numpy as np
 import multiprocessing as mp
 import time
-from ff import NoPlanError
+from ff import NoPlanError, IDontKnowWhatIsGoingOnError
 import logging
+
 
 
 logger = logging.getLogger()
@@ -57,7 +58,9 @@ class Priors(object):
                 self.priors[obj][colour] = value
 
 
-
+    def to_dict(self):
+        for o, d in self.priors.items():
+            self.priors[o] = dict(d)
 
 class Agent(object):
 
@@ -65,8 +68,9 @@ class Agent(object):
     def plan(self):
         raise NotImplementedError()
 
-    def act(self, action):
-        raise NotImplementedError()
+    def act(self, action, args):
+        self.world.update(action, args)
+        self.sense()
 
 def read_sentence(sentence, use_dmrs=True):
     sentence = sentence.lower().strip('no,')
@@ -84,7 +88,7 @@ def read_sentence(sentence, use_dmrs=True):
         return Message(rel, o1, o2, T, o3)
     else:
         rel = 'on'
-        o1, o2 = sentence.strip('no, ').strip('put').split('on')
+        o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
         o1 = o1.strip().split()[0]
         o2 = o2.strip().split()[0]
         return Message(rel, [o1], [o2], T, o3)
@@ -93,6 +97,7 @@ def read_sentence(sentence, use_dmrs=True):
 class CorrectingAgent(Agent):
 
     def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
+        self.name = 'correcting'
         self.world = world
         self.domain = world.domain
         self.domain_file = domain_file
@@ -122,33 +127,23 @@ class CorrectingAgent(Agent):
 
 
     def plan(self):
-        self.problem.goal = goal_updates.update_goal(self.goal,self.tmp_goal)
-        self.sense()
-        with open('tmp/problem.pddl', 'w') as f:
-            f.write(self.problem.asPDDL())
-
-        try:
-        #     q = mp.Queue()
-        #     p = mp.Process(target=queuer, name="plan", args=(q, self.domain_file, 'tmp/problem.pddl'))
-        #     p.start()
-        #     time.sleep(2)
-        #     if p.is_alive():
-        #         # Terminate foo
-        #         p.terminate()
-        #         p.join()
-        #         raise NoPlanError('No plan')
-        #     plan = q.get()
-        #     if plan == 'ERROR':
-        #         p.join()
-        #         raise NoPlanError('No plan')
-        #     p.join()
-            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-        except NoPlanError:
-            self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+        self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
+        tau=0.6
+        while True:
+            self.sense(threshold=tau)
             with open('tmp/problem.pddl', 'w') as f:
                 f.write(self.problem.asPDDL())
-            plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-        return plan
+
+            try:
+                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+                return plan
+            except (NoPlanError, IDontKnowWhatIsGoingOnError):
+                # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+                # with open('tmp/problem.pddl', 'w') as f:
+                #     f.write(self.problem.asPDDL())
+                # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+                tau += 0.1
+        # return plan
 
     def _print_goal(self):
         print(self.goal.asPDDL())
@@ -298,7 +293,7 @@ class CorrectingAgent(Agent):
         self.goal = goal_updates.goal_from_list(rules)
 
 
-    def sense(self):
+    def sense(self, threshold=0.6):
         observation = self.world.sense()
         self.problem.initialstate = observation.state
 
@@ -307,7 +302,7 @@ class CorrectingAgent(Agent):
             for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): 
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
-                if p_colour > self.tau:
+                if p_colour > threshold:
                     colour_formula = pddl_functions.create_formula(colour, [obj])
                     self.problem.initialstate.append(colour_formula)
 
@@ -315,4 +310,55 @@ class CorrectingAgent(Agent):
 
     def act(self, action, args):
         self.world.update(action, args)
+        self.sense()
+
+
+class RandomAgent(Agent):
+    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
+        self.name = 'random'
+        self.world = world
+        self.domain = world.domain
+        self.domain_file = domain_file
+        observation = world.sense()
+        self.problem = copy.deepcopy(world.problem)
+        self.goal = goal_updates.create_default_goal() 
+        self.tmp_goal = None
+        self.problem.initialstate = observation.state
+        #self.colour_models = colour_models
+        #self.rule_beliefs = rule_beliefs
+        #self.threshold = threshold
+        #self.tau = 0.6
+        #self.rule_models = {}
+        self.teacher = teacher
+        #self.priors = Priors(world.objects)
+
+
+    def new_world(self, world):
+        self.world = world
+        observation = world.sense()
+        self.problem = copy.deepcopy(world.problem)
+        self.tmp_goal = None
+        self.problem.initialstate = observation.state
+        #self.priors = Priors(world.objects)
+
+
+    def plan(self):
+        self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+        with open('tmp/problem.pddl', 'w') as f:
+            f.write(self.problem.asPDDL())
+        plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        return plan
+
+
+    def sense(self):
+        observation = self.world.sense()
+        self.problem.initialstate = observation.state
+
+        return observation
+
+    def get_correction(self, user_input, action, args):
+        # since this action is incorrect, ensure it is not done again
+        not_on_xy = pddl_functions.create_formula('on', args, op='not')
+        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.world.back_track()
         self.sense()

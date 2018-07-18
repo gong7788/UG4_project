@@ -12,6 +12,9 @@ class FailedParseError(Exception):
 class Solved(Exception):
     pass
 
+class IDontKnowWhatIsGoingOnError(Exception):
+    pass
+
 def ff(domain, problem):
     process = subprocess.Popen([ff_location,
     '-o', domain,
@@ -32,7 +35,7 @@ def ff(domain, problem):
         time.sleep(0.4)
     else:
         process.terminate()
-        raise NoPlanError('No plan could be found')
+        raise IDontKnowWhatIsGoingOnError('The amount of time taken was too long')
 
     output = process.stdout.read().decode()
     exitCode = process.returncode
@@ -41,6 +44,9 @@ def ff(domain, problem):
 
     elif "goal can be simplified to TRUE" in output:
         raise Solved('The state satifies the goal')
+
+    elif "won't get here: non NOT,OR,AND in goal set relevants" in output:
+        raise IDontKnowWhatIsGoingOnError('non Not,Or,And in goal set relevants, what ever that means?!')
 
     elif exitCode:
         raise FailedParseError('Could not parse domain or problem file' + output)

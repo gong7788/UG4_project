@@ -59,16 +59,27 @@ class ColourModel(object):
 
         self.n0 = 1
         self.v0 = 1
-
+        self.n1 = 1
+        self.v1 = 1
 
     def p(self, c, fx, p_c=0.5):
         if fx is None:
             return [1, 0][c]
         p_c_0 = 1-p_c
-        p1 = p_c * np.sum(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
-        p0 = p_c_0 * np.sum(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
+        p1 = p_c * np.prod(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
+        p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
         return [p0, p1][c]/(p1 + p0)
 
+
+    # def p(self, c, fx, p_c=0.5):
+    #     if fx is None:
+    #         return [1, 0][c]
+    #     p_c_0 = 1 - p_c
+    #     log_p_c = np.log(p_c)
+    #     log_p_c0 = np.log(p_c_0)
+    #     log_p1 = log_p_c + np.sum(np.log(norm.pdf(fx, loc=self.mu0, scale=self.sigma0)))
+    #     log_p0 = log_p_c0 + np.sum(np.log(norm.pdf(fx, loc=self.mu1, scale=self.sigma1)))
+    #     norm =
 
     def update(self, fx, w):
         if fx is None:
@@ -81,6 +92,18 @@ class ColourModel(object):
 
         self.mu0 = new_mu0
         self.sigma0 = v_times_sigma/self.v0
+
+    def update_negative(self, fx, w):
+        if fx is None:
+            return
+
+        new_mu1 = (self.n1 * self.mu1 + w*fx)/(self.n1+w)
+        v_times_sigma = self.v1 * self.sigma1 + (self.n1 * w)/(self.n1 + w) * (self.mu1 - fx)**2
+        self.v1 += w
+        self.n1 += w
+
+        self.mu1 = new_mu1
+        self.sigma1 = v_times_sigma/self.v1
 
     # def update(self, fx, w):
     #     if fx is None:
@@ -103,21 +126,27 @@ class ColourModel(object):
     def draw(self, show=False, save_location_basename=None):
         x = np.linspace(0, 1, 100)
         mu_r,mu_g,mu_b = self.mu0
+        mu2_r, mu2_g, mu2_b = self.mu1
         sigma_r, sigma_g, sigma_b = self.sigma0
-        plt.plot(x,norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
-        plt.plot(x,norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
-        plt.plot(x,norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+        sigma2_r, sigma2_g, sigma2_b = self.sigma1
+        fig, (ax1, ax2) = plt.subplots(1, 2)
+        ax1.plot(x,norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
+        ax1.plot(x,norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
+        ax1.plot(x,norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+        ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
+        ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
+        ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
         plt.title(self.name)
         plt.legend()
         if show:
             plt.show()
         else:
             if save_location_basename==None:
-                save_location = '{}.png'.format(self.name)
+                save_location = 'results/colours/{}.png'.format(self.name)
             else:
-                save_location = save_location_basename + self.name + '.png'
+                save_location = 'results/colours/plots/' + save_location_basename + '_' + self.name + '.png'
             plt.savefig(save_location)
-            plt.show()
+
 
 # class ColourModel(object):
 #
@@ -246,6 +275,8 @@ class CorrectionModel(object):
 
         self.c1.update(data[self.c1.name], p_c1)
         self.c2.update(data[self.c2.name], p_c2)
+        self.c1.update_negative(data[self.c1.name], (1-p_c1))
+        self.c2.update_negative(data[self.c2.name], (1-p_c2))
 
     def update_c_no_corr(self, data, priors=(0.5, 0.5, 0.5)):
         c1_pos = self.p_no_corr(data, visible={self.c1.name:1}, priors=priors)
