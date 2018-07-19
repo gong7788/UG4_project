@@ -95,8 +95,8 @@ def read_sentence(sentence, use_dmrs=True):
 
 
 class CorrectingAgent(Agent):
-
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
+    def __init__(self, world, colour_models={}, rule_beliefs={},
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -114,7 +114,6 @@ class CorrectingAgent(Agent):
         self.teacher = teacher
         self.priors = Priors(world.objects)
 
-
     def new_world(self, world):
         self.world = world
         observation = world.sense()
@@ -123,12 +122,9 @@ class CorrectingAgent(Agent):
         self.problem.initialstate = observation.state
         self.priors = Priors(world.objects)
 
-
-
-
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        tau=0.6
+        tau = 0.5
         while True:
             self.sense(threshold=tau)
             with open('tmp/problem.pddl', 'w') as f:
@@ -202,11 +198,6 @@ class CorrectingAgent(Agent):
 
         rule_model.update_belief_r(r1, r2)
 
-        
-
-
-
-
         rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible)
         # for colour in self.colour_models.values():
         #     logger.debug(colour.mu0)
@@ -218,13 +209,10 @@ class CorrectingAgent(Agent):
         self.sense()
         self.rule_models[rule_model.rule_names] = rule_model
 
-
-
     def tracking(self):
         for colour in self.colour_models.values():
             logger.debug(colour.mu0)
             logger.debug(colour.sigma0)
-
 
     def no_correction(self, action, args):
         for rule_model in self.rule_models.values():

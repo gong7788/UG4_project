@@ -129,15 +129,15 @@ class ColourModel(object):
         mu2_r, mu2_g, mu2_b = self.mu1
         sigma_r, sigma_g, sigma_b = self.sigma0
         sigma2_r, sigma2_g, sigma2_b = self.sigma1
-        fig, (ax1, ax2) = plt.subplots(1, 2)
-        ax1.plot(x,norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
-        ax1.plot(x,norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
-        ax1.plot(x,norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
-        ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
-        ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
-        ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
-        plt.title(self.name)
-        plt.legend()
+        fig, ax1, = plt.subplots(1, 1)
+        ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
+        ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
+        ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+        # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
+        # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
+        # ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+        plt.title('Probability Density for P(F(x)|{}(x)=1)'.format(self.name.title()), fontsize=16)
+        plt.legend(prop={'size': 10})
         if show:
             plt.show()
         else:
@@ -268,15 +268,15 @@ class CorrectionModel(object):
         self.rule_prior = self.rule_belief.get_as_priors()
         return (r0, r1)
 
-    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}):
+    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=True):
         p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
         p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
-
         self.c1.update(data[self.c1.name], p_c1)
         self.c2.update(data[self.c2.name], p_c2)
-        self.c1.update_negative(data[self.c1.name], (1-p_c1))
-        self.c2.update_negative(data[self.c2.name], (1-p_c2))
+        if update_negative:
+            self.c1.update_negative(data[self.c1.name], (1-p_c1))
+            self.c2.update_negative(data[self.c2.name], (1-p_c2))
 
     def update_c_no_corr(self, data, priors=(0.5, 0.5, 0.5)):
         c1_pos = self.p_no_corr(data, visible={self.c1.name:1}, priors=priors)
@@ -392,7 +392,7 @@ class TableCorrectionModel(CorrectionModel):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 0
         return float(rule0 or rule1)
 
-    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}):
+    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=True):
         prior_dict = self.updated_object_priors(data, ['o1', 'o2', 'o3'], priors, visible=visible)
 
         w1 = prior_dict['o1'][self.c1.name]
@@ -407,6 +407,10 @@ class TableCorrectionModel(CorrectionModel):
         self.c2.update(data[self.c2.name], w2)
         self.c1.update(data[self.c3.name], w3)
         self.c2.update(data[self.c3.name], w4)
+        if update_negative:
+            self.c1.update_negative(data[self.c1.name], 1-w1)
+            self.c2.update_negative(data[self.c2.name], 1-w2)
+
 
     def updated_object_priors(self, data, objs, priors, visible={}):
         obj_dict = super().updated_object_priors(data, objs, priors, visible=copy.copy(visible))

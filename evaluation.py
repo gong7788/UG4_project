@@ -5,6 +5,7 @@ import webcolors
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+from colour_dict import colour_dict, simple_colour_dict
 
 
 def extract_file(filename):
@@ -39,7 +40,7 @@ def colour_probs(colour_model, colour_dict, prior=0.5):
 
 
 def colour_confusion(colour, results_dict):
-    output = {'tp':0, 'fp':0, 'fn':0, 'tn':0}
+    output = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
     for c, cs in results_dict.items():
         for p in cs.values():
             if c == colour and p > 0.5:
@@ -114,10 +115,26 @@ def plot_df(df, experiment, file_modifiers=''):
         name = column.split('_')[1]
         if name == 'random':
             name = 'baseline'
-         
+        elif name == 'correcting':
+            name = 'our system'
         df[column].plot(label=name)
-
-    plt.legend()
+    plt.xlabel('scenario #', fontsize=13)
+    plt.ylabel('cumulative reward', fontsize=13)
+    plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
+    plt.legend(loc='lower left', prop={'size': 10})
     plt.savefig('results/plots/' + experiment + file_modifiers + '.png')
     plt.show()
 
+def load_agent(dataset, threshold=0.7, file_modifiers=''):
+    with open('results/agents/correcting_{}_{}{}.pickle'.format(dataset, threshold, file_modifiers), 'rb') as f:
+        agent = pickle.load(f)
+    return agent
+
+
+def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict):
+    agent = load_agent(dataset, threshold=threshold, file_modifiers=file_modifiers)
+    for cm in agent.colour_models.values():
+        probs = colour_probs(cm, colour_dict, prior=0.5)
+        confusion = colour_confusion(cm.name, probs)
+        print(cm.name, confusion)
+        cm.draw(save_location_basename=dataset)
