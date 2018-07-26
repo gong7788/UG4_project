@@ -39,15 +39,15 @@ def colour_probs(colour_model, colour_dict, prior=0.5):
     return output
 
 
-def colour_confusion(colour, results_dict):
+def colour_confusion(colour, results_dict, threshold=0.5):
     output = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
     for c, cs in results_dict.items():
         for p in cs.values():
-            if c == colour and p > 0.5:
+            if c == colour and p > threshold:
                 output['tp'] += 1
             elif c == colour:
                 output['fn'] += 1
-            elif p > 0.5:
+            elif p > threshold:
                 output['fp'] += 1
             else:
                 output['tn'] += 1
@@ -131,10 +131,10 @@ def load_agent(dataset, threshold=0.7, file_modifiers=''):
     return agent
 
 
-def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict):
+def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict, colour_thresh=0.5):
     agent = load_agent(dataset, threshold=threshold, file_modifiers=file_modifiers)
     for cm in agent.colour_models.values():
         probs = colour_probs(cm, colour_dict, prior=0.5)
-        confusion = colour_confusion(cm.name, probs)
+        confusion = colour_confusion(cm.name, probs, colour_thresh)
         print(cm.name, confusion)
         cm.draw(save_location_basename=dataset)
