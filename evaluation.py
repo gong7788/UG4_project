@@ -114,9 +114,9 @@ def plot_df(df, experiment, file_modifiers=''):
     for column in columns:
         name = column.split('_')[1]
         if name == 'random':
-            name = 'baseline'
+            name = 'naive agent'
         elif name == 'correcting':
-            name = 'our system'
+            name = 'lingustic agent'
         df[column].plot(label=name)
     plt.xlabel('scenario #', fontsize=13)
     plt.ylabel('cumulative reward', fontsize=13)
@@ -130,6 +130,10 @@ def load_agent(dataset, threshold=0.7, file_modifiers=''):
         agent = pickle.load(f)
     return agent
 
+def test_colour_model(colour_model, colour_dict=colour_dict, colour_thresh=0.5):
+    probs = colour_probs(colour_model, colour_dict)
+    confusion = colour_confusion(colour_model.name, probs, colour_thresh)
+    return confusion
 
 def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict, colour_thresh=0.5):
     agent = load_agent(dataset, threshold=threshold, file_modifiers=file_modifiers)

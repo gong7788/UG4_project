@@ -20,13 +20,13 @@ class RuleBelief(object):
         self.rule1 = rule1
         self.rule2 = rule2
         self.belief = np.array([[prior*prior, prior*(1-prior)], [(1-prior)*prior, (1-prior)**2]])
-    
+
     def p_r1(self):
         return np.sum(self.belief, axis=1)[0]
-    
+
     def p_r2(self):
         return np.sum(self.belief, axis=0)[0]
-    
+
     def update(self, message_probs):
         # message_probs: [P(m=r1|x), P(m=r2|x)]
         m_r1, m_r2 = message_probs
@@ -35,10 +35,12 @@ class RuleBelief(object):
          [0*self.p_r2()*m_r1 + 1*(1-self.p_r1())*m_r2, 0*(1-self.p_r2())*m_r1 + 0*(1-self.p_r1())*m_r2]])
 
     def get_as_priors(self):
-        r1 = self.p_r1()
-        r2 = self.p_r2()
-        return np.array([r1, r2])/(r1+r2)
-        
+        #r1 = self.p_r1()
+        #r2 = self.p_r2()
+        #return np.array([r1, r2])/(r1+r2)
+        return np.array([0.5, 0.5])
+
+
     def get_best_rules(self):
         highest_belief = np.argmax(self.belief)
         rule_positions = np.array([[True, True], [True, False], [False, True], [False, False]]) # [[[r1, r2],[r1,-r2]], [[-r1, r2], [-r1, -r2]]]
@@ -52,7 +54,7 @@ class ColourModel(object):
 
         self.name = name
         self.mu0 = mu0
-        
+
         self.mu1 = mu1
         self.sigma0 = sigma0
         self.sigma1 = sigma1
@@ -67,7 +69,8 @@ class ColourModel(object):
             return [1, 0][c]
         p_c_0 = 1-p_c
         p1 = p_c * np.prod(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
-        p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
+        #p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
+        p0 = p_c_0 * np.prod([1,1,1])
         return [p0, p1][c]/(p1 + p0)
 
 
@@ -129,17 +132,17 @@ class ColourModel(object):
         mu2_r, mu2_g, mu2_b = self.mu1
         sigma_r, sigma_g, sigma_b = self.sigma0
         sigma2_r, sigma2_g, sigma2_b = self.sigma1
-        fig, (ax1, ax2) = plt.subplots(1, 2)
+        fig, ax1 = plt.subplots(1, 1)
 
         ax1.set_title('P(F(x)|{}(x)=1'.format(self.name), fontsize=14)
         ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
         ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
         ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
 
-        ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
-        ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
-        ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
-        ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+        # ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
+        # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
+        # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
+        # ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
         plt.legend(prop={'size': 10})
 
         if show:
@@ -283,7 +286,7 @@ class CorrectionModel(object):
 
         vis1 = copy.copy(visible)
         vis0 = copy.copy(visible)
-    
+
         vis1[c] = 1
         vis0[c] = 0
 
@@ -305,7 +308,7 @@ class CorrectionModel(object):
 
 class TableCorrectionModel(CorrectionModel):
     def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
-        
+
         super().__init__(rule_names, rules, c1, c2, rule_belief = rule_belief)
         #self.rules = rules
         #self.c1 = c1
@@ -381,4 +384,3 @@ class TableCorrectionModel(CorrectionModel):
         p3 = self.p_c(self.c3.name, data, priors=priors, visible=copy.copy(visible))
         obj_dict[objs[2]] = {self.c1.name: p3, self.c2.name:1-p3}
         return obj_dict
-        

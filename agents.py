@@ -12,19 +12,18 @@ from ff import NoPlanError, IDontKnowWhatIsGoingOnError
 import logging
 
 
-
-logger = logging.getLogger()
-handler = logging.StreamHandler()
-logger.addHandler(handler)
+logger = logging.getLogger('agent')
+#handler = logging.StreamHandler()
+#logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
+dialogue = logging.getLogger('dialogue')
+#dialogue.addHandler(handler)
+#logger.setLevel(logging.INFO)
 
 
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
-
-
-
-
 
 
 def queuer(q, domain, problem):
@@ -44,12 +43,14 @@ class Priors(object):
     def get_priors(self, message, args):
         o1 = self.priors[args[0]][message.o1[0]]
         o2 = self.priors[args[1]][message.o2[0]]
+        names = message.o1[0] + ' ' + message.o2[0]
         prior = [o1, o2]
         if message.T == 'table':
             c1 = self.priors[message.o3][message.o1[0]]
             c2 = self.priors[message.o3][message.o2[0]]
             o3 = c1/(c1+c2)
             prior.append(o3)
+        logger.debug('priors for {}: ({})'.format(names, ','.join(map(str, prior))))
         return tuple(prior)
 
     def update(self, prior_dict):
@@ -95,7 +96,7 @@ def read_sentence(sentence, use_dmrs=True):
 
 
 class CorrectingAgent(Agent):
-    def __init__(self, world, colour_models={}, rule_beliefs={},
+    def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
         self.name = 'correcting'
         self.world = world
@@ -103,11 +104,17 @@ class CorrectingAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goal_updates.create_default_goal() 
+        self.goal = goal_updates.create_default_goal()
         self.tmp_goal = None
         self.problem.initialstate = observation.state
-        self.colour_models = colour_models
-        self.rule_beliefs = rule_beliefs
+        if colour_models is None:
+            self.colour_models = {}
+        else:
+            self.colour_models = colour_models
+        if rule_beliefs is None:
+            self.rule_beliefs = {}
+        else:
+            self.rule_beliefs = rule_beliefs
         self.threshold = threshold
         self.tau = 0.6
         self.rule_models = {}
@@ -149,10 +156,10 @@ class CorrectingAgent(Agent):
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
-        
+
         # get the relevant parts of the message
         message = read_sentence(user_input, use_dmrs=False)
-        
+
         # build the rule model
         rule_model, rules = self.build_model(message)
         if rule_model.rule_names in self.rule_models.keys():
@@ -170,7 +177,7 @@ class CorrectingAgent(Agent):
 
 
         # c1 = rule_model.p_c(message.o1[0], data, priors=prors)
-        # c2 = 
+        # c2 =
         #self.rule_beliefs[rule_model.rules] = rule_beliefs
         # if rule_beliefs[0] > self.threshold:
         #     self.goal = goal_updates.update_goal(self.goal, rules[0])
@@ -182,17 +189,17 @@ class CorrectingAgent(Agent):
         # if there is no confidence in the update then ask for help
         if max(r1, r2) < self.threshold:
             question = 'Is the top object {}?'.format(message.o1[0])
-            print("R:", question)
+            dialogue.info("R: " + question)
             answer = self.teacher.answer_question(question, self.world)
-            print("T:", answer)
+            dialogue.info("T: " +  answer)
 
             bin_answer = int(answer.lower() == 'yes')
             visible[message.o1[0]] = bin_answer
             message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
-        
+
 
         prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
-        
+
         # update the goal belief
         logger.debug(prior_updates)
 
@@ -287,7 +294,7 @@ class CorrectingAgent(Agent):
 
         for colour, model in self.colour_models.items():
             # these objects include tower locations, which they should not # I don't htink thats true?
-            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False): 
+            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
                 if p_colour > threshold:
@@ -309,7 +316,7 @@ class RandomAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goal_updates.create_default_goal() 
+        self.goal = goal_updates.create_default_goal()
         self.tmp_goal = None
         self.problem.initialstate = observation.state
         #self.colour_models = colour_models

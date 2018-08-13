@@ -1,7 +1,10 @@
 import subprocess
 import time
+from util import get_config
 
-ff_location = 'ff/ff' #'/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
+#ff_location = #'ff/ff' #'/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
+config = get_config()
+ff_location = config['ff_location']
 
 class NoPlanError(Exception):
     pass
@@ -28,11 +31,11 @@ def ff(domain, problem):
     # stdout=subprocess.PIPE,
     # stderr=subprocess.PIPE)
 
-    for i in range(10):
+    for i in range(1000):
         code = process.poll()
         if code == 0 or code == 1:
             break
-        time.sleep(0.4)
+        time.sleep(0.001)
     else:
         process.terminate()
         raise IDontKnowWhatIsGoingOnError('The amount of time taken was too long')
