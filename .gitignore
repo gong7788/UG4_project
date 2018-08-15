@@ -8,3 +8,4 @@ candc-1.00
 .ipynb_checkpoints
 paper-organiser
 config.py
+tmp/*

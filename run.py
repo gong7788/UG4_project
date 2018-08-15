@@ -22,7 +22,14 @@ import argparse
 # run_experiment(args.dataset, vis=args.visualise, file_modifiers=args.file_modifier)
 
 
-run_experiment('bijection')
+run_experiment('simple_neural')
+run_experiment('onerule_neural')
+run_experiment('tworules_neural')
+run_experiment('maroon_neural')
+run_experiment('bijection_neural')
+
+
+
 
 #run_experiment('onerule', vis=False, file_modifiers='_train_negative3')
 #run_experiment('simplecolours', vis=False, file_modifiers='_train_negative3')

@@ -308,6 +308,45 @@ class CorrectingAgent(Agent):
         self.sense()
 
 
+class NeuralCorrectingAgent(CorrectingAgent):
+
+    def __init__(self, world, colour_models=None, rule_beliefs=None,
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, H=4):
+        self.H = H
+        super().__init__(world, colour_models=colour_models, rule_beliefs=rule_beliefs, domain_file=domain_file, teacher=teacher, threshold=threshold)
+
+    def build_model(self, message):
+        rules = goal_updates.create_goal_options(message.o1, message.o2)
+        rule_names = tuple(map(lambda x: x.asPDDL(), rules))
+
+        if rule_names in self.rule_beliefs.keys():
+            rule_probs = self.rule_beliefs[rule_names] # this will probably have to change
+        else:
+            rule_probs = (0.5, 0.5)
+
+        c1 = message.o1[0]
+        c2 = message.o2[0]
+        try:
+            colour_model1 = self.colour_models[c1]
+        except KeyError:
+            colour_model1 = prob_model.NeuralColourModel(c1, H=self.H)
+            self.colour_models[c1] = colour_model1
+        try:
+            colour_model2 = self.colour_models[c2]
+        except KeyError:
+            colour_model2 = prob_model.NeuralColourModel(c2, H=self.H)
+            self.colour_models[c2] = colour_model2
+
+        if message.T == 'tower':
+            rule_model = prob_model.CorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
+
+        else:
+            rule_model = prob_model.TableCorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
+        return rule_model, rules
+
+
+
+
 class RandomAgent(Agent):
     def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
         self.name = 'random'
@@ -357,3 +396,7 @@ class RandomAgent(Agent):
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
         self.world.back_track()
         self.sense()
+
+
+class RLAgent(Agent):
+    pass

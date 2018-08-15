@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import gc
 import pickle
-from evaluation import plot_cumsum, test_colour_model
+from evaluation import plot_cumsum, test_colour_model, ResultsFile, get_agent
 import configparser
 import logging
 from collections import defaultdict
-
+import prob_model
 
 
 handler = logging.StreamHandler()
@@ -30,71 +30,6 @@ logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
 DEBUG = True
-
-class ResultsFile(object):
-    def __init__(self, config=None, name=None):
-        if name is not None:
-            self.name = name
-            self.dir_ = os.path.split(name)[0]
-        elif config is not None:
-            suite = config['scenario_suite']
-            agent = config['agent']
-            threshold = config['threshold']
-            dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
-            self.dir_ = dir_
-
-            os.makedirs(dir_, exist_ok=True)
-
-            nr = len(os.listdir(dir_))
-            self.nr = nr
-            self.name = os.path.join(dir_, 'experiment{}.out'.format(nr))
-        else:
-            raise AttributeError('No config or name given')
-
-    def get(filename):
-        return ResultsFile(name=filename)
-
-    def write(self, data):
-        with open(self.name, 'a') as f:
-            f.write(data)
-
-    def save_agent(self, agent):
-        save_dir = os.path.join('results/agents/', self.dir_)
-        os.makedirs(save_dir, exist_ok=True)
-
-        file_name = 'agent{}.pickle'.format(self.nr)
-        save_location = os.path.join(save_dir, file_name)
-
-        with open(save_location, 'wb') as f:
-            try:
-                agent.priors.to_dict()
-            except AttributeError:
-                pass
-            pickle.dump(agent, f)
-
-
-    def load_agent(self):
-        save_dir = os.path.join('results/agents/', self.dir_)
-        file_name = 'agent{}.pickle'.format(self.nr)
-        save_location = os.path.join(save_dir, file_name)
-        with open(save_location, 'rb') as f:
-            return pickle.load(f)
-
-    def plot_cumsum(self, discount=False, save_loc='test.png'):
-        plot_cumsum(self.name, discount=discount, save_loc=os.path.join(self.dir_, 'cumsum.png'))
-        # df = to_df(self.name, discount=discount)
-        # plt.figure()
-        # df['cumsum'].plot()
-        # plt.savefig(path.join(self.dir_, 'cumsum.png'))
-
-def get_agent(config):
-    if config['agent'] == 'agents.CorrectingAgent':
-        agent = agents.CorrectingAgent
-    elif config['agent'] == 'agents.RandomAgent':
-        agent = agents.RandomAgent
-    else:
-        raise ValueError('invalid agent name')
-    return agent
 
 
 class Debug(object):
@@ -135,6 +70,8 @@ class Debug(object):
 
     def update_cm_params(self, agent):
         for cm in agent.colour_models.values():
+            if isinstance(cm, prob_model.NeuralColourModel):
+                return
             mean = cm.mu0
             std_dev = cm.sigma0
             self.cm_params[(cm.name, 'mu')].append(mean)
@@ -167,8 +104,9 @@ def run_experiment(config_name='DEFAULT'):
     threshold = config.getfloat('threshold')
     Agent = get_agent(config)
     vis = config.getboolean('visualise')
+    neural = config.getboolean('neural')
 
-    if DEBUG:
+    if DEBUG and not 'Random' in config['agent']:
         debugger = Debug(config)
 
     results_file = ResultsFile(config=config)
@@ -201,7 +139,7 @@ def run_experiment(config_name='DEFAULT'):
                     if vis:
                         w.draw()
                     break
-        if DEBUG:
+        if DEBUG and not 'Random' in config['agent']:
             debugger.cm_confusion(agent)
             debugger.update_cm_params(agent)
 
@@ -223,7 +161,7 @@ def run_experiment(config_name='DEFAULT'):
     results_file.write('total reward: {}\n'.format(total_reward))
 
     results_file.save_agent(agent)
-    if DEBUG:
+    if DEBUG and not 'Random' in config['agent']:
         debugger.save_confusion()
         debugger.save_params()
 

@@ -3,9 +3,9 @@ import numpy as np
 from scipy.stats import norm
 import copy
 import matplotlib.pyplot as plt
+import torch
 
-
-ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
+#ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 #rule_belief = (0.5, 0.5)
 
 
@@ -45,6 +45,66 @@ class RuleBelief(object):
         highest_belief = np.argmax(self.belief)
         rule_positions = np.array([[True, True], [True, False], [False, True], [False, False]]) # [[[r1, r2],[r1,-r2]], [[-r1, r2], [-r1, -r2]]]
         return np.array([self.rule1, self.rule2])[rule_positions[highest_belief]]
+
+
+
+class NeuralColourModel(object):
+
+    def __init__(self, name, lr=0.01, H=10):
+        self.name = name
+        D_in = 3
+        H = H
+        D_out = 1
+        self.model = torch.nn.Sequential(
+            torch.nn.Linear(D_in, H),
+            torch.nn.ReLU(),
+            torch.nn.Linear(H, D_out),
+            torch.nn.Sigmoid(),
+        )
+
+        self.loss_fn = torch.nn.MSELoss(reduction='sum')
+        self.lr = lr
+        self.optim =  torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        #self.scheduler = torch.optim.lr_scheduler.ExponentialLR()
+
+    def p(self, c, fx, p_c=None):
+
+        if fx is None:
+            return torch.tensor([1, 0][c], dtype=torch.float)
+
+        fx = torch.tensor(fx, dtype=torch.float)
+        p_c1 = self.model(fx)
+        p_c0 = 1-p_c1
+        return [p_c0, p_c1][c]
+
+
+    def update(self, fx, w):
+        if fx is None:
+            return
+        w = torch.tensor(w, dtype=torch.float)
+
+        y_pred = self.p(1, fx)
+        loss = self.loss_fn(y_pred, w)
+        print(loss)
+        self.optim.zero_grad()
+        loss.backward()
+        self.optim.step()
+
+    #def update_negative(self, fx, w):
+    #   self.update(fx, 1-w)
+
+
+class ComboModel(object):
+    def __init__(self, name, cm1, cm2):
+        self.name = name
+        self.cm1 = cm1
+        self.cm2 = cm2
+
+    def p(self, c, fx, p_c=None):
+        p1 = self.cm1.p(c, fx)
+        p2 = self.cm2.p(c, fx)
+        n = p1 + p2
+        return [p1/n, p2/n][c]
 
 class ColourModel(object):
 
@@ -173,9 +233,15 @@ class CorrectionModel(object):
             prior_c1 = priors[0] #if visible[self.c1.name] == 1 else 1-priors[0]
             prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
 
-            return (self.rule_prior[visible['r']] *
+            try:
+                return (self.rule_prior[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
                     self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
+                    self.evaluate_correction(visible))
+            except RuntimeError:
+                return (self.rule_prior[visible['r']] *
+                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1).detach().numpy() *
+                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2).detach().numpy() *
                     self.evaluate_correction(visible))
         else:
             h = hidden.pop()
@@ -235,7 +301,7 @@ class CorrectionModel(object):
         self.rule_prior = self.rule_belief.get_as_priors()
         return (r0, r1)
 
-    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=True):
+    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=False):
         p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
         p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
@@ -316,9 +382,13 @@ class TableCorrectionModel(CorrectionModel):
         # self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
         #                       mu0 = c1.mu0, beta0=c1.beta0, alpha0=c1.alpha0,
         #                       mu1=c2.mu0, beta1=c2.beta0, alpha1=c2.alpha0)
-        self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
-                                mu0=c1.mu0, sigma0=c1.sigma0,
-                                mu1=c2.mu0, sigma1=c2.sigma0)
+
+        if isinstance(c1, NeuralColourModel):
+            self.c3 = ComboModel('{}/{}'.format(c1.name, c2.name), cm1=c1, cm2=c2)
+        else:
+            self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
+                                    mu0=c1.mu0, sigma0=c1.sigma0,
+                                    mu1=c2.mu0, sigma1=c2.sigma0)
         #self.rule_prior = rule_belief
         #self.variables = ['r', c1.name, c2.name, self.c3.name]
         self.variables.append(self.c3.name)
@@ -331,12 +401,20 @@ class TableCorrectionModel(CorrectionModel):
             prior_c1 = priors[0] #if visible[self.c1.name] == 1 else 1-priors[0]
             prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
             prior_c3 = priors[2] #if visible[self.c3.name] == 1 else 1-priors[2]
-            return (self.rule_prior[visible['r']] *
-                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
-                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
-                    self.evaluate_correction(visible) *
-                    self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
-                   )
+            try:
+                return (self.rule_prior[visible['r']] *
+                        self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
+                        self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
+                        self.evaluate_correction(visible) *
+                        self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
+                       )
+            except RuntimeError:
+                return (self.rule_prior[visible['r']] *
+                        self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1).detach().numpy() *
+                        self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2).detach().numpy() *
+                        self.evaluate_correction(visible) *
+                        self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3).detach().numpy()
+                       )
         else:
             h = hidden.pop()
             #print('adding {} to visible'.format(h))
@@ -359,7 +437,7 @@ class TableCorrectionModel(CorrectionModel):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 0
         return float(rule0 or rule1)
 
-    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=True):
+    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=False):
         prior_dict = self.updated_object_priors(data, ['o1', 'o2', 'o3'], priors, visible=visible)
 
         w1 = prior_dict['o1'][self.c1.name]
