@@ -103,7 +103,7 @@ def read_sentence(sentence, use_dmrs=True):
 
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -129,6 +129,7 @@ class CorrectingAgent(Agent):
         logger.debug('rule beliefs: ' + str(self.rule_beliefs))
         logger.debug('rule_models: ' + str(self.rule_models))
         logger.debug('colour_models: ' + str(self.colour_models))
+        self.update_negative=update_negative
 
     def new_world(self, world):
         self.world = world
@@ -208,7 +209,7 @@ class CorrectingAgent(Agent):
         #logger.debug(prior_updates)
 
         rule_model.update_belief_r(r1, r2)
-        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible)
+        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative)
 
         self.priors.update(prior_updates)
         self.update_goal()
