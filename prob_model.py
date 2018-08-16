@@ -4,12 +4,13 @@ from scipy.stats import norm
 import copy
 import matplotlib.pyplot as plt
 import torch
-
+import logging
 #ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 #rule_belief = (0.5, 0.5)
 
-default_update_negative=True
+default_update_negative=False
 
+logger = logging.getLogger('agent')
 
 
 class RuleBelief(object):
@@ -217,12 +218,15 @@ class ColourModel(object):
 
 class CorrectionModel(object):
 
-    def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
+    def __init__(self, rule_names, rules, c1, c2, rule_belief=None):
         self.rules = rules
         self.rule_names = rule_names
         self.c1 = c1
         self.c2 = c2
-        self.rule_belief = RuleBelief((c1, c2), rules[0], rules[1])
+        if rule_belief is None:
+            self.rule_belief = RuleBelief((c1, c2), rules[0], rules[1])
+        else:
+            self.rule_belief = rule_belief
         self.rule_prior = self.rule_belief.get_as_priors()
         self.variables = [c1.name, c2.name, 'r']
 
@@ -305,6 +309,9 @@ class CorrectionModel(object):
         p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
         p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
+
+        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, p_c1))
+        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, p_c2))
         self.c1.update(data[self.c1.name], p_c1)
         self.c2.update(data[self.c2.name], p_c2)
         if update_negative:
@@ -373,9 +380,9 @@ class CorrectionModel(object):
                 objs[1]: {self.c2.name:self.p_c(self.c2.name, data, priors=priors, visible=copy.copy(visible))}}
 
 class TableCorrectionModel(CorrectionModel):
-    def __init__(self, rule_names, rules, c1, c2, rule_belief=(0.5, 0.5)):
+    def __init__(self, rule_names, rules, c1, c2, rule_belief=None):
 
-        super().__init__(rule_names, rules, c1, c2, rule_belief = rule_belief)
+        super().__init__(rule_names, rules, c1, c2, rule_belief=rule_belief)
         #self.rules = rules
         #self.c1 = c1
         #self.c2 = c2
@@ -448,6 +455,10 @@ class TableCorrectionModel(CorrectionModel):
         # w2 = self.p_c(self.c2.name, data, priors=priors)
         # w4 = self.p_c(self.c3.name, data, priors=priors)
         # w3 = 1-w4 # these are in the other direction because 0 for c3 means it is equivalent to c1 and p_c returns probability that c=1
+        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w1))
+        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w2))
+        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w3))
+        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w4))
         self.c1.update(data[self.c1.name], w1)
         self.c2.update(data[self.c2.name], w2)
         self.c1.update(data[self.c3.name], w3)

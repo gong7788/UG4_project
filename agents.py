@@ -13,7 +13,7 @@ import logging
 
 
 logger = logging.getLogger('agent')
-#handler = logging.StreamHandler()
+handler = logging.StreamHandler()
 #logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
@@ -50,7 +50,7 @@ class Priors(object):
             c2 = self.priors[message.o3][message.o2[0]]
             o3 = c1/(c1+c2)
             prior.append(o3)
-        logger.debug('priors for {}: ({})'.format(names, ','.join(map(str, prior))))
+        #logger.debug('priors for {}: ({})'.format(names, ','.join(map(str, prior))))
         return tuple(prior)
 
     def update(self, prior_dict):
@@ -120,6 +120,9 @@ class CorrectingAgent(Agent):
         self.rule_models = {}
         self.teacher = teacher
         self.priors = Priors(world.objects)
+        logger.debug('rule beliefs: ' + str(self.rule_beliefs))
+        logger.debug('rule_models: ' + str(self.rule_models))
+        logger.debug('colour_models: ' + str(self.colour_models))
 
     def new_world(self, world):
         self.world = world
@@ -162,32 +165,28 @@ class CorrectingAgent(Agent):
 
         # build the rule model
         rule_model, rules = self.build_model(message)
-        if rule_model.rule_names in self.rule_models.keys():
-            rule_model = rule_model
+
+
+
+
+        # currently doesn't do anything
+        # if (rule_model.rule_names, message.T) in self.rule_models.keys():
+        #      rule_model = self.rule_models[(rule_model.rule_names, message.T)]
+        #      logger.debug('using old model')
+        #      logger.debug(rule_model)
+
+        logger.debug('rule priors' + str(rule_model.rule_prior))
 
         # gets F(o1), F(o2), and optionally F(o3)
         data = self.get_data(message, args)
 
         priors = self.priors.get_priors(message, args)
         r1, r2 = rule_model.get_message_probs(data, priors=priors)
-        #rule_beliefs = rule_model.update_belief_r(data)
-        #print(rule_beliefs)
-        objs = [args[0], args[1], message.o3]
-
-
-
-        # c1 = rule_model.p_c(message.o1[0], data, priors=prors)
-        # c2 =
-        #self.rule_beliefs[rule_model.rules] = rule_beliefs
-        # if rule_beliefs[0] > self.threshold:
-        #     self.goal = goal_updates.update_goal(self.goal, rules[0])
-
-
-        # elif rule_beliefs[1] > self.threshold:
-        #     self.goal = goal_updates.update_goal(self.goal, rules[1])
 
         # if there is no confidence in the update then ask for help
         if max(r1, r2) < self.threshold:
+            print('MAKING QUESTION!)!)!)!)!)!)')
+            logger.debug('asking question')
             question = 'Is the top object {}?'.format(message.o1[0])
             dialogue.info("R: " + question)
             answer = self.teacher.answer_question(question, self.world)
@@ -197,24 +196,20 @@ class CorrectingAgent(Agent):
             visible[message.o1[0]] = bin_answer
             message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
 
-
+        objs = [args[0], args[1], message.o3]
         prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
 
         # update the goal belief
-        logger.debug(prior_updates)
+        #logger.debug(prior_updates)
 
         rule_model.update_belief_r(r1, r2)
-
         rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible)
-        # for colour in self.colour_models.values():
-        #     logger.debug(colour.mu0)
-        #     logger.debug(colour.sigma0)
 
         self.priors.update(prior_updates)
         self.update_goal()
         self.world.back_track()
         self.sense()
-        self.rule_models[rule_model.rule_names] = rule_model
+        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
 
     def tracking(self):
         for colour in self.colour_models.values():
@@ -254,11 +249,20 @@ class CorrectingAgent(Agent):
         rules = goal_updates.create_goal_options(message.o1, message.o2)
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
-        if rule_names in self.rule_beliefs.keys():
-            rule_probs = self.rule_beliefs[rule_names] # this will probably have to change
-        else:
-            rule_probs = (0.5, 0.5)
+        # If this this rule model already exists, keep using the same
+        if (rule_names, message.T) in self.rule_models.keys():
+            logger.debug('reusing a rule model')
+            return self.rule_models[(rule_names, message.T)], rules
 
+        # If a table correction exists then use the same rule beliefs for tower correction or vis versa
+        try:
+            equivalent_rule_model = list(filter(lambda x: x[0] == rule_names, self.rule_models.keys()))[0]
+            rule_belief = self.rule_models[equivalent_rule_model].rule_belief
+        except IndexError:
+            rule_belief = None
+
+
+        # if we have colour models for the relevant colours, use these for this model
         c1 = message.o1[0]
         c2 = message.o2[0]
         try:
@@ -272,19 +276,25 @@ class CorrectingAgent(Agent):
             colour_model2 = prob_model.ColourModel(c2)
             self.colour_models[c2] = colour_model2
 
+        # build the model
         if message.T == 'tower':
-            rule_model = prob_model.CorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
-
+            rule_model = prob_model.CorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_belief)
         else:
-            rule_model = prob_model.TableCorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_probs)
+            rule_model = prob_model.TableCorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_belief)
         return rule_model, rules
 
 
     def update_goal(self):
         rules = []
-        for correction_model in self.rule_models.values():
-            rule_belief = correction_model.rule_belief
-            rules.extend(rule_belief.get_best_rules())
+        used_models = set()
+        for (rule_name, T), correction_model in self.rule_models.items():
+            if rule_name in used_models:
+                continue
+            else:
+                rule_belief = correction_model.rule_belief
+                rules.extend(rule_belief.get_best_rules())
+                used_models.add(rule_name)
+
         self.goal = goal_updates.goal_from_list(rules)
 
 
