@@ -8,7 +8,7 @@ import torch
 #ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 #rule_belief = (0.5, 0.5)
 
-
+default_update_negative=True
 
 
 
@@ -90,8 +90,8 @@ class NeuralColourModel(object):
         loss.backward()
         self.optim.step()
 
-    #def update_negative(self, fx, w):
-    #   self.update(fx, 1-w)
+    def update_negative(self, fx, w):
+        pass
 
 
 class ComboModel(object):
@@ -301,7 +301,7 @@ class CorrectionModel(object):
         self.rule_prior = self.rule_belief.get_as_priors()
         return (r0, r1)
 
-    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=False):
+    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=default_update_negative):
         p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
         p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
@@ -437,7 +437,7 @@ class TableCorrectionModel(CorrectionModel):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 0
         return float(rule0 or rule1)
 
-    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=False):
+    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=default_update_negative):
         prior_dict = self.updated_object_priors(data, ['o1', 'o2', 'o3'], priors, visible=visible)
 
         w1 = prior_dict['o1'][self.c1.name]

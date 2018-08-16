@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from colour_dict import colour_dict, simple_colour_dict
 import agents
-
+import configparser
 def extract_file(filename):
     with open(filename, 'rb') as f:
         try:
@@ -146,7 +146,13 @@ def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_d
 
 class Experiment(object):
 
-    def __init__(self, config=None):
+    def __init__(self, config_name='DEFAULT'):
+
+        config = configparser.ConfigParser()
+        config.read('config/experiments.ini')
+
+        config = config[config_name]
+
         suite = config['scenario_suite']
         self.name = suite
         threshold = config['threshold']
