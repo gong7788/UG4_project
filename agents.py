@@ -131,7 +131,7 @@ class CorrectingAgent(Agent):
 
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        tau = 0.5
+        tau = 0.6
         while True:
             self.sense(threshold=tau)
             with open('tmp/problem.pddl', 'w') as f:

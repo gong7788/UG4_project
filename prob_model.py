@@ -35,10 +35,10 @@ class RuleBelief(object):
          [0*self.p_r2()*m_r1 + 1*(1-self.p_r1())*m_r2, 0*(1-self.p_r2())*m_r1 + 0*(1-self.p_r1())*m_r2]])
 
     def get_as_priors(self):
-        #r1 = self.p_r1()
-        #r2 = self.p_r2()
-        #return np.array([r1, r2])/(r1+r2)
-        return np.array([0.5, 0.5])
+        r1 = self.p_r1()
+        r2 = self.p_r2()
+        return np.array([r1, r2])/(r1+r2)
+        #return np.array([0.5, 0.5])
 
 
     def get_best_rules(self):
