@@ -12,6 +12,12 @@ from ff import NoPlanError, IDontKnowWhatIsGoingOnError
 import logging
 
 
+
+def log_cm(cm):
+    logger.debug(cm.name)
+    logger.debug('Positive class attributs: ' + str(cm.mu0) + ' ' + str(cm.sigma0))
+    logger.debug('Negative class attributs: ' + str(cm.mu1) + ' ' + str(cm.sigma1))
+
 logger = logging.getLogger('agent')
 handler = logging.StreamHandler()
 #logger.addHandler(handler)
@@ -167,13 +173,10 @@ class CorrectingAgent(Agent):
         rule_model, rules = self.build_model(message)
 
 
-
-
-        # currently doesn't do anything
-        # if (rule_model.rule_names, message.T) in self.rule_models.keys():
-        #      rule_model = self.rule_models[(rule_model.rule_names, message.T)]
-        #      logger.debug('using old model')
-        #      logger.debug(rule_model)
+        log_cm(rule_model.c1)
+        log_cm(rule_model.c2)
+        if message.T.lower() == 'table':
+            log_cm(rule_model.c3)
 
         logger.debug('rule priors' + str(rule_model.rule_prior))
 
@@ -181,11 +184,13 @@ class CorrectingAgent(Agent):
         data = self.get_data(message, args)
 
         priors = self.priors.get_priors(message, args)
+        logger.debug('object priors: ' + str(priors))
         r1, r2 = rule_model.get_message_probs(data, priors=priors)
+        logger.debug('predictions: ' + str((r1, r2)))
+
 
         # if there is no confidence in the update then ask for help
         if max(r1, r2) < self.threshold:
-            print('MAKING QUESTION!)!)!)!)!)!)')
             logger.debug('asking question')
             question = 'Is the top object {}?'.format(message.o1[0])
             dialogue.info("R: " + question)

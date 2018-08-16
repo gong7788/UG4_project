@@ -29,7 +29,6 @@ logger = logging.getLogger('dialogue')
 logger.setLevel(logging.INFO)
 logger.addHandler(handler)
 
-DEBUG = True
 
 
 class Debug(object):
@@ -94,8 +93,10 @@ class Debug(object):
 
         df.to_pickle(os.path.join(self.dir_, 'cm_params{}.pickle'.format(self.nr)))
 
-def run_experiment(config_name='DEFAULT'):
+def run_experiment(config_name='DEFAULT', debug=False):
 
+    if debug:
+        agent_logger.setLevel(logging.DEBUG)
 
     config = configparser.ConfigParser()
     config.read('config/experiments.ini')
@@ -104,9 +105,9 @@ def run_experiment(config_name='DEFAULT'):
     threshold = config.getfloat('threshold')
     Agent = get_agent(config)
     vis = config.getboolean('visualise')
-    neural = config.getboolean('neural')
 
-    if DEBUG and not 'Random' in config['agent']:
+
+    if debug and not 'Random' in config['agent']:
         debugger = Debug(config)
 
     results_file = ResultsFile(config=config)
@@ -139,7 +140,7 @@ def run_experiment(config_name='DEFAULT'):
                     if vis:
                         w.draw()
                     break
-        if DEBUG and not 'Random' in config['agent']:
+        if debug and not 'Random' in config['agent']:
             debugger.cm_confusion(agent)
             debugger.update_cm_params(agent)
 
@@ -148,7 +149,7 @@ def run_experiment(config_name='DEFAULT'):
                 #    agent.no_correction(a, args)
         # if np.isnan(np.sum(agent.colour_models[agent.colour_models.ke].mu0)):
         #     raise ValueError('NAN NAN NAN')
-        clear_output()
+        #clear_output()
         total_reward += w.reward
         print('{} reward: {}'.format(problem, w.reward))
         #gc.collect()
@@ -161,7 +162,7 @@ def run_experiment(config_name='DEFAULT'):
     results_file.write('total reward: {}\n'.format(total_reward))
 
     results_file.save_agent(agent)
-    if DEBUG and not 'Random' in config['agent']:
+    if debug and not 'Random' in config['agent']:
         debugger.save_confusion()
         debugger.save_params()
 

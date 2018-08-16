@@ -130,8 +130,8 @@ class ColourModel(object):
             return [1, 0][c]
         p_c_0 = 1-p_c
         p1 = p_c * np.prod(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
-        #p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
-        p0 = p_c_0 * np.prod([1,1,1])
+        p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
+        #p0 = p_c_0 * np.prod([1,1,1])
         return [p0, p1][c]/(p1 + p0)
 
 
@@ -238,10 +238,15 @@ class CorrectionModel(object):
             prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
 
             try:
-                return (self.rule_prior[visible['r']] *
-                    self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
-                    self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
-                    self.evaluate_correction(visible))
+                rp = self.rule_prior[visible['r']]
+                c1p = self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1)
+                c2p = self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2)
+                correction_eval = self.evaluate_correction(visible)
+                logger.debug(visible)
+                logger.debug('rule prior: ' + str(rp))
+                logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
+                logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
+                return (rp * c1p * c2p * correction_eval)
             except RuntimeError:
                 return (self.rule_prior[visible['r']] *
                     self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1).detach().numpy() *
@@ -281,6 +286,7 @@ class CorrectionModel(object):
         v1.update({'r':1})
         r0 = self.p(data, visible=v0, priors=priors)
         r1 = self.p(data, visible=v1, priors=priors)
+        logger.debug((r0, r1))
         eta = r0 + r1
         if np.isnan([r0, r1][r]/eta):
             print('r0, r1', r0, r1)
@@ -294,6 +300,7 @@ class CorrectionModel(object):
 
 
     def get_message_probs(self, data, visible={}, priors=(0.5,0.5,0.5)):
+
         r0 = self.p_r(0, data, visible=copy.copy(visible), priors=priors)
         r1 = self.p_r(1, data, visible=copy.copy(visible), priors=priors)
         return (r0, r1)
@@ -379,6 +386,7 @@ class CorrectionModel(object):
         return {objs[0]: {self.c1.name:self.p_c(self.c1.name, data, priors=priors, visible=copy.copy(visible))},
                 objs[1]: {self.c2.name:self.p_c(self.c2.name, data, priors=priors, visible=copy.copy(visible))}}
 
+
 class TableCorrectionModel(CorrectionModel):
     def __init__(self, rule_names, rules, c1, c2, rule_belief=None):
 
@@ -408,13 +416,21 @@ class TableCorrectionModel(CorrectionModel):
             prior_c1 = priors[0] #if visible[self.c1.name] == 1 else 1-priors[0]
             prior_c2 = priors[1] #if visible[self.c2.name] == 1 else 1-priors[1]
             prior_c3 = priors[2] #if visible[self.c3.name] == 1 else 1-priors[2]
+            rp = self.rule_prior[visible['r']]
+            c1p = self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1)
+            c2p = self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2)
+            c3p = self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
+            correction_eval = self.evaluate_correction(visible)
+            if correction_eval == 1:
+                logger.debug(visible)
+                logger.debug('rule prior: ' + str(rp))
+                logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
+                logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
+                logger.debug('P({}=1): '.format(self.c3.name) + str(c3p))
+
+
             try:
-                return (self.rule_prior[visible['r']] *
-                        self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1) *
-                        self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2) *
-                        self.evaluate_correction(visible) *
-                        self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
-                       )
+                return (rp * c1p * c2p * c3p *correction_eval)
             except RuntimeError:
                 return (self.rule_prior[visible['r']] *
                         self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1).detach().numpy() *
