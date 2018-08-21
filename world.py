@@ -84,3 +84,15 @@ class PDDLWorld(World):
         except Solved:
             return False
         return False
+
+    def objects_not_in_tower(self):
+        observation = self.sense()
+        objects = observation.objects
+        rels = observation.relations
+
+        out_objects = []
+
+        for o in objects:
+            if 'in-tower' not in rels[o]:
+                out_objects.append(o)
+        return out_objects

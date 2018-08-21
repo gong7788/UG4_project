@@ -203,11 +203,24 @@ class Experiment(object):
         plt.savefig('results/plots/' + experiment + '.png')
         plt.show()
 
+    def get_agent(self, name):
+        files = dict(self.results_files)
+        return files[name]
 
     def plot(self, discount=True):
         df = self.to_df(discount=discount)
         self.plot_df(df)
 
+
+    def test_colour_models(self, name, colour_thresh=0.5):
+        rf = self.get_agent(name)
+        agent = rf.load_agent()
+        for cm in agent.colour_models.values():
+            yield(cm.name, test_colour_model(cm, colour_thresh=colour_thresh))
+
+    def print_colour_models(self, name, colour_thresh=0.5):
+        for name, values in self.test_colour_models(name, colour_thresh=colour_thresh):
+            print(name, values)
 
 
 class ResultsFile(object):

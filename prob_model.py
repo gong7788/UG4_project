@@ -51,21 +51,24 @@ class RuleBelief(object):
 
 class NeuralColourModel(object):
 
-    def __init__(self, name, lr=0.01, H=10):
+    def __init__(self, name, lr=0.1, H=10, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
         self.name = name
         D_in = 3
         H = H
         D_out = 1
         self.model = torch.nn.Sequential(
             torch.nn.Linear(D_in, H),
-            torch.nn.ReLU(),
+            torch.nn.ReLU(), # torch.nn.Tanh(),
             torch.nn.Linear(H, D_out),
             torch.nn.Sigmoid(),
         )
 
         self.loss_fn = torch.nn.MSELoss(reduction='sum')
         self.lr = lr
-        self.optim =  torch.optim.Adam(self.model.parameters(), lr=self.lr)
+        if optimiser == 'SGD':
+            self.optim =  torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=momentum, dampening=dampening, weight_decay=weight_decay, nesterov=nesterov)
+        elif optimiser == 'Adam':
+            self.optim = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         #self.scheduler = torch.optim.lr_scheduler.ExponentialLR()
 
     def p(self, c, fx, p_c=None):
@@ -86,7 +89,7 @@ class NeuralColourModel(object):
 
         y_pred = self.p(1, fx)
         loss = self.loss_fn(y_pred, w)
-        print(loss)
+        #print(loss)
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()
@@ -125,25 +128,20 @@ class ColourModel(object):
         self.n1 = 1
         self.v1 = 1
 
+
+        self.alpha0 = np.array([1, 1, 1])
+        self.beta0 = np.array([1, 1, 1])
+        self.gamma = 0.005
+        #self.sigma0 = self.beta0/(self.alpha0 + 3/2)
+
     def p(self, c, fx, p_c=0.5):
         if fx is None:
             return [1, 0][c]
         p_c_0 = 1-p_c
         p1 = p_c * np.prod(norm.pdf(fx, loc=self.mu0, scale=self.sigma0))
         p0 = p_c_0 * np.prod(norm.pdf(fx, loc=self.mu1, scale=self.sigma1))
-        #p0 = p_c_0 * np.prod([1,1,1])
         return [p0, p1][c]/(p1 + p0)
 
-
-    # def p(self, c, fx, p_c=0.5):
-    #     if fx is None:
-    #         return [1, 0][c]
-    #     p_c_0 = 1 - p_c
-    #     log_p_c = np.log(p_c)
-    #     log_p_c0 = np.log(p_c_0)
-    #     log_p1 = log_p_c + np.sum(np.log(norm.pdf(fx, loc=self.mu0, scale=self.sigma0)))
-    #     log_p0 = log_p_c0 + np.sum(np.log(norm.pdf(fx, loc=self.mu1, scale=self.sigma1)))
-    #     norm =
 
     def update(self, fx, w):
         if fx is None:
@@ -169,22 +167,22 @@ class ColourModel(object):
         self.mu1 = new_mu1
         self.sigma1 = v_times_sigma/self.v1
 
-    # def update(self, fx, w):
-    #     if fx is None:
-    #         return self.mu0, self.alpha0, self.beta0
-    #     asquigle = 1/self.gamma + 1*w
-    #     bsquigle = self.mu0/self.gamma + fx*w
-    #     csquigle = self.mu0**2/self.gamma + (fx*w)**2
-    #     mu_post = bsquigle/asquigle
-    #     alpha = self.alpha0 + 1/2
-    #     beta = self.beta0 +  0.5*(csquigle - bsquigle**2/asquigle)
-    #     self.mu0 = mu_post
-    #     self.alpha0 = alpha
-    #     self.beta0 = beta
-    #     self.sigma0 = beta/(alpha + 3/2)
-    #     return mu_post, self.sigma0, alpha, beta
-    #     #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
-    #     #return updated_mu
+    def update2(self, fx, w):
+        if fx is None:
+            return self.mu0, self.alpha0, self.beta0
+        asquigle = 1/self.gamma + 1*w
+        bsquigle = self.mu0/self.gamma + fx*w
+        csquigle = self.mu0**2/self.gamma + (fx*w)**2
+        mu_post = bsquigle/asquigle
+        alpha = self.alpha0 + 1/2
+        beta = self.beta0 +  0.5*(csquigle - bsquigle**2/asquigle)
+        self.mu0 = mu_post
+        self.alpha0 = alpha
+        self.beta0 = beta
+        self.sigma0 = self.beta0/(self.alpha0 + 3/2)
+        return mu_post, self.sigma0, alpha, beta
+        #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
+        #return updated_mu
 
 
     def draw(self, show=False, save_location_basename=None):
