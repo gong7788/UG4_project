@@ -193,11 +193,11 @@ class ColourModel(object):
         sigma2_r, sigma2_g, sigma2_b = self.sigma1
         fig, ax1 = plt.subplots(1, 1)
 
-        ax1.set_title('P(F(x)|{}(x)=1'.format(self.name), fontsize=14)
+        ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
         ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
         ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
         ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
-
+        ax1.set_ylim(0, 1)
         # ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
         # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
         # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')

@@ -17,7 +17,7 @@ import configparser
 import logging
 from collections import defaultdict
 import prob_model
-
+import sqlalchemy
 
 handler = logging.StreamHandler()
 
@@ -93,7 +93,23 @@ class Debug(object):
 
         df.to_pickle(os.path.join(self.dir_, 'cm_params{}.pickle'.format(self.nr)))
 
-def run_experiment(config_name='DEFAULT', debug=False):
+def get_neural_config(name):
+    config = configparser.ConfigParser()
+    config.read('config/neural.ini')
+    config_dict = {}
+    config = config[name]
+    config_dict['lr'] = config.getfloat('lr')
+    config_dict['H'] = config.getint('H')
+    config_dict['momentum'] = config.getfloat('momentum')
+    config_dict['dampening'] = config.getfloat('dampening')
+    config_dict['weight_decay'] = config.getfloat('weight_decay')
+    config_dict['nesterov'] = config.getboolean('nesterov')
+    config_dict['optimiser'] = config['optimiser']
+    return config_dict
+
+
+
+def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
     if debug:
         agent_logger.setLevel(logging.DEBUG)
@@ -116,10 +132,12 @@ def run_experiment(config_name='DEFAULT', debug=False):
     problems = os.listdir(problem_dir)
     w = world.PDDLWorld('blocks-domain.pddl', '{}/{}'.format(problem_dir, problems[0]))
     teacher = TeacherAgent()
-    agent = Agent(w, teacher=teacher, threshold=threshold)
-    #results_file = 'results/{}_{}_{}{}.out'.format(agent.name, problem_dir, threshold, file_modifiers)
-    #with open(results_file, 'w') as f:
-    #    f.write('Results for {}\n'.format(problem_dir))
+    if Agent in [agents.NeuralCorrectingAgent]:
+        config_dict = get_neural_config(neural_config)
+        agent = Agent(w, teacher=teacher, **config_dict)
+    else:
+        agent = Agent(w, teacher=teacher, threshold=threshold)
+
 
     results_file.write('Results for {}\n'.format(problem_dir))
     for problem in problems:
@@ -145,20 +163,14 @@ def run_experiment(config_name='DEFAULT', debug=False):
             debugger.update_cm_params(agent)
 
 
-                #else:
-                #    agent.no_correction(a, args)
-        # if np.isnan(np.sum(agent.colour_models[agent.colour_models.ke].mu0)):
-        #     raise ValueError('NAN NAN NAN')
-        #clear_output()
+
         total_reward += w.reward
         print('{} reward: {}'.format(problem, w.reward))
-        #gc.collect()
-        #with open(results_file, 'a') as f:
+
         results_file.write('{} reward: {}\n'.format(problem, w.reward))
         results_file.write('{} cumulative reward: {}\n'.format(problem, total_reward))
 
-    #print('total reward: {}'.format(total_reward))
-    #with open(results_file, 'a') as f:
+
     results_file.write('total reward: {}\n'.format(total_reward))
 
     results_file.save_agent(agent)
@@ -166,11 +178,20 @@ def run_experiment(config_name='DEFAULT', debug=False):
         debugger.save_confusion()
         debugger.save_params()
 
-    # with open('results/agents/{}_{}_{}{}.pickle'.format(agent.name, problem_dir, threshold, file_modifiers), 'wb') as f:
-    #     try:
-    #         agent.priors.to_dict()
-    #     except AttributeError:
-    #         pass
-    #     pickle.dump(agent, f)
+    return results_file.name
 
-    #plot_cumsum(results_file, discount=True, save_loc='results/plots/{}_{}_{}.png'.format(agent.name, problem_dir, threshold))
+
+
+def add_experiment(config_name, neural_config):
+    engine = sqlalchemy.create_engine('sqlite:///db/experiments.db')
+    df = pd.read_sql('experiments', index_col='index', con=engine)
+
+    df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
+    df.to_sql('experiments', con=engine, if_exists='replace')
+
+    results_file = run_experiment(config_name, neural_config)
+    df = pd.read_sql('experiments', index_col='index', con=engine)
+    last_label = df.index[-1]
+    df.at[last_label, 'experiment_file'] = results_file
+    df.at[last_label, 'status'] = 'done'
+    df.to_sql('experiments', con=engine, if_exists='replace')

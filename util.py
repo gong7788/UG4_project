@@ -14,9 +14,9 @@ def add_config_option(config_file='config/experiments.ini', category='DEFAULT', 
     config.read(config_file)
 
     try:
-        config[category][option] = value
+        config[category][option] = str(value)
     except KeyError:
-        config[category] = {option: value}
+        config[category] = {option: str(value)}
 
     with open(config_file, 'w') as configfile:
         config.write(configfile)
@@ -24,3 +24,7 @@ def add_config_option(config_file='config/experiments.ini', category='DEFAULT', 
 def create_experiment(name, options={}):
     for option, value in options.items():
         add_config_option(config_file='config/experiments.ini', category=name, option=option, value=value)
+
+def create_neural_experiment(name, options={}):
+    for option, value in options.items():
+        add_config_option(config_file='config/neural.ini', category=name, option=option, value=value)

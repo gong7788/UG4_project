@@ -130,10 +130,19 @@ def load_agent(dataset, threshold=0.7, file_modifiers=''):
         agent = pickle.load(f)
     return agent
 
-def test_colour_model(colour_model, colour_dict=colour_dict, colour_thresh=0.5):
+def test_colour_model(colour_model, colour_dict=colour_dict, colour_thresh=0.5, pretty_printing=True):
     probs = colour_probs(colour_model, colour_dict)
     confusion = colour_confusion(colour_model.name, probs, colour_thresh)
+    if pretty_printing:
+        print_confusion(confusion)
     return confusion
+
+def print_confusion(confusion_dict):
+    print('True Label  C=1 C=0')
+    print('Predict C=1| {tp} | {fp} |'.format(**confusion_dict))
+    print('        C=0| {fn} | {tn} |'.format(**confusion_dict))
+
+
 
 def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict, colour_thresh=0.5):
     agent = load_agent(dataset, threshold=threshold, file_modifiers=file_modifiers)
@@ -228,6 +237,7 @@ class ResultsFile(object):
         if name is not None:
             self.name = name
             self.dir_ = os.path.split(name)[0]
+            self.nr = int(os.path.split(name)[1].strip('experiment').strip('.out'))
         elif config is not None:
             suite = config['scenario_suite']
             agent = config['agent']
@@ -247,15 +257,15 @@ class ResultsFile(object):
         return ResultsFile(name=filename)
 
     def read(config):
-        rf = ResultsFile(name='')
+        #rf = ResultsFile(name='')
         suite = config['scenario_suite']
         agent = config['agent']
         threshold = config['threshold']
         dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
-        rf.dir_ = dir_
 
-        rf.nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_)))) - 1
-        rf.name = os.path.join(dir_, 'experiment{}.out'.format(rf.nr))
+        nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_)))) - 1
+        name = os.path.join(dir_, 'experiment{}.out'.format(nr))
+        rf = ResultsFile(name=name)
         return rf
 
 

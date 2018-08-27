@@ -331,7 +331,7 @@ class CorrectingAgent(Agent):
 class NeuralCorrectingAgent(CorrectingAgent):
 
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, H=4):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, H=4, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
         self.H = H
         super().__init__(world, colour_models=colour_models, rule_beliefs=rule_beliefs, domain_file=domain_file, teacher=teacher, threshold=threshold)
 
