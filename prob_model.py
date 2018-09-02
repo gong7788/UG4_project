@@ -185,23 +185,31 @@ class ColourModel(object):
         #return updated_mu
 
 
-    def draw(self, show=False, save_location_basename=None):
+    def draw(self, show=False, save_location_basename=None, draw_both=False):
         x = np.linspace(0, 1, 100)
         mu_r,mu_g,mu_b = self.mu0
         mu2_r, mu2_g, mu2_b = self.mu1
         sigma_r, sigma_g, sigma_b = self.sigma0
         sigma2_r, sigma2_g, sigma2_b = self.sigma1
-        fig, ax1 = plt.subplots(1, 1)
 
-        ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
-        ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
-        ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
-        ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
-        ax1.set_ylim(0, 1)
-        # ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
-        # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
-        # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
-        # ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+        if draw_both:
+            fig, (ax1, ax2) = plt.subplots(1, 2)
+            ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
+            ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
+            ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+
+            ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
+            ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
+            ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
+            ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+        else:
+            fig, ax1 = plt.subplots(1, 1)
+            ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
+            ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
+            ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
+
         plt.legend(prop={'size': 10})
 
         if show:

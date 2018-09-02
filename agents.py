@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
 from itertools import count
-
+from colour_dict import colour_names
 
 def log_cm(cm):
     logger.debug(cm.name)
@@ -47,8 +47,12 @@ def queuer(q, domain, problem):
 
 
 class Priors(object):
-    def __init__(self, objects):
+    def __init__(self, objects, known_colours=[]):
+        """known colours = list of pairs"""
         self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
+        for o, c in known_colours:
+            self.priors[o][c] = 1.0
+
 
     def get_priors(self, message, args):
         o1 = self.priors[args[0]][message.o1[0]]
@@ -554,7 +558,8 @@ class RLAgent(Agent):
             priors = self.priors.get_priors(message, args)
             logger.debug('object priors: ' + str(priors))
             r1, r2 = rule_model.get_message_probs(data, priors=priors)
-            logger.debug('predictions: ' + str((r1, r2)))
+            logger.debug('predictions: ' + str((r1, r2)))            # these objects include tower locations, which they should not # I don't htink thats true?
+
 
 
             # if there is no confidence in the update then ask for help
@@ -583,3 +588,36 @@ class RLAgent(Agent):
             self.world.back_track()
             self.sense()
             self.rule_models[(rule_model.rule_names, message.T)] = rule_model
+
+def get_colours(obs):
+    for obj, value in obs.relations.items():
+        for c in value:
+            if c in colour_names:
+                yield (obj, c)
+
+class PerfectColoursAgent(CorrectingAgent):
+
+    def new_world(self, world):
+        self.world = world
+        observation = world.sense(obscure=False)
+        self.problem = copy.deepcopy(world.problem)
+        self.tmp_goal = None
+        self.problem.initialstate = observation.state
+
+        known_colours = get_colours(observation)
+
+        self.priors = Priors(world.objects, known_colours=known_colours)
+
+
+    def sense(self, threshold=0.6):
+        observation = self.world.sense(obscure=False)
+        self.problem.initialstate = observation.state
+        #
+        # for colour, model in self.colour_models.items():
+        #     for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
+        #         data = observation.colours[obj]
+        #         p_colour = model.p(1, data)
+        #         if p_colour > threshold:
+        #             colour_formula = pddl_functions.create_formula(colour, [obj])
+        #             self.problem.initialstate.append(colour_formula)
+        return observation

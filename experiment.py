@@ -119,6 +119,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     config = config[config_name]
     problem_dir = config['scenario_suite']
     threshold = config.getfloat('threshold')
+    update_negative = config.getboolean('update_negative')
     Agent = get_agent(config)
     vis = config.getboolean('visualise')
 
@@ -135,6 +136,8 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     if Agent in [agents.NeuralCorrectingAgent]:
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
+    elif Agent in [agents.CorrectingAgent]:
+        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative)
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
@@ -182,14 +185,14 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
 
 
-def add_experiment(config_name, neural_config):
+def add_experiment(config_name, neural_config, debug=False):
     engine = sqlalchemy.create_engine('sqlite:///db/experiments.db')
     df = pd.read_sql('experiments', index_col='index', con=engine)
 
     df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
     df.to_sql('experiments', con=engine, if_exists='replace')
 
-    results_file = run_experiment(config_name, neural_config)
+    results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug)
     df = pd.read_sql('experiments', index_col='index', con=engine)
     last_label = df.index[-1]
     df.at[last_label, 'experiment_file'] = results_file

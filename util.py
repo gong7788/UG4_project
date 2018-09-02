@@ -10,6 +10,9 @@ def get_config():
         return config['laptop']
 
 def add_config_option(config_file='config/experiments.ini', category='DEFAULT', option=None, value=None):
+    """category (DEFAULT): the name of file to change
+    option: which option to add
+    value: the value of the option"""
     config = configparser.ConfigParser()
     config.read(config_file)
 
@@ -22,6 +25,11 @@ def add_config_option(config_file='config/experiments.ini', category='DEFAULT', 
         config.write(configfile)
 
 def create_experiment(name, options={}):
+    """Creates the config for an experiment
+
+    name: name of experiment in config
+    options: the config options for the experiment
+    """
     for option, value in options.items():
         add_config_option(config_file='config/experiments.ini', category=name, option=option, value=value)
 

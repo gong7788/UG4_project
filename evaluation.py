@@ -8,6 +8,9 @@ import pandas as pd
 from colour_dict import colour_dict, simple_colour_dict
 import agents
 import configparser
+from collections import defaultdict
+# from experiment_tracking import read_experiments, get_results_file, get_baseline
+
 def extract_file(filename):
     with open(filename, 'rb') as f:
         try:
@@ -30,7 +33,7 @@ def name_to_rgb(name):
     return np.array(rgb, dtype=np.float32) / 255
 
 
-def colour_probs(colour_model, colour_dict, prior=0.5):
+def colour_probs(colour_model, colour_dict=colour_dict, prior=0.5):
     output = {c:{c_i:-1 for c_i in cs} for c, cs in colour_dict.items()}
     for c, cs in colour_dict.items():
         for c_i in cs:
@@ -130,17 +133,19 @@ def load_agent(dataset, threshold=0.7, file_modifiers=''):
         agent = pickle.load(f)
     return agent
 
+
 def test_colour_model(colour_model, colour_dict=colour_dict, colour_thresh=0.5, pretty_printing=True):
     probs = colour_probs(colour_model, colour_dict)
     confusion = colour_confusion(colour_model.name, probs, colour_thresh)
+    colour_initial = colour_model.name[0].upper()
     if pretty_printing:
-        print_confusion(confusion)
+        print_confusion(confusion, colour_initial)
     return confusion
 
-def print_confusion(confusion_dict):
-    print('True Label  C=1 C=0')
-    print('Predict C=1| {tp} | {fp} |'.format(**confusion_dict))
-    print('        C=0| {fn} | {tn} |'.format(**confusion_dict))
+def print_confusion(confusion_dict, colour_initial):
+    print('True Label  {ci}=1 {ci}=0'.format(ci=colour_initial))
+    print('Predict {ci}=1| {tp} | {fp} |'.format(ci=colour_initial, **confusion_dict))
+    print('        {ci}=0| {fn} | {tn} |'.format(ci=colour_initial, **confusion_dict))
 
 
 
@@ -180,9 +185,31 @@ class Experiment(object):
         self.results_files = results_files
 
 
+    # def load_experiments(list_of_experiments, dataset):
+    #     experiments_df = read_experiments()
+    #     experiments = [get_baseline(dataset)]
+    #     for experiment in list_of_experiments:
+    #         experiments.append(get_results_file(experiments_df, experiment))
+    #     return Experiment.from_results_files(experiments, dataset)
+
+
+    def from_results_files(results_files, name):
+        exp = Experiment()
+        rfs = {}
+        exp.name=name
+        agent_name_counter = defaultdict(int)
+        for rf in results_files:
+            agent_name = 'agents.' + type(rf.load_agent()).__name__
+            nr = agent_name_counter[agent_name]
+            agent_name_counter[agent_name] += 1
+            rfs['_'.join([agent_name,str(nr)])] = rf
+        exp.results_files = rfs
+        return exp
+
+
     def to_df(self, discount=True):
         results = {}
-        for name, f in self.results_files:
+        for name, f in self.results_files.items():
             rewards, cum_rewards = read_file(f.name)
             results[name] = rewards
         df = pd.DataFrame(data=results)
@@ -197,13 +224,13 @@ class Experiment(object):
         columns = filter(lambda x: 'cumsum' in x, df.columns)
         plt.figure()
         for column in columns:
-            name = column.split('_')[1]
+            _, name, nr = column.split('_')
             if 'Random' in name:
-                name = 'naive agent'
+                name = 'naive agent' + ' ' + str(nr)
             elif 'Neural' in name:
-                name = 'neural agent'
+                name = 'neural agent' + ' ' + str(nr)
             elif 'Correcting' in name:
-                name = 'lingustic agent'
+                name = 'lingustic agent' + ' ' + str(nr)
             df[column].plot(label=name)
         plt.xlabel('scenario #', fontsize=13)
         plt.ylabel('cumulative reward', fontsize=13)
@@ -214,7 +241,7 @@ class Experiment(object):
 
     def get_agent(self, name):
         files = dict(self.results_files)
-        return files[name]
+        return files[name].load_agent()
 
     def plot(self, discount=True):
         df = self.to_df(discount=discount)
@@ -222,8 +249,7 @@ class Experiment(object):
 
 
     def test_colour_models(self, name, colour_thresh=0.5):
-        rf = self.get_agent(name)
-        agent = rf.load_agent()
+        agent = self.get_agent(name)
         for cm in agent.colour_models.values():
             yield(cm.name, test_colour_model(cm, colour_thresh=colour_thresh))
 
@@ -310,6 +336,8 @@ def get_agent(config):
         agent = agents.RandomAgent
     elif config['agent'] == 'agents.NeuralCorrectingAgent':
         agent = agents.NeuralCorrectingAgent
+    elif config['agent'] == 'agents.PerfectColoursAgent':
+        agent = agents.PerfectColoursAgent
     else:
         raise ValueError('invalid agent name')
     return agent

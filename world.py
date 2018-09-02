@@ -43,9 +43,12 @@ class PDDLWorld(World):
         self.previous_state = None
         self.reward += -1
 
-    def sense(self):
-        relations = block_plotting.get_predicates(self.objects, self.state, obscure='True')
-        obscured_state = pddl_functions.obscure_state(self.state, colour_names)
+    def sense(self, obscure=True):
+        relations = block_plotting.get_predicates(self.objects, self.state, obscure=obscure)
+        if obscure:
+            obscured_state = pddl_functions.obscure_state(self.state, colour_names)
+        else:
+            obscured_state = self.state
         return Observation(self.objects, self.colours, relations,  obscured_state)
 
     def get_actions(self):
