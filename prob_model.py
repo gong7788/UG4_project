@@ -5,6 +5,8 @@ import copy
 import matplotlib.pyplot as plt
 import torch
 import logging
+from kde import gaussian_kde
+from KDEpy import NaiveKDE
 #ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 #rule_belief = (0.5, 0.5)
 
@@ -118,16 +120,19 @@ class ColourModel(object):
 
         self.name = name
         self.mu0 = mu0
-
         self.mu1 = mu1
-        self.sigma0 = sigma0
-        self.sigma1 = sigma1
+
+
+        self.sigma0_times_v0 = np.array([4.,4.,4.])
+        self.sigma1_times_v1 = np.array([4.,4.,4.])
 
         self.n0 = 1
-        self.v0 = 1
+        self.v0 = 2
         self.n1 = 1
-        self.v1 = 1
+        self.v1 = 2
 
+        self.sigma1 = (self.sigma1_times_v1/2)/(self.v1/2 + 1)
+        self.sigma0 = (self.sigma0_times_v0/2)/(self.v0/2 + 1)
 
         self.alpha0 = np.array([1, 1, 1])
         self.beta0 = np.array([1, 1, 1])
@@ -148,24 +153,28 @@ class ColourModel(object):
             return
 
         new_mu0 = (self.n0 * self.mu0 + w*fx)/(self.n0+w)
-        v_times_sigma = self.v0 * self.sigma0 + (self.n0 * w)/(self.n0 + w) * (self.mu0 - fx)**2
+        self.sigma0_times_v0 = self.sigma0_times_v0 + (self.n0 * w)/(self.n0 + w) * (self.mu0 - fx)**2
         self.v0 += w
         self.n0 += w
 
         self.mu0 = new_mu0
-        self.sigma0 = v_times_sigma/self.v0
+        #self.sigma0 = v_times_sigma/self.v0 # I believe this is wrong
+        self.sigma0 = (self.sigma0_times_v0/2)/(self.v0/2 + 1)
+        print(self.sigma0)
+
+
 
     def update_negative(self, fx, w):
         if fx is None:
             return
 
         new_mu1 = (self.n1 * self.mu1 + w*fx)/(self.n1+w)
-        v_times_sigma = self.v1 * self.sigma1 + (self.n1 * w)/(self.n1 + w) * (self.mu1 - fx)**2
+        self.sigma1_times_v1 = self.sigma1_times_v1 + (self.n1 * w)/(self.n1 + w) * (self.mu1 - fx)**2
         self.v1 += w
         self.n1 += w
 
         self.mu1 = new_mu1
-        self.sigma1 = v_times_sigma/self.v1
+        self.sigma1 = (self.sigma1_times_v1/2)/(self.v1/2 + 1)
 
     def update2(self, fx, w):
         if fx is None:
@@ -199,7 +208,7 @@ class ColourModel(object):
             ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
             ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
 
-            ax2.set_title('P(F(x)|{}(x)=0'.format(self.name), fontsize=14)
+            ax2.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
             ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
             ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
             ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
@@ -220,6 +229,172 @@ class ColourModel(object):
             else:
                 save_location = 'results/colours/plots/' + save_location_basename + '_' + self.name + '.png'
             plt.savefig(save_location)
+
+
+class MLEColourModel(ColourModel):
+    def __init__(self, *args, **kwargs):
+        self.data = []
+        self.data_negative = []
+        super().__init__(*args, **kwargs)
+
+    # def update(self, fx, w):
+    #     self.data.append((w, fx))
+    #     total = np.array([0,0,0])
+    #     norm = 0
+    #     for w, fx in self.data:
+    #         total += w*fx
+    #         norm += w
+    #     self.mu0 = total/norm
+    #     for w, fx in self.data:
+
+    def update(self, fx, w):
+        if fx is None:
+            return
+
+        total = np.array([0,0,0])
+        norm = 0
+        for w, fx in self.data:
+            total += w*fx
+            norm += w
+        sample_mean = total/norm
+        new_mu = (self.n0*self.mu0 + norm*sample_mean)/(self.n0 + norm)
+        var = np.array([0,0,0])
+        for w, fx in self.data:
+            var += w*(fx-sample_mean)**2
+        new_sigma_times_v0 = self.sigma0_times_v0 + var + (self.n0 * norm)/(self.n0 + norm) * (self.mu0 - sample_mean)**2
+
+        v0_prime = self.v0 + norm
+
+
+        self.mu0 = new_mu0
+
+        self.sigma0 = (new_sigma_times_v0/2)/(v0_prime/2 + 1)
+
+
+def get_bw_value(data):
+    n = len(data)
+    if n == 0:
+        return 1.
+    bw = max(1/n, 0.15)
+    print('bw', bw)
+    return bw
+
+class KDEColourModel(ColourModel):
+
+    def __init__(self, name, bw=0.15, data = None, weights=np.array([]), data_neg=None, weights_neg=np.array([]), kernel='gaussian'):
+        self.name = name
+        self.data = data
+        self.weights = weights
+        self.model = None
+        self.model_neg = None
+        self.data_neg = data_neg
+        self.weights_neg = weights_neg
+        self.bw = get_bw_value
+        self.kernel = kernel
+        if data:
+            self.model = self.fit_model(self.data, self.weights)
+        if data_neg:
+            self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
+
+
+    def update(self, fx, w):
+        if self.data is None:
+            self.data = np.array([fx])
+        else:
+            self.data = np.append(self.data, np.array([fx]), axis=0)
+        self.weights = np.append(self.weights, w)
+        self.model = self.fit_model(self.data, self.weights)
+
+    def update_negative(self, fx, w):
+        if self.data_neg is None:
+            self.data_neg = np.array([fx])
+        else:
+            self.data_neg = np.append(self.data_neg, np.array([fx]), axis=0)
+        self.weights_neg = np.append(self.weights, w)
+        self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
+
+    def fit_model(self, data, weights):
+        #print('data', data)
+        train_data = np.concatenate([data, -data, 2-data])
+        #print('train data', train_data)
+        r = train_data[:,0]
+        g = train_data[:,1]
+        b = train_data[:,2]
+        #print('r', r)
+        weights = np.concatenate([weights, weights, weights])
+        bw = get_bw_value(data)
+        r_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(r, weights=weights)
+        g_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(g, weights=weights)
+        b_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(b, weights=weights)
+        model = (r_model, g_model, b_model)
+        return model
+
+
+    def evaluate_model(self, model, fx, split=False):
+        r, g, b = fx
+        r_model, g_model, b_model = model
+        try:
+            p_r = r_model.evaluate(np.array(r))
+            p_g = g_model.evaluate(np.array(g))
+            p_b = b_model.evaluate(np.array(b))
+        except ValueError:
+            p_r = r_model.evaluate(np.array([r]))[0]
+            p_g = g_model.evaluate(np.array([g]))[0]
+            p_b = b_model.evaluate(np.array([b]))[0]
+        if not split:
+            return 3*p_r * 3*p_g * 3*p_b
+        else:
+            return 3*p_r, 3*p_g, 3*p_b
+
+
+    def p(self, c, fx, p_c=0.5):
+        if fx is None:
+            return [1, 0][c]
+        p_c_0 = 1-p_c
+        p_f_c1 = self.evaluate_model(self.model, fx) if self.model else 1
+        p_f_c0 = self.evaluate_model(self.model_neg, fx) if self.model_neg else 1
+        p1 = p_c * p_f_c1
+        p0 = p_c_0 * p_f_c0
+        return [p0, p1][c]/(p1 + p0)
+
+    def draw(self, show=False, save_location_basename=None, draw_both=False):
+        x = np.linspace(0, 1, 100)
+        r_model, g_model, b_model = self.model
+        rs = 3*r_model.evaluate(x)
+        gs = 3*g_model.evaluate(x)
+        bs = 3*b_model.evaluate(x)
+
+
+        if draw_both:
+            fig, ax1 = plt.subplots(1, 1)
+            ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
+            ax1.plot(x, rs, color='red', label='r')
+            ax1.plot(x, gs, color='green', label='g')
+            ax1.plot(x, bs, color='blue', label='b')
+
+            #
+            # ax2.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
+            # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
+            # ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+        else:
+            fig, ax1 = plt.subplots(1, 1)
+            ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
+            ax1.plot(x, rs, color='red', label='r')
+            ax1.plot(x, gs, color='green', label='g')
+            ax1.plot(x, bs, color='blue', label='b')
+
+        plt.legend(prop={'size': 10})
+
+        if show:
+            plt.show()
+        else:
+            if save_location_basename==None:
+                save_location = 'results/colours/{}.png'.format(self.name)
+            else:
+                save_location = 'results/colours/plots/' + save_location_basename + '_' + self.name + '.png'
+            plt.savefig(save_location)
+
 
 
 class CorrectionModel(object):
@@ -248,10 +423,10 @@ class CorrectionModel(object):
                 c1p = self.c1.p(visible[self.c1.name], data[self.c1.name], p_c=prior_c1)
                 c2p = self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2)
                 correction_eval = self.evaluate_correction(visible)
-                logger.debug(visible)
-                logger.debug('rule prior: ' + str(rp))
-                logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
-                logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
+                # logger.debug(visible)
+                # logger.debug('rule prior: ' + str(rp))
+                # logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
+                # logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
                 return (rp * c1p * c2p * correction_eval)
             except RuntimeError:
                 return (self.rule_prior[visible['r']] *
@@ -292,7 +467,7 @@ class CorrectionModel(object):
         v1.update({'r':1})
         r0 = self.p(data, visible=v0, priors=priors)
         r1 = self.p(data, visible=v1, priors=priors)
-        logger.debug((r0, r1))
+        # logger.debug((r0, r1))
         eta = r0 + r1
         if np.isnan([r0, r1][r]/eta):
             print('r0, r1', r0, r1)
@@ -318,18 +493,23 @@ class CorrectionModel(object):
         self.rule_prior = self.rule_belief.get_as_priors()
         return (r0, r1)
 
-    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=default_update_negative):
+    def update_c(self, data, priors=(0.5,0.5,0.5), visible={}, update_negative=default_update_negative, which_to_update=(1,1,1)):
+
         p_c1 = self.p_c(self.c1.name, data, priors=priors, visible=visible)
         p_c2 = self.p_c(self.c2.name, data, priors=priors, visible=visible)
 
 
-        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, p_c1))
-        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, p_c2))
-        self.c1.update(data[self.c1.name], p_c1)
-        self.c2.update(data[self.c2.name], p_c2)
+        # logger.debug('predicted P({}=1) = {}'.format(self.c1.name, p_c1))
+        # logger.debug('predicted P({}=1) = {}'.format(self.c2.name, p_c2))
+        if which_to_update[0]:
+            self.c1.update(data[self.c1.name], p_c1)
+        if which_to_update[1]:
+            self.c2.update(data[self.c2.name], p_c2)
         if update_negative:
-            self.c1.update_negative(data[self.c1.name], (1-p_c1))
-            self.c2.update_negative(data[self.c2.name], (1-p_c2))
+            if which_to_update[0]:
+                self.c1.update_negative(data[self.c1.name], (1-p_c1))
+            if which_to_update[1]:
+                self.c2.update_negative(data[self.c2.name], (1-p_c2))
 
     def update_c_no_corr(self, data, priors=(0.5, 0.5, 0.5)):
         c1_pos = self.p_no_corr(data, visible={self.c1.name:1}, priors=priors)
@@ -427,12 +607,12 @@ class TableCorrectionModel(CorrectionModel):
             c2p = self.c2.p(visible[self.c2.name], data[self.c2.name], p_c=prior_c2)
             c3p = self.c3.p(visible[self.c3.name], data[self.c3.name], p_c=prior_c3)
             correction_eval = self.evaluate_correction(visible)
-            if correction_eval == 1:
-                logger.debug(visible)
-                logger.debug('rule prior: ' + str(rp))
-                logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
-                logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
-                logger.debug('P({}=1): '.format(self.c3.name) + str(c3p))
+            # if correction_eval == 1:
+            #     logger.debug(visible)
+            #     logger.debug('rule prior: ' + str(rp))
+            #     logger.debug('P({}=1): '.format(self.c1.name) + str(c1p))
+            #     logger.debug('P({}=1): '.format(self.c2.name) + str(c2p))
+            #     logger.debug('P({}=1): '.format(self.c3.name) + str(c3p))
 
 
             try:
@@ -466,7 +646,7 @@ class TableCorrectionModel(CorrectionModel):
         rule1 = visible['r'] == 1 and visible[self.c1.name] == 1 and visible[self.c2.name] == 0 and visible[self.c3.name] == 0
         return float(rule0 or rule1)
 
-    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=default_update_negative):
+    def update_c(self, data, priors=(0.5, 0.5, 0.5), visible={}, update_negative=default_update_negative, which_to_update=(1,1,1)):
         prior_dict = self.updated_object_priors(data, ['o1', 'o2', 'o3'], priors, visible=visible)
 
         w1 = prior_dict['o1'][self.c1.name]
@@ -477,17 +657,22 @@ class TableCorrectionModel(CorrectionModel):
         # w2 = self.p_c(self.c2.name, data, priors=priors)
         # w4 = self.p_c(self.c3.name, data, priors=priors)
         # w3 = 1-w4 # these are in the other direction because 0 for c3 means it is equivalent to c1 and p_c returns probability that c=1
-        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w1))
-        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w2))
-        logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w3))
-        logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w4))
-        self.c1.update(data[self.c1.name], w1)
-        self.c2.update(data[self.c2.name], w2)
-        self.c1.update(data[self.c3.name], w3)
-        self.c2.update(data[self.c3.name], w4)
+        # logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w1))
+        # logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w2))
+        # logger.debug('predicted P({}=1) = {}'.format(self.c1.name, w3))
+        # logger.debug('predicted P({}=1) = {}'.format(self.c2.name, w4))
+        if which_to_update[0]:
+            self.c1.update(data[self.c1.name], w1)
+        if which_to_update[1]:
+            self.c2.update(data[self.c2.name], w2)
+        if which_to_update[2]:
+            self.c1.update(data[self.c3.name], w3)
+            self.c2.update(data[self.c3.name], w4)
         if update_negative:
-            self.c1.update_negative(data[self.c1.name], 1-w1)
-            self.c2.update_negative(data[self.c2.name], 1-w2)
+            if which_to_update[0]:
+                self.c1.update_negative(data[self.c1.name], 1-w1)
+            if which_to_update[1]:
+                self.c2.update_negative(data[self.c2.name], 1-w2)
 
 
     def updated_object_priors(self, data, objs, priors, visible={}):

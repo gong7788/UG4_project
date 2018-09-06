@@ -122,7 +122,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     update_negative = config.getboolean('update_negative')
     Agent = get_agent(config)
     vis = config.getboolean('visualise')
-
+    update_once = config.getboolean('update_once')
 
     if debug and not 'Random' in config['agent']:
         debugger = Debug(config)
@@ -137,7 +137,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
     elif Agent in [agents.CorrectingAgent]:
-        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative)
+        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once)
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
@@ -191,10 +191,16 @@ def add_experiment(config_name, neural_config, debug=False):
 
     df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
     df.to_sql('experiments', con=engine, if_exists='replace')
-
-    results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug)
-    df = pd.read_sql('experiments', index_col='index', con=engine)
-    last_label = df.index[-1]
-    df.at[last_label, 'experiment_file'] = results_file
-    df.at[last_label, 'status'] = 'done'
-    df.to_sql('experiments', con=engine, if_exists='replace')
+    try:
+        results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug)
+    except:
+        df = pd.read_sql('experiments', index_col='index', con=engine)
+        last_label = df.index[-1]
+        df.at[last_label, 'experiment_file'] = results_file
+        df.at[last_label, 'status'] = 'ERROR'
+    else:
+        df = pd.read_sql('experiments', index_col='index', con=engine)
+        last_label = df.index[-1]
+        df.at[last_label, 'experiment_file'] = results_file
+        df.at[last_label, 'status'] = 'done'
+        df.to_sql('experiments', con=engine, if_exists='replace')

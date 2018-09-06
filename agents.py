@@ -49,9 +49,12 @@ def queuer(q, domain, problem):
 class Priors(object):
     def __init__(self, objects, known_colours=[]):
         """known colours = list of pairs"""
-        self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
-        for o, c in known_colours:
-            self.priors[o][c] = 1.0
+        if not known_colours:
+            self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
+        else:
+            self.priors = {o: defaultdict(float) for o in objects}
+            for o, c in known_colours:
+                self.priors[o][c] = 1.0
 
 
     def get_priors(self, message, args):
@@ -111,7 +114,7 @@ def read_sentence(sentence, use_dmrs=True):
 
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True, update_once=True):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -134,10 +137,12 @@ class CorrectingAgent(Agent):
         self.rule_models = {}
         self.teacher = teacher
         self.priors = Priors(world.objects)
-        logger.debug('rule beliefs: ' + str(self.rule_beliefs))
-        logger.debug('rule_models: ' + str(self.rule_models))
-        logger.debug('colour_models: ' + str(self.colour_models))
+        # logger.debug('rule beliefs: ' + str(self.rule_beliefs))
+        # logger.debug('rule_models: ' + str(self.rule_models))
+        # logger.debug('colour_models: ' + str(self.colour_models))
         self.update_negative=update_negative
+        self.objects_used_for_update = set()
+        self.update_once = update_once
 
     def new_world(self, world):
         self.world = world
@@ -146,6 +151,7 @@ class CorrectingAgent(Agent):
         self.tmp_goal = None
         self.problem.initialstate = observation.state
         self.priors = Priors(world.objects)
+        self.objects_used_for_update = set()
 
     def plan(self):
         self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
@@ -200,7 +206,7 @@ class CorrectingAgent(Agent):
 
         # if there is no confidence in the update then ask for help
         if max(r1, r2) < self.threshold:
-            logger.debug('asking question')
+            # logger.debug('asking question')
             question = 'Is the top object {}?'.format(message.o1[0])
             dialogue.info("R: " + question)
             answer = self.teacher.answer_question(question, self.world)
@@ -217,13 +223,22 @@ class CorrectingAgent(Agent):
         #logger.debug(prior_updates)
 
         rule_model.update_belief_r(r1, r2)
-        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative)
+        which_to_update = [1,1,1]
+        if self.update_once:
+            for i, o in enumerate(objs):
+                if o in self.objects_used_for_update:
+                    which_to_update[i] = 0
+                self.objects_used_for_update.add(o)
 
+        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative, which_to_update=which_to_update)
+
+        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
         self.priors.update(prior_updates)
         self.update_goal()
+        logger.debug(self.goal.asPDDL())
         self.world.back_track()
         self.sense()
-        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
+
 
     def tracking(self):
         for colour in self.colour_models.values():
@@ -265,7 +280,7 @@ class CorrectingAgent(Agent):
 
         # If this this rule model already exists, keep using the same
         if (rule_names, message.T) in self.rule_models.keys():
-            logger.debug('reusing a rule model')
+            # logger.debug('reusing a rule model')
             return self.rule_models[(rule_names, message.T)], rules
 
         # If a table correction exists then use the same rule beliefs for tower correction or vis versa
@@ -305,8 +320,10 @@ class CorrectingAgent(Agent):
             if rule_name in used_models:
                 continue
             else:
+                logger.debug(rule_name)
                 rule_belief = correction_model.rule_belief
                 rules.extend(rule_belief.get_best_rules())
+                logger.debug(rules)
                 used_models.add(rule_name)
 
         self.goal = goal_updates.goal_from_list(rules)
@@ -349,7 +366,7 @@ class NeuralCorrectingAgent(CorrectingAgent):
 
         # If this this rule model already exists, keep using the same
         if (rule_names, message.T) in self.rule_models.keys():
-            logger.debug('reusing a rule model')
+            # logger.debug('reusing a rule model')
             return self.rule_models[(rule_names, message.T)], rules
 
         # If a table correction exists then use the same rule beliefs for tower correction or vis versa
