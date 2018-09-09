@@ -306,20 +306,28 @@ class ResultsFile(object):
         file_name = 'agent{}.pickle'.format(self.nr)
         save_location = os.path.join(save_dir, file_name)
 
-        with open(save_location, 'wb') as f:
-            try:
-                agent.priors.to_dict()
-            except AttributeError:
-                pass
-            pickle.dump(agent, f)
+        try:
+            agent.priors.to_dict()
+        except AttributeError:
+            pass
 
+        try:
+            with open(save_location, 'wb') as f:
+                pickle.dump(agent, f)
+        except pickle.PicklingError:
+            with open(save_location, 'wb') as f:
+                agents.pickle_agent(agent, f)
 
     def load_agent(self):
         save_dir = os.path.join('results/agents/', self.dir_)
         file_name = 'agent{}.pickle'.format(self.nr)
         save_location = os.path.join(save_dir, file_name)
-        with open(save_location, 'rb') as f:
-            return pickle.load(f)
+        try:
+            with open(save_location, 'rb') as f:
+                return agents.load_agent(f)
+        except (ValueError, TypeError):
+            with open(save_location, 'rb') as f:
+                return pickle.load(f)
 
 
     def plot_cumsum(self, discount=False, save_loc='test.png'):

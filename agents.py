@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from torch.distributions import Categorical
 from itertools import count
 from colour_dict import colour_names
+import pickle
 
 def log_cm(cm):
     logger.debug(cm.name)
@@ -112,9 +113,53 @@ def read_sentence(sentence, use_dmrs=True):
         return Message(rel, [o1], [o2], T, o3)
 
 
+def pickle_agent(agent, f):
+    cms = {}
+    for colour, cm in agent.colour_models.items():
+        datas = (cm.data, cm.weights, cm.data_neg, cm.weights_neg)
+        cms[colour] = datas
+
+    for r, rule_model in agent.rule_models.items():
+        rule_model.c1 = rule_model.c1.name
+        rule_model.c2 = rule_model.c2.name
+        try:
+            rule_model.c3 = rule_model.c3.name
+        except AttributeError:
+            pass
+        agent.rule_models[r] = rule_model
+
+    agent.colour_models = None
+    output = (agent, cms)
+
+    agent.build_model = None
+
+    pickle.dump(output, f)
+
+def load_agent(f):
+
+    agent, cms = pickle.load(f)
+    out_cms = {}
+    for colour, cm_data in cms.items():
+        data, weights, data_neg, weights_neg = cm_data
+        cm = prob_model.KDEColourModel(colour, data=data, weights=weights, data_neg=data_neg, weights_neg=weights_neg)
+        out_cms[colour] = cm
+    for r, rule_model in agent.rule_models.items():
+        rule_model.c1 = out_cms[rule_model.c1]
+        rule_model.c2 = out_cms[rule_model.c2]
+        try:
+            c1, c2 = rule_model.c3.split('/')
+            rule_model.c3 = prob_model.KDEColourModel(rule_model.c3, data=out_cms[c1].data, weights=out_cms[c1].weights, data_neg=out_cms[c2].data, weights_neg=out_cms[c2].weights)
+        except AttributeError:
+            pass
+        agent.rule_models[r] = rule_model
+    agent.colour_models = out_cms
+    agent.build_model = CorrectingAgent.build_model
+    return agent
+
+
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True, update_once=True):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True, update_once=True, colour_model_type='default'):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -143,6 +188,8 @@ class CorrectingAgent(Agent):
         self.update_negative=update_negative
         self.objects_used_for_update = set()
         self.update_once = update_once
+        assert(colour_model_type in ['default', 'kde'])
+        self.colour_model_type = colour_model_type
 
     def new_world(self, world):
         self.world = world
@@ -297,12 +344,22 @@ class CorrectingAgent(Agent):
         try:
             colour_model1 = self.colour_models[c1]
         except KeyError:
-            colour_model1 = prob_model.ColourModel(c1)
+            if self.colour_model_type == 'default':
+                colour_model1 = prob_model.ColourModel(c1)
+            elif self.colour_model_type == 'kde':
+                colour_model1 = prob_model.KDEColourModel(c1)
+            else:
+                raise ValueError('Unexpected colour_model_type: got {}'.format(self.colour_model_type))
             self.colour_models[c1] = colour_model1
         try:
             colour_model2 = self.colour_models[c2]
         except KeyError:
-            colour_model2 = prob_model.ColourModel(c2)
+            if self.colour_model_type == 'default':
+                colour_model2 = prob_model.ColourModel(c2)
+            elif self.colour_model_type == 'kde':
+                colour_model2 = prob_model.KDEColourModel(c2)
+            else:
+                raise ValueError('Unexpected colour_model_type: got {}'.format(self.colour_model_type))
             self.colour_models[c2] = colour_model2
 
         # build the model

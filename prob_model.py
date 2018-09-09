@@ -291,13 +291,15 @@ class KDEColourModel(ColourModel):
         self.weights_neg = weights_neg
         self.bw = get_bw_value
         self.kernel = kernel
-        if data:
+        if data is not None:
             self.model = self.fit_model(self.data, self.weights)
-        if data_neg:
+        if data_neg is not None:
             self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
 
 
     def update(self, fx, w):
+        if fx is None or w == 0:
+            return
         if self.data is None:
             self.data = np.array([fx])
         else:
@@ -306,6 +308,8 @@ class KDEColourModel(ColourModel):
         self.model = self.fit_model(self.data, self.weights)
 
     def update_negative(self, fx, w):
+        if fx is None or w == 0:
+            return
         if self.data_neg is None:
             self.data_neg = np.array([fx])
         else:
@@ -405,7 +409,7 @@ class CorrectionModel(object):
         self.c1 = c1
         self.c2 = c2
         if rule_belief is None:
-            self.rule_belief = RuleBelief((c1, c2), rules[0], rules[1])
+            self.rule_belief = RuleBelief((c1.name, c2.name), rules[0], rules[1])
         else:
             self.rule_belief = rule_belief
         self.rule_prior = self.rule_belief.get_as_priors()
@@ -586,6 +590,10 @@ class TableCorrectionModel(CorrectionModel):
 
         if isinstance(c1, NeuralColourModel):
             self.c3 = ComboModel('{}/{}'.format(c1.name, c2.name), cm1=c1, cm2=c2)
+        elif isinstance(c1, KDEColourModel):
+            self.c3 = KDEColourModel('{}/{}'.format(c1.name, c2.name),
+                                     data=c1.data, weights=c1.weights,
+                                     data_neg=c2.data, weights_neg=c2.weights)
         else:
             self.c3 = ColourModel('{}/{}'.format(c1.name, c2.name),
                                     mu0=c1.mu0, sigma0=c1.sigma0,
