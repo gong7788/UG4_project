@@ -219,19 +219,24 @@ class Experiment(object):
                 df['cumsum_{}'.format(column)] = df[column].cumsum()
         return df
 
-    def plot_df(self, df):
+    def plot_df(self, df, labels=[]):
         experiment = self.name
         columns = filter(lambda x: 'cumsum' in x, df.columns)
         plt.figure()
-        for column in columns:
-            _, name, nr = column.split('_')
-            if 'Random' in name:
-                name = 'naive agent' + ' ' + str(nr)
-            elif 'Neural' in name:
-                name = 'neural agent' + ' ' + str(nr)
-            elif 'Correcting' in name:
-                name = 'lingustic agent' + ' ' + str(nr)
-            df[column].plot(label=name)
+        if labels:
+            for column, name in zip(columns, labels):
+                df[column].plot(label=name)
+        else:
+            for column in columns:
+                _, name, nr = column.split('_')
+                if 'Random' in name:
+                    name = 'naive agent' + ' ' + str(nr)
+                elif 'Neural' in name:
+                    name = 'neural agent' + ' ' + str(nr)
+                elif 'Correcting' in name:
+                    name = 'lingustic agent' + ' ' + str(nr)
+                df[column].plot(label=name)
+
         plt.xlabel('scenario #', fontsize=13)
         plt.ylabel('cumulative reward', fontsize=13)
         plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
@@ -243,9 +248,9 @@ class Experiment(object):
         files = dict(self.results_files)
         return files[name].load_agent()
 
-    def plot(self, discount=True):
+    def plot(self, discount=True, labels=[]):
         df = self.to_df(discount=discount)
-        self.plot_df(df)
+        self.plot_df(df, labels=labels)
 
 
     def test_colour_models(self, name, colour_thresh=0.5):

@@ -160,7 +160,7 @@ class ColourModel(object):
         self.mu0 = new_mu0
         #self.sigma0 = v_times_sigma/self.v0 # I believe this is wrong
         self.sigma0 = (self.sigma0_times_v0/2)/(self.v0/2 + 1)
-        print(self.sigma0)
+        #print(self.sigma0)
 
 
 
@@ -203,7 +203,7 @@ class ColourModel(object):
 
         if draw_both:
             fig, (ax1, ax2) = plt.subplots(1, 2)
-            ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
             ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
             ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
             ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
@@ -214,7 +214,7 @@ class ColourModel(object):
             ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
         else:
             fig, ax1 = plt.subplots(1, 1)
-            ax1.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
             ax1.plot(x, norm.pdf(x, loc=mu_r, scale=sigma_r), color='red', label='r')
             ax1.plot(x, norm.pdf(x, loc=mu_g, scale=sigma_g), color='green', label='g')
             ax1.plot(x, norm.pdf(x, loc=mu_b, scale=sigma_b), color='blue', label='b')
@@ -275,13 +275,12 @@ def get_bw_value(data):
     n = len(data)
     if n == 0:
         return 1.
-    bw = max(1/n, 0.15)
-    print('bw', bw)
+    bw = max(1/n, 0.1)
     return bw
 
 class KDEColourModel(ColourModel):
 
-    def __init__(self, name, bw=0.15, data = None, weights=np.array([]), data_neg=None, weights_neg=np.array([]), kernel='gaussian'):
+    def __init__(self, name, bw=0.15, data = None, weights=np.array([]), data_neg=None, weights_neg=np.array([]), kernel='gaussian', fix_bw=False, use_3d=False, norm=2):
         self.name = name
         self.data = data
         self.weights = weights
@@ -289,7 +288,11 @@ class KDEColourModel(ColourModel):
         self.model_neg = None
         self.data_neg = data_neg
         self.weights_neg = weights_neg
-        self.bw = get_bw_value
+        self.use_3d = use_3d
+        if fix_bw:
+            self.bw = lambda x: bw
+        else:
+            self.bw = get_bw_value
         self.kernel = kernel
         if data is not None:
             self.model = self.fit_model(self.data, self.weights)
@@ -314,41 +317,56 @@ class KDEColourModel(ColourModel):
             self.data_neg = np.array([fx])
         else:
             self.data_neg = np.append(self.data_neg, np.array([fx]), axis=0)
-        self.weights_neg = np.append(self.weights, w)
+        self.weights_neg = np.append(self.weights_neg, w)
         self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
 
     def fit_model(self, data, weights):
         #print('data', data)
-        train_data = np.concatenate([data, -data, 2-data])
-        #print('train data', train_data)
-        r = train_data[:,0]
-        g = train_data[:,1]
-        b = train_data[:,2]
-        #print('r', r)
-        weights = np.concatenate([weights, weights, weights])
-        bw = get_bw_value(data)
-        r_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(r, weights=weights)
-        g_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(g, weights=weights)
-        b_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(b, weights=weights)
-        model = (r_model, g_model, b_model)
-        return model
-
+        if not self.use_3d:
+            train_data = np.concatenate([data, -data, 2-data])
+            #print('train data', train_data)
+            r = train_data[:,0]
+            g = train_data[:,1]
+            b = train_data[:,2]
+            #print('r', r)
+            weights = np.concatenate([weights, weights, weights])
+            bw = self.bw(data)
+            r_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(r, weights=weights)
+            g_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(g, weights=weights)
+            b_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(b, weights=weights)
+            model = (r_model, g_model, b_model)
+            return model
+        else:
+            assert(data.shape[1] == 3)
+            bw = self.bw(data)
+            model = NaiveKDE(kernel=self.kernel, bw=bw, norm=2).fit(data)
+            return model
 
     def evaluate_model(self, model, fx, split=False):
-        r, g, b = fx
-        r_model, g_model, b_model = model
-        try:
-            p_r = r_model.evaluate(np.array(r))
-            p_g = g_model.evaluate(np.array(g))
-            p_b = b_model.evaluate(np.array(b))
-        except ValueError:
-            p_r = r_model.evaluate(np.array([r]))[0]
-            p_g = g_model.evaluate(np.array([g]))[0]
-            p_b = b_model.evaluate(np.array([b]))[0]
-        if not split:
-            return 3*p_r * 3*p_g * 3*p_b
+        if not self.use_3d:
+            r, g, b = fx
+            r_model, g_model, b_model = model
+            try:
+                p_r = r_model.evaluate(np.array(r))
+                p_g = g_model.evaluate(np.array(g))
+                p_b = b_model.evaluate(np.array(b))
+            except ValueError:
+                p_r = r_model.evaluate(np.array([r]))[0]
+                p_g = g_model.evaluate(np.array([g]))[0]
+                p_b = b_model.evaluate(np.array([b]))[0]
+            if not split:
+                return 3*p_r * 3*p_g * 3*p_b
+            else:
+                return 3*p_r, 3*p_g, 3*p_b
         else:
-            return 3*p_r, 3*p_g, 3*p_b
+            fx = np.array(fx)
+            if len(fx.shape) == 2:
+                p = model.evaluate(np.array(fx))
+            elif len(fx.shape) == 1:
+                p = model.evaluate(np.array([fx]))[0]
+            else:
+                raise ValueError('features are the wrong shape, expected either (3,) or (n, 3) but got {}'.format(fx.shape))
+            return p
 
 
     def p(self, c, fx, p_c=0.5):
@@ -370,17 +388,22 @@ class KDEColourModel(ColourModel):
 
 
         if draw_both:
-            fig, ax1 = plt.subplots(1, 1)
+            fig, (ax1, ax2) = plt.subplots(1, 2)
             ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
             ax1.plot(x, rs, color='red', label='r')
             ax1.plot(x, gs, color='green', label='g')
             ax1.plot(x, bs, color='blue', label='b')
 
-            #
-            # ax2.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
-            # ax2.plot(x, norm.pdf(x, loc=mu2_r, scale=sigma2_r), color='red', label='r')
-            # ax2.plot(x, norm.pdf(x, loc=mu2_g, scale=sigma2_g), color='green', label='g')
-            # ax2.plot(x, norm.pdf(x, loc=mu2_b, scale=sigma2_b), color='blue', label='b')
+            r_model_neg, g_model_neg, b_model_neg = self.model_neg
+
+            rs_neg = 3*r_model_neg.evaluate(x)
+            gs_neg = 3*g_model_neg.evaluate(x)
+            bs_neg = 3*b_model_neg.evaluate(x)
+
+            ax2.set_title('P(F(x)|{}(x)=0)'.format(self.name), fontsize=14)
+            ax2.plot(x, rs_neg, color='red', label='r')
+            ax2.plot(x, gs_neg, color='green', label='g')
+            ax2.plot(x, bs_neg, color='blue', label='b')
         else:
             fig, ax1 = plt.subplots(1, 1)
             ax1.set_title('P(F(x)|{}(x)=1)'.format(self.name), fontsize=14)
@@ -522,7 +545,7 @@ class CorrectionModel(object):
         c2_pos = self.p_no_corr(data, visible={self.c2.name:1}, priors=priors)
         c2_neg = self.p_no_corr(data, visible={self.c2.name:0}, priors=priors)
         w2 = c2_pos/(c2_pos+c2_neg)
-        print(w1, w2)
+        #print(w1, w2)
         #print(self.c1.p(1, data[self.c1.name]))
         r1, r2 = self.rule_prior
         if (r1 > r2) and w1 > 0.5 or (r2 > r1) and w2 > 0.5:

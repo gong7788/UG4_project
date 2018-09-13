@@ -36,3 +36,7 @@ def create_experiment(name, options={}):
 def create_neural_experiment(name, options={}):
     for option, value in options.items():
         add_config_option(config_file='config/neural.ini', category=name, option=option, value=value)
+
+def create_kde_experiment(name, options={}):
+    for option, value in options.items():
+        add_config_option(config_file='config/kde.ini', category=name, option=option, value=value)

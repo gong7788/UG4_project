@@ -108,6 +108,17 @@ def get_neural_config(name):
     return config_dict
 
 
+def get_kde_config(config_name):
+    model_config = configparser.ConfigParser()
+    model_config.read('config/kde.ini')
+    model_config = model_config[config_name]
+    config_dict = {}
+    config_dict['use_3d'] = model_config.getboolean('use_3d')
+    config_dict['fix_bw'] = model_config.getboolean('fix_bw')
+    config_dict['bw'] = model_config.getfloat('bw')
+    config_dict['norm'] = model_config.getfloat('norm')
+    return config_dict
+
 
 def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
@@ -138,7 +149,12 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
     elif Agent in [agents.CorrectingAgent]:
-        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once, colour_model_type=colour_model_type)
+        if colour_model_type == 'kde':
+            if neural_config is None:
+                neural_config = 'DEFAULT'
+
+            model_config = get_kde_config(neural_config)
+        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once, colour_model_type=colour_model_type, model_config=model_config)
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
