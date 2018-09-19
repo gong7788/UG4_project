@@ -154,6 +154,8 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
                 neural_config = 'DEFAULT'
 
             model_config = get_kde_config(neural_config)
+        else:
+            model_config = {}
         agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once, colour_model_type=colour_model_type, model_config=model_config)
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)

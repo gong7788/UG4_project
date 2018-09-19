@@ -15,8 +15,9 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
 from itertools import count
-from colour_dict import colour_names
+from colour_dict import colour_names, colour_dict
 import pickle
+import search
 
 def log_cm(cm):
     logger.debug(cm.name)
@@ -157,9 +158,49 @@ def load_agent(f):
     return agent
 
 
+def colour_tuple_to_dict(colour_tuple):
+    out = defaultdict(list)
+    for obj, c in colour_tuple:
+        out[obj].append(c)
+    return dict(out)
+
+main_colours = list(colour_dict.keys())
+
+class Tracker(object):
+
+    def __init__(self):
+        pass
+
+    def log_accuracy(self, cm):
+        pass
+
+    def store_colour_accuracy(self, results, true_colours, threshold, goal):
+        true_colour_dict = colour_tuple_to_dict(true_colours)
+        #print(true_colour_dict)
+        #print(results)
+        #print(threshold)
+        for obj, val in results.items():
+            for colour, prediction in val.items():
+                predict = colour if prediction > threshold else '-' + colour
+
+                # print(obj, predict, next(filter(lambda x: x in main_colours, true_colour_dict[obj])), prediction)
+
+
+        # check if the prediction is correct, ie does the prediction of red or not red match whether the object is actually red
+        # record what the result was, what mistakes were made, at what threshold and what the goal was.
+        # How am a saving the results?
+        # Probably a dataframe where each row is one of the instances. However things like the correct state might be difficult to store in DF form.
+        #
+
+
+
+
+
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, update_negative=True, update_once=True, colour_model_type='default'):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
+                 update_negative=True, update_once=True, colour_model_type='default',
+                 model_config=None, tracker=Tracker()):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -190,6 +231,9 @@ class CorrectingAgent(Agent):
         self.update_once = update_once
         assert(colour_model_type in ['default', 'kde'])
         self.colour_model_type = colour_model_type
+        self.model_config = model_config
+        self.tracker = tracker
+
 
     def new_world(self, world):
         self.world = world
@@ -201,23 +245,33 @@ class CorrectingAgent(Agent):
         self.objects_used_for_update = set()
 
     def plan(self):
-        self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        tau = 0.6
-        while True:
-            self.sense(threshold=tau)
-            with open('tmp/problem.pddl', 'w') as f:
-                f.write(self.problem.asPDDL())
-
-            try:
-                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                return plan
-            except (NoPlanError, IDontKnowWhatIsGoingOnError):
-                # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
-                # with open('tmp/problem.pddl', 'w') as f:
-                #     f.write(self.problem.asPDDL())
-                # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                tau += 0.1
-        # return plan
+        observation, results = self.sense()
+        planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem)
+        return planner.plan()
+        # self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
+        # tau = 0.5
+        # while True:
+        #     # print(self.problem.goal.asPDDL())
+        #     self.sense(threshold=tau)
+        #     with open('tmp/problem.pddl', 'w') as f:
+        #         f.write(self.problem.asPDDL())
+        #
+        #     try:
+        #         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        #         print('found plan at threshold {}'.format(tau))
+        #         return plan
+        #     except (NoPlanError, IDontKnowWhatIsGoingOnError) as e:
+        #         self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
+        #         # for f in self.problem.initialstate:
+        #         #     print(f.asPDDL())
+        #
+        #         print(e)
+        #         # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+        #         # with open('tmp/problem.pddl', 'w') as f:
+        #         #     f.write(self.problem.asPDDL())
+        #         # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        #         tau += 0.1
+        # # return plan
 
     def _print_goal(self):
         print(self.goal.asPDDL())
@@ -250,6 +304,7 @@ class CorrectingAgent(Agent):
         r1, r2 = rule_model.get_message_probs(data, priors=priors)
         logger.debug('predictions: ' + str((r1, r2)))
 
+        #print(r1, r2)
 
         # if there is no confidence in the update then ask for help
         if max(r1, r2) < self.threshold:
@@ -262,6 +317,8 @@ class CorrectingAgent(Agent):
             bin_answer = int(answer.lower() == 'yes')
             visible[message.o1[0]] = bin_answer
             message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
+            r1, r2 = message_probs
+
 
         objs = [args[0], args[1], message.o3]
         prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
@@ -284,7 +341,7 @@ class CorrectingAgent(Agent):
         self.update_goal()
         logger.debug(self.goal.asPDDL())
         self.world.back_track()
-        self.sense()
+        #self.sense()
 
 
     def tracking(self):
@@ -299,7 +356,7 @@ class CorrectingAgent(Agent):
             rule_model.update_c_no_corr(data)
 
     def get_data(self, message, args):
-        observation = self.sense()
+        observation = self.world.sense()
 
         c1 = message.o1[0]
         c2 = message.o2[0]
@@ -347,7 +404,7 @@ class CorrectingAgent(Agent):
             if self.colour_model_type == 'default':
                 colour_model1 = prob_model.ColourModel(c1)
             elif self.colour_model_type == 'kde':
-                colour_model1 = prob_model.KDEColourModel(c1)
+                colour_model1 = prob_model.KDEColourModel(c1, **self.model_config)
             else:
                 raise ValueError('Unexpected colour_model_type: got {}'.format(self.colour_model_type))
             self.colour_models[c1] = colour_model1
@@ -357,7 +414,7 @@ class CorrectingAgent(Agent):
             if self.colour_model_type == 'default':
                 colour_model2 = prob_model.ColourModel(c2)
             elif self.colour_model_type == 'kde':
-                colour_model2 = prob_model.KDEColourModel(c2)
+                colour_model2 = prob_model.KDEColourModel(c2, **self.model_config)
             else:
                 raise ValueError('Unexpected colour_model_type: got {}'.format(self.colour_model_type))
             self.colour_models[c2] = colour_model2
@@ -377,29 +434,41 @@ class CorrectingAgent(Agent):
             if rule_name in used_models:
                 continue
             else:
+                # print(rule_name, correction_model)
                 logger.debug(rule_name)
                 rule_belief = correction_model.rule_belief
+                # print(rule_belief.belief)
                 rules.extend(rule_belief.get_best_rules())
                 logger.debug(rules)
                 used_models.add(rule_name)
 
         self.goal = goal_updates.goal_from_list(rules)
+        # print(self.goal.asPDDL())
 
-
-    def sense(self, threshold=0.6):
+    def sense(self, threshold=0.5):
         observation = self.world.sense()
         self.problem.initialstate = observation.state
-
+        results = defaultdict(dict)
         for colour, model in self.colour_models.items():
             # these objects include tower locations, which they should not # I don't htink thats true?
             for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
-                if p_colour > threshold:
-                    colour_formula = pddl_functions.create_formula(colour, [obj])
-                    self.problem.initialstate.append(colour_formula)
+                # if p_colour > threshold:
+                #     colour_formula = pddl_functions.create_formula(colour, [obj])
+                #     self.problem.initialstate.append(colour_formula)
 
-        return observation
+                results[obj][colour] = p_colour
+        results = dict(results)
+        self.state = search.State(observation, results, threshold)
+        self.problem.initialstate = self.state.to_pddl()
+
+
+
+        true_colours = get_colours(self.world.sense(obscure=False))
+        self.tracker.store_colour_accuracy(results, true_colours, threshold, self.goal)
+
+        return observation, results
 
     def act(self, action, args):
         self.world.update(action, args)

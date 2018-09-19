@@ -152,6 +152,14 @@ def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow'])
     """
     return [p for p in state if p.get_predicates(1)[0].name not in obscured_predicates]
 
+def get_clear_objs(obs):
+    rels = obs.relations
+    out = []
+    for o, val in rels.items():
+        if 'clear' in val:
+            out.append(o)
+    return out
+
 if __name__ == "__main__":
     domain, problem = pythonpddl.pddl.parseDomainAndProblem(
     '../FF-v2.3/wumpus-a.pddl', '../FF-v2.3/wumpus-a-1.pddl')
