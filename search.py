@@ -13,8 +13,9 @@ class State(object):
 
     def __init__(self, obs, colour_choices={}, threshold=0.5):
         self.initialstate = obs.state
-        self.objects = list(colour_choices.keys())
-        self.colour_choices = colour_choices
+        clear_objs = pddl_functions.get_clear_objs(obs)
+        self.objects = list(filter(lambda x: x in clear_objs, colour_choices.keys()))
+        self.colour_choices = {o:c for o,c in colour_choices.items() if o in self.objects}
         self.colours = None
         if len(self.objects) > 0:
             self.colours = list(self.colour_choices[self.objects[0]].keys())
@@ -227,19 +228,19 @@ class Planner(object):
                 plan = ff.run(self.domain_file, 'tmp/problem.pddl')
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError) as e:
-                print(e)
-                for p in self.problem.initialstate:
-                    print(p.asPDDL())
-                print(self.problem.goal.asPDDL())
-                n = len(os.listdir('errors/pddl'))
-                with open('errors/pddl/error{}.pddl'.format(n), 'w') as f:
-                    f.write(self.problem.asPDDL())
+                pass
+                # print(e)
+                # for p in self.problem.initialstate:
+                #     print(p.asPDDL())
+                # print(self.problem.goal.asPDDL())
+                # n = len(os.listdir('errors/pddl'))
+                # with open('errors/pddl/error{}.pddl'.format(n), 'w') as f:
+                #     f.write(self.problem.asPDDL())
                 try:
                     score, self.current_state = self._pop()
                     return False
                 except IndexError:
                     self.generate_candidates(self.current_state, increase, decrease)
-
         else:
             self.generate_candidates(self.current_state, increase, decrease)
 
@@ -252,7 +253,7 @@ class Planner(object):
 
     def plan(self):
         plan = False
-        for i in range(10):
+        for i in range(20):
             plan = self.evaluate_current_state()
             if plan:
                 return plan
