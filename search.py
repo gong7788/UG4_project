@@ -254,6 +254,7 @@ class Planner(object):
     def plan(self):
         plan = False
         for i in range(20):
+            print(self.current_state.score, self.current_state.state)
             plan = self.evaluate_current_state()
             if plan:
                 return plan

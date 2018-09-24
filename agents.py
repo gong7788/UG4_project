@@ -350,7 +350,7 @@ class CorrectingAgent(Agent):
             logger.debug(colour.sigma0)
 
     def no_correction(self, action, args):
-        for rule_model in self.rule_models.values():
+        for rule_model in [model for (rule_name, model_type), model in self.rule_models.items() if model_type == 'tower']:
             message = read_sentence('no, put {} blocks on {} blocks'.format(rule_model.c1.name, rule_model.c2.name), use_dmrs=False)
             data = self.get_data(message, args)
             rule_model.update_c_no_corr(data)
@@ -628,17 +628,18 @@ class RLAgent(Agent):
         obs = self.world.sense()
         top_object = get_top(obs.relations)
         available_objects = list(filter(lambda x: (top_object, x) not in self.explored_objects, self.world.objects_not_in_tower()))
-        return np.array([get_state(top_object, o, obs) for o in available_objects])
+        states = np.array([get_state(top_object, o, obs) for o in available_objects])
+        return states, top_object, available_objects
 
 
-    def select_action(self, state):
+    def select_action(self, state, top_object, available_objects):
 
-        state = torch.from_numpy(state).float().unsqueeze(0)
+        state= torch.from_numpy(state).float().unsqueeze(0)
         probs = self.policy(state)
-        m = Categorical(probs)
+        m = Categorical(probs.squeeze())
         action = m.sample()
         self.policy.saved_log_probs.append(m.log_prob(action))
-        return action.item()
+        return 'put', [top_object, available_objects[action.item()] ]# translate this into put bi bj
 
     def sense(self, threshold=0.6):
         observation = self.world.sense()
@@ -655,24 +656,24 @@ class RLAgent(Agent):
 
         return observation
 
-        def plan(self):
-            self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-            tau = 0.6
-            while True:
-                self.sense(threshold=tau)
-                with open('tmp/problem.pddl', 'w') as f:
-                    f.write(self.problem.asPDDL())
+    def plan(self):
+        self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
+        tau = 0.6
+        while True:
+            self.sense(threshold=tau)
+            with open('tmp/problem.pddl', 'w') as f:
+                f.write(self.problem.asPDDL())
 
-                try:
-                    plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                    return plan
-                except (NoPlanError, IDontKnowWhatIsGoingOnError):
-                    # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
-                    # with open('tmp/problem.pddl', 'w') as f:
-                    #     f.write(self.problem.asPDDL())
-                    # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                    tau += 0.1
-            # return plan
+            try:
+                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+                return plan
+            except (NoPlanError, IDontKnowWhatIsGoingOnError):
+                # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+                # with open('tmp/problem.pddl', 'w') as f:
+                #     f.write(self.problem.asPDDL())
+                # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+                tau += 0.1
+        # return plan
 
 
         def get_correction(self, user_input, action, args):

@@ -135,6 +135,8 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     vis = config.getboolean('visualise')
     update_once = config.getboolean('update_once')
     colour_model_type = config['colour_model_type']
+    no_correction_update = config.getboolean('no_correction_update')
+
 
     if debug and not 'Random' in config['agent']:
         debugger = Debug(config)
@@ -180,6 +182,8 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
                     if vis:
                         w.draw()
                     break
+                elif no_correction_update:
+                    agent.no_correction(a, args)
         if debug and not 'Random' in config['agent']:
             debugger.cm_confusion(agent)
             debugger.update_cm_params(agent)
