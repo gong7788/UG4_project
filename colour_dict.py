@@ -6,7 +6,7 @@ colour_dict = {'red': ['red', 'darkred', 'maroon', 'firebrick', 'crimson'],
 'pink': ['fuchsia', 'hotpink', 'deeppink', 'pink', 'lightpink', 'magenta'],
 'orange': ['orange', 'darkorange', 'bisque']}
 
-colour_names = []
+colour_names = ['charteuse']
 for v in colour_dict.values():
     colour_names.extend(v)
 

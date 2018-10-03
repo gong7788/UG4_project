@@ -138,6 +138,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     no_correction_update = config.getboolean('no_correction_update')
 
 
+
     if debug and not 'Random' in config['agent']:
         debugger = Debug(config)
 
@@ -150,11 +151,10 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     if Agent in [agents.NeuralCorrectingAgent]:
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
-    elif Agent in [agents.CorrectingAgent]:
+    elif Agent in [agents.CorrectingAgent, agents.NoLanguageAgent]:
         if colour_model_type == 'kde':
             if neural_config is None:
                 neural_config = 'DEFAULT'
-
             model_config = get_kde_config(neural_config)
         else:
             model_config = {}
@@ -162,6 +162,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
+    print(agent)
 
     results_file.write('Results for {}\n'.format(problem_dir))
     for problem in problems:

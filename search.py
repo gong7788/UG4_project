@@ -9,6 +9,25 @@ import copy
 from ff import NoPlanError, IDontKnowWhatIsGoingOnError
 import ff
 
+class GoalState(object):
+
+
+    def __init__(self, rules, scores=None):
+        self.decision = [0] * len(rules)
+        self.rules = rules
+
+    def flip(self, i):
+        self.decision[i] = 1-self.decision[i]
+
+    def to_goal(self, goal):
+        out_rules = [self.rules[i][d] for i, d in enumerate(self.decision)]
+        out_goal = None
+        for rule in out_rules:
+            out_goal = goal_updates.update_goal(out_goal, rule)
+        g = goal_updates.update_goal(goal, out_goal)
+
+        return g
+
 class State(object):
 
     def __init__(self, obs, colour_choices={}, threshold=0.5):
@@ -110,7 +129,9 @@ class State(object):
             return False
 
 def get_rule_type(formula):
-    if formula.variables.asPDDL() == '?x':
+    if formula.op == 'not':
+        return 3
+    elif formula.variables.asPDDL() == '?x':
         return 1
     elif formula.variables.asPDDL() == '?y':
         return 2
@@ -129,6 +150,14 @@ def get_rule_colours(formula):
     c2 = right.subformulas[0].subformulas[0].get_predicates(True)[0].name
     return c1, c2
 
+def get_rule_colours_existential(formula):
+    """This function only works if the formula has 2 colours
+    (one before and one after the arrow)
+    To allow for more than one object on either side of the rule more logic must be added"""
+    and_formula = formula.subformulas[0].subformulas[0]
+    c1 = and_formula.subformulas[0].get_predicates(True)[0].name
+    c2 = and_formula.subformulas[1].get_predicates(True)[0].name
+    return c1, c2
 
 class RuleConstraint(object):
 
@@ -137,6 +166,8 @@ class RuleConstraint(object):
             self.name = '#{c1} <= #{c2}'.format(**{'c1':c1, 'c2':c2})
         elif rule_type == 2:
             self.name = '#{c2} <= #{c1}'.format(**{'c1':c1, 'c2':c2})
+        elif rule_type == 3:
+            self.name = 'no constraint'
         self.rule_type = rule_type
         self.c1 = c1
         self.c2 = c2
@@ -147,6 +178,8 @@ class RuleConstraint(object):
             return colour_counts[self.c1] <= colour_counts[self.c2]
         elif self.rule_type == 2:
             return colour_counts[self.c2] <= colour_counts[self.c1]
+        elif self.rule_type == 3:
+            return True
 
 
 class Rule(object):
@@ -157,9 +190,14 @@ class Rule(object):
             self.c1, self.c2 = get_rule_colours(rule_formula)
         elif self.rule_type == 2:
             self.c2, self.c1 = get_rule_colours(rule_formula)
+        elif self.rule_type == 3:
+            self.c1, self.c2 = get_rule_colours_existential(rule_formula)
         self.constraint = RuleConstraint(self.rule_type, self.c1, self.c2)
         self.rule_formula = rule_formula
-        self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
+        if self.rule_type in [1, 2]:
+            self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
+        else:
+            self.name = 'r_not^({},{})'.format(self.c1, self.c2)
 
 
 class ConstraintCollection(object):
@@ -252,10 +290,14 @@ class Planner(object):
 
 
     def plan(self):
+        print(self.goal.asPDDL())
         plan = False
         for i in range(20):
             print(self.current_state.score, self.current_state.state)
-            plan = self.evaluate_current_state()
+            try:
+                plan = self.evaluate_current_state()
+            except NoPlanError:
+                break
             if plan:
                 return plan
 
@@ -286,3 +328,23 @@ class Planner(object):
 
             for colour in decrease:
                 self.add_candidate(colour, increase_count=False)
+
+
+
+class NoLanguagePlanner(Planner):
+
+    def __init__(self, colour_choices, obs, unsure, goal, tmp_goal, problem, domain_file='blocks-domain.pddl', **kwargs):
+        self.unsure = unsure
+        print(colour_choices)
+        super().__init__(colour_choices, obs, goal, tmp_goal, problem, domain_file=domain_file, **kwargs)
+        self.initial_state = self.current_state
+        self.initial_goal = self.goal
+        print(self.current_state.state)
+        if len(unsure) > 1:
+            self.unsure_rules = GoalState(unsure)
+
+            for i in range(20):
+                self.unsure_rules.flip(np.random.choice(range(len(unsure))))
+
+            self.initial_goal = self.goal
+            self.goal = self.unsure_rules.to_goal(self.goal)

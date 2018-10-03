@@ -120,14 +120,18 @@ def pickle_agent(agent, f):
         datas = (cm.data, cm.weights, cm.data_neg, cm.weights_neg)
         cms[colour] = datas
 
-    for r, rule_model in agent.rule_models.items():
-        rule_model.c1 = rule_model.c1.name
-        rule_model.c2 = rule_model.c2.name
-        try:
-            rule_model.c3 = rule_model.c3.name
-        except AttributeError:
-            pass
-        agent.rule_models[r] = rule_model
+
+    if isinstance(agent, NoLanguageAgent):
+        pass
+    else:
+        for r, rule_model in agent.rule_models.items():
+            rule_model.c1 = rule_model.c1.name
+            rule_model.c2 = rule_model.c2.name
+            try:
+                rule_model.c3 = rule_model.c3.name
+            except AttributeError:
+                pass
+            agent.rule_models[r] = rule_model
 
     agent.colour_models = None
     output = (agent, cms)
@@ -144,17 +148,22 @@ def load_agent(f):
         data, weights, data_neg, weights_neg = cm_data
         cm = prob_model.KDEColourModel(colour, data=data, weights=weights, data_neg=data_neg, weights_neg=weights_neg)
         out_cms[colour] = cm
-    for r, rule_model in agent.rule_models.items():
-        rule_model.c1 = out_cms[rule_model.c1]
-        rule_model.c2 = out_cms[rule_model.c2]
-        try:
-            c1, c2 = rule_model.c3.split('/')
-            rule_model.c3 = prob_model.KDEColourModel(rule_model.c3, data=out_cms[c1].data, weights=out_cms[c1].weights, data_neg=out_cms[c2].data, weights_neg=out_cms[c2].weights)
-        except AttributeError:
-            pass
-        agent.rule_models[r] = rule_model
+
+    if isinstance(agent, NoLanguageAgent):
+        agent.build_model = NoLanguageAgent.build_model
+    else:
+        for r, rule_model in agent.rule_models.items():
+            rule_model.c1 = out_cms[rule_model.c1]
+            rule_model.c2 = out_cms[rule_model.c2]
+            try:
+                c1, c2 = rule_model.c3.split('/')
+                rule_model.c3 = prob_model.KDEColourModel(rule_model.c3, data=out_cms[c1].data, weights=out_cms[c1].weights, data_neg=out_cms[c2].data, weights_neg=out_cms[c2].weights)
+            except AttributeError:
+                pass
+            agent.rule_models[r] = rule_model
+        agent.build_model = CorrectingAgent.build_model
     agent.colour_models = out_cms
-    agent.build_model = CorrectingAgent.build_model
+
     return agent
 
 
@@ -198,9 +207,9 @@ class Tracker(object):
 
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
+                 domain_file='blocks-domain-colour-unknown.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
-                 model_config=None, tracker=Tracker()):
+                 model_config={}, tracker=Tracker()):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -246,32 +255,9 @@ class CorrectingAgent(Agent):
 
     def plan(self):
         observation, results = self.sense()
-        planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem)
+        planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
         return planner.plan()
-        # self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        # tau = 0.5
-        # while True:
-        #     # print(self.problem.goal.asPDDL())
-        #     self.sense(threshold=tau)
-        #     with open('tmp/problem.pddl', 'w') as f:
-        #         f.write(self.problem.asPDDL())
-        #
-        #     try:
-        #         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-        #         print('found plan at threshold {}'.format(tau))
-        #         return plan
-        #     except (NoPlanError, IDontKnowWhatIsGoingOnError) as e:
-        #         self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        #         # for f in self.problem.initialstate:
-        #         #     print(f.asPDDL())
-        #
-        #         print(e)
-        #         # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
-        #         # with open('tmp/problem.pddl', 'w') as f:
-        #         #     f.write(self.problem.asPDDL())
-        #         # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-        #         tau += 0.1
-        # # return plan
+
 
     def _print_goal(self):
         print(self.goal.asPDDL())
@@ -379,6 +365,7 @@ class CorrectingAgent(Agent):
 
 
     def build_model(self, message):
+
         rules = goal_updates.create_goal_options(message.o1, message.o2)
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
@@ -639,105 +626,259 @@ class RLAgent(Agent):
         m = Categorical(probs.squeeze())
         action = m.sample()
         self.policy.saved_log_probs.append(m.log_prob(action))
-        return 'put', [top_object, available_objects[action.item()] ]# translate this into put bi bj
+        return 'put', [top_object, available_objects[action.item()]] # translate this into put bi bj
 
     def sense(self, threshold=0.6):
         observation = self.world.sense()
         self.problem.initialstate = observation.state
 
-        for colour, model in self.colour_models.items():
-            # these objects include tower locations, which they should not # I don't htink thats true?
-            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
-                data = observation.colours[obj]
-                p_colour = model.p(1, data)
-                if p_colour > threshold:
-                    colour_formula = pddl_functions.create_formula(colour, [obj])
-                    self.problem.initialstate.append(colour_formula)
+        # for colour, model in self.colour_models.items():
+        #     # these objects include tower locations, which they should not # I don't htink thats true?
+        #     for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
+        #         data = observation.colours[obj]
+        #         p_colour = model.p(1, data)
+        #         if p_colour > threshold:
+        #             colour_formula = pddl_functions.create_formula(colour, [obj])
+        #             self.problem.initialstate.append(colour_formula)
 
         return observation
 
     def plan(self):
-        self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
-        tau = 0.6
-        while True:
-            self.sense(threshold=tau)
-            with open('tmp/problem.pddl', 'w') as f:
-                f.write(self.problem.asPDDL())
-
-            try:
-                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                return plan
-            except (NoPlanError, IDontKnowWhatIsGoingOnError):
-                # self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
-                # with open('tmp/problem.pddl', 'w') as f:
-                #     f.write(self.problem.asPDDL())
-                # plan = ff.run(self.domain_file, 'tmp/problem.pddl')
-                tau += 0.1
-        # return plan
+        w = copy.deepcopy(self.world)
+        obs = w.sense()
+        while not w.test_success():
+            s = self.get_all_states()
+            top = get_top(obs.)
+            a = self.select_action(s)
 
 
-        def get_correction(self, user_input, action, args):
-            visible = {}
-            # since this action is incorrect, ensure it is not done again
-            not_on_xy = pddl_functions.create_formula('on', args, op='not')
-            self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+    def get_correction(self, user_input, action, args):
+        visible = {}
+        # since this action is incorrect, ensure it is not done again
+        not_on_xy = pddl_functions.create_formula('on', args, op='not')
+        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
 
-            # get the relevant parts of the message
-            message = read_sentence(user_input, use_dmrs=False)
+        # get the relevant parts of the message
+        message = read_sentence(user_input, use_dmrs=False)
 
-            # build the rule model
-            rule_model, rules = self.build_model(message)
+        # build the rule model
+        rule_model, rules = self.build_model(message)
 
-            # if isinstance(self, CorrectingAgent):
-            #     log_cm(rule_model.c1)
-            #     log_cm(rule_model.c2)
-            #     if message.T.lower() == 'table':
-            #         log_cm(rule_model.c3)
+        # if isinstance(self, CorrectingAgent):
+        #     log_cm(rule_model.c1)
+        #     log_cm(rule_model.c2)
+        #     if message.T.lower() == 'table':
+        #         log_cm(rule_model.c3)
 
-            logger.debug('rule priors' + str(rule_model.rule_prior))
+        logger.debug('rule priors' + str(rule_model.rule_prior))
 
-            # gets F(o1), F(o2), and optionally F(o3)
-            data = self.get_data(message, args)
+        # gets F(o1), F(o2), and optionally F(o3)
+        data = self.get_data(message, args)
 
-            priors = self.priors.get_priors(message, args)
-            logger.debug('object priors: ' + str(priors))
-            r1, r2 = rule_model.get_message_probs(data, priors=priors)
-            logger.debug('predictions: ' + str((r1, r2)))            # these objects include tower locations, which they should not # I don't htink thats true?
+        priors = self.priors.get_priors(message, args)
+        logger.debug('object priors: ' + str(priors))
+        r1, r2 = rule_model.get_message_probs(data, priors=priors)
+        logger.debug('predictions: ' + str((r1, r2)))            # these objects include tower locations, which they should not # I don't htink thats true?
 
 
 
-            # if there is no confidence in the update then ask for help
-            if max(r1, r2) < self.threshold:
-                logger.debug('asking question')
-                question = 'Is the top object {}?'.format(message.o1[0])
-                dialogue.info("R: " + question)
-                answer = self.teacher.answer_question(question, self.world)
-                dialogue.info("T: " +  answer)
+        # if there is no confidence in the update then ask for help
+        if max(r1, r2) < self.threshold:
+            logger.debug('asking question')
+            question = 'Is the top object {}?'.format(message.o1[0])
+            dialogue.info("R: " + question)
+            answer = self.teacher.answer_question(question, self.world)
+            dialogue.info("T: " +  answer)
 
-                bin_answer = int(answer.lower() == 'yes')
-                visible[message.o1[0]] = bin_answer
-                message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
+            bin_answer = int(answer.lower() == 'yes')
+            visible[message.o1[0]] = bin_answer
+            message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
 
-            objs = [args[0], args[1], message.o3]
-            prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
+        objs = [args[0], args[1], message.o3]
+        prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
 
-            # update the goal belief
-            #logger.debug(prior_updates)
+        # update the goal belief
+        #logger.debug(prior_updates)
 
-            rule_model.update_belief_r(r1, r2)
-            rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative)
+        rule_model.update_belief_r(r1, r2)
+        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative)
 
-            self.priors.update(prior_updates)
-            self.update_goal()
-            self.world.back_track()
-            self.sense()
-            self.rule_models[(rule_model.rule_names, message.T)] = rule_model
+        self.priors.update(prior_updates)
+        self.update_goal()
+        self.world.back_track()
+        self.sense()
+        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
 
 def get_colours(obs):
     for obj, value in obs.relations.items():
         for c in value:
             if c in colour_names:
                 yield (obj, c)
+
+
+class NoLanguageAgent(CorrectingAgent):
+
+
+    def __init__(self, *args, **kwargs):
+        self.rules = []
+        self.unsure = []
+        super().__init__(*args, **kwargs)
+
+    def get_correction(self, user_input, action, args):
+        # visible = {}
+        # since this action is incorrect, ensure it is not done again
+        not_on_xy = pddl_functions.create_formula('on', args, op='not')
+        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+
+        # get the relevant parts of the message
+        message = read_sentence(user_input, use_dmrs=False)
+
+        # build the rule model
+        self.build_model(message, args)
+
+        self.update_goal()
+        # logger.debug(self.goal.asPDDL())
+        self.world.back_track()
+        # #self.sense()
+
+
+    def plan(self):
+
+        observation, results = self.sense()
+        planner = search.NoLanguagePlanner(results, observation, self.unsure, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
+        return planner.plan()
+
+
+    def get_data(self, message, args):
+        observation = self.world.sense()
+
+        c1 = message.o1[0]
+        c2 = message.o2[0]
+        c3 = '{}/{}'.format(c1, c2)
+        o1 = args[0]
+        o2 = args[1]
+        o3 = message.o3
+        colour_data = observation.colours
+        # try:
+        #     if 't' not in o2:
+        #         data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
+        #     else:
+        #         data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}
+        # except KeyError:
+        #     if 't' not in o2:
+        #         data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
+        #     else:
+        #         data_dict = {c1:colour_data[o1], c2:None}
+
+
+        try:
+            if 't' not in o2:
+                return {'o1':colour_data[o1], 'o2':colour_data[o2], 'o3':colour_data[o3]}
+            else:
+                return {'o1':colour_data[o1], 'o2':None, 'o3':colour_data[o3]}
+        except KeyError:
+            if 't' not in o2:
+                return {'o1':colour_data[o1], 'o2':colour_data[o2]}
+            else:
+                return {'o1':colour_data[o1], 'o2':None}
+        # return data_dict
+
+    def find_matching_cm(self, dp):
+        if dp is None:
+            return None
+        dp_prim = dp.tolist()
+
+        for c, cm in self.colour_models.items():
+            if dp_prim in cm.data.tolist():
+                print('found match', dp, cm.data, dp in cm.data)
+                return c, cm
+        else:
+            return None
+
+    def build_model(self, message, args):
+        data = self.get_data(message, args)
+        i = 0
+        cm1 = self.find_matching_cm(data['o1'])
+        cm2 = self.find_matching_cm(data['o2'])
+        print('cm1', args[0], cm1, data['o1'])
+        print('cm2', args[1], cm2, data['o2'])
+        n = len(self.colour_models)
+        if cm1 is not None and cm2 is not None:
+            c1, c1_model = cm1
+            c2, c2_model = cm2
+        elif cm1 is not None:
+            c1, c1_model = cm1
+
+            c2 = "C{}".format(n)
+            i += 1
+            if data['o2'] is not None:
+                c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
+                                        weights=np.array([1]), **self.model_config)
+            else:
+                c2_model = None
+        elif cm2 is not None:
+            c2, c2_model = cm2
+
+            i += 1
+            c1 = "C{}".format(n)
+            c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
+                                        weights=np.array([1]), **self.model_config)
+        else:
+
+            c1 = "C{}".format(n)
+            c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
+                                        weights=np.array([1]), **self.model_config)
+
+            c2 = "C{}".format(n+1)
+            if data['o2'] is not None:
+                c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
+                                        weights=np.array([1]), **self.model_config)
+            else:
+                c2_model = None
+            i += 2
+
+        #If tower: create the negated rule and two new colour variables.
+        if message.T == 'tower':
+            if data['o2'] is None:
+                return
+            rule = goal_updates.create_negative_goal([c1],[c2])
+
+            self.colour_models.update({c1:c1_model, c2:c2_model})
+            self.rule_models['not {} and {}'.format(c1, c2)] = rule
+            return
+
+        elif message.T == 'table':
+            cm3 = self.find_matching_cm(data['o3'])
+            if cm3 is not None:
+                c3, c3_model = cm3
+            else:
+                c3 = "C{}".format(n+i)
+                c3_model = prob_model.KDEColourModel(c3, data=np.array([data['o3']]), weights=np.array([1]), **self.model_config)
+
+
+            rule1 = goal_updates.create_goal([c3], [c2])
+            rule2 = goal_updates.create_goal([c3], [c1], ['?y', '?x'])
+            if data['o2'] is None:
+                self.colour_models.update({c1:c1_model, c3:c3_model})
+                self.rule_models['{}(x) -> {}(y)'.format(c3, c1)] = rule2
+            else:
+                self.colour_models.update({c1:c1_model, c2:c2_model, c3:c3_model})
+                self.rule_models['{}(x) -> {}(y) or {}(y) -> {}(x)'.format(c3, c1, c3, c2)] = (rule1, rule2)
+                return
+
+    def update_goal(self):
+        self.unsure = []
+        self.rules = []
+        for rule_name, rule in self.rule_models.items():
+            try:
+                rule1, rule2 = rule
+                self.unsure.append(rule)
+            except:
+                self.rules.append(rule)
+
+        self.goal = goal_updates.goal_from_list(self.rules)
+        # print(self.goal.asPDDL())
+
 
 class PerfectColoursAgent(CorrectingAgent):
 

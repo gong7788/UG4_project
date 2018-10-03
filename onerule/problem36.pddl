@@ -1,7 +1,7 @@
 (define (problem block-problem)
 	(:domain blocksworld)
 	(:objects b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 t0)
-	(:init 
+	(:init
 		(arm-empty )
 		(on-table b0)
 		(clear b0)
@@ -42,7 +42,6 @@
 		(green b7)
 		(darkviolet b8)
 		(purple b8)
-		(charteuse b9)
 		(green b9)
 	)
 	(:goal (and (forall (?x) (in-tower ?x)) (forall (?x) (or (not (red ?x)) (exists (?y) (and (blue ?y) (on ?x ?y)))))))

@@ -351,6 +351,8 @@ def get_agent(config):
         agent = agents.NeuralCorrectingAgent
     elif config['agent'] == 'agents.PerfectColoursAgent':
         agent = agents.PerfectColoursAgent
+    elif config['agent'] == 'agents.NoLanguageAgent':
+        agent = agents.NoLanguageAgent
     else:
         raise ValueError('invalid agent name')
     return agent

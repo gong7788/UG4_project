@@ -108,7 +108,7 @@ def teacher_correction(w):
     rules = list(get_rules(w.problem.goal))
     for r in rules:
         if check_rule_violated(r, w):
-            print(r.asPDDL())
+            #print(r.asPDDL())
             c1, c2, _ = get_relevant_colours(r)
             return tower_correction(c1, c2)
     for r in rules:
@@ -148,7 +148,7 @@ class TeacherAgent(Teacher):
         rules = list(get_rules(w.problem.goal))
         for r in rules:
             if check_rule_violated(r, w):
-                print(r.asPDDL())
+                #print(r.asPDDL())
                 c1, c2, _ = get_relevant_colours(r)
                 return tower_correction(c1, c2)
         for r in rules:

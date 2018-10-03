@@ -1,7 +1,7 @@
 (define (problem block-problem)
 	(:domain blocksworld)
 	(:objects b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 t0)
-	(:init 
+	(:init
 		(arm-empty )
 		(on-table b0)
 		(clear b0)
@@ -27,7 +27,6 @@
 		(clear t0)
 		(lawngreen b0)
 		(green b0)
-		(charteuse b1)
 		(green b1)
 		(seagreen b2)
 		(green b2)

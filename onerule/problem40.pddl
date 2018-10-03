@@ -1,7 +1,7 @@
 (define (problem block-problem)
 	(:domain blocksworld)
 	(:objects b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 t0)
-	(:init 
+	(:init
 		(arm-empty )
 		(on-table b0)
 		(clear b0)
@@ -30,7 +30,6 @@
 		(purple b1)
 		(magenta b2)
 		(pink b2)
-		(charteuse b3)
 		(green b3)
 		(yellow b4)
 		(royalblue b5)

@@ -48,7 +48,6 @@ def create_negative_goal(obj1, obj2, variables=("?x", "?y")):
     existential = Formula([conjunction_part], op='exists', variables=variables)
     neg_formula = Formula([existential], op='not')
 
-
     return neg_formula
 
 def create_default_goal():
