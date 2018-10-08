@@ -648,7 +648,7 @@ class RLAgent(Agent):
         obs = w.sense()
         while not w.test_success():
             s = self.get_all_states()
-            top = get_top(obs.)
+            top = get_top(obs.relations)
             a = self.select_action(s)
 
 
@@ -715,6 +715,8 @@ def get_colours(obs):
             if c in colour_names:
                 yield (obj, c)
 
+def get_least_likely_object(results, colour_model_name):
+    return min([(predictions[colour_model_name], obj) for obj, predictions in results.items()])[0]
 
 class NoLanguageAgent(CorrectingAgent):
 
@@ -722,6 +724,8 @@ class NoLanguageAgent(CorrectingAgent):
     def __init__(self, *args, **kwargs):
         self.rules = []
         self.unsure = []
+        self.unsure_rules = []
+        self.unsure_rules_test = []
         super().__init__(*args, **kwargs)
 
     def get_correction(self, user_input, action, args):
@@ -763,7 +767,7 @@ class NoLanguageAgent(CorrectingAgent):
         #     if 't' not in o2:
         #         data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
         #     else:
-        #         data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}
+        #         data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}self.unsure_rules
         # except KeyError:
         #     if 't' not in o2:
         #         data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
@@ -864,7 +868,13 @@ class NoLanguageAgent(CorrectingAgent):
             else:
                 self.colour_models.update({c1:c1_model, c2:c2_model, c3:c3_model})
                 self.rule_models['{}(x) -> {}(y) or {}(y) -> {}(x)'.format(c3, c1, c3, c2)] = (rule1, rule2)
-                return
+                self.unsure_rules.append((rule1, rule2))
+                obs, results = self.sense()
+                most_different = get_least_likely_object(results, c3)
+                test = pddl_functions.create_formula('on', [args[1], most_different])
+                self.unsure_rules_test.append(test)
+
+            return
 
     def update_goal(self):
         self.unsure = []
