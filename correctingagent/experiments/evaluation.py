@@ -6,10 +6,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 from ..util.colour_dict import colour_dict
+from ..util.util import get_config, config_location
 from ..agents import agents
 import configparser
 from collections import defaultdict
 # from experiment_tracking import read_experiments, get_results_file, get_baseline
+
+
+c = get_config()
+results_location = c['results_location']
+
 
 def extract_file(filename):
     with open(filename, 'rb') as f:
@@ -163,7 +169,8 @@ class Experiment(object):
     def __init__(self, config_name='DEFAULT'):
 
         config = configparser.ConfigParser()
-        config.read('config/experiments.ini')
+        config_file = os.path.join(config_location, 'experiments.ini')
+        config.read(config_file)
 
         config = config[config_name]
 
@@ -173,25 +180,11 @@ class Experiment(object):
         agents = os.listdir(os.path.join('results', suite))
         results_files = []
         for agent in agents:
-            # dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
-            # files = os.listdir(dir_)
-            # files = filter(lambda x: 'experiment' in x, files)
-            # nr = len(files)-1
 
-            # results_files.append(os.path.join(dir_, 'experiment{}.out'.format(nr)))
             config['agent'] = agent
             rf = ResultsFile.read(config)
             results_files.append((agent, rf))
         self.results_files = results_files
-
-
-    # def load_experiments(list_of_experiments, dataset):
-    #     experiments_df = read_experiments()
-    #     experiments = [get_baseline(dataset)]
-    #     for experiment in list_of_experiments:
-    #         experiments.append(get_results_file(experiments_df, experiment))
-    #     return Experiment.from_results_files(experiments, dataset)
-
 
     def from_results_files(results_files, name):
         exp = Experiment()
@@ -205,7 +198,6 @@ class Experiment(object):
             rfs['_'.join([agent_name,str(nr)])] = rf
         exp.results_files = rfs
         return exp
-
 
     def to_df(self, discount=True):
         results = {}
@@ -252,7 +244,6 @@ class Experiment(object):
         df = self.to_df(discount=discount)
         self.plot_df(df, labels=labels)
 
-
     def test_colour_models(self, name, colour_thresh=0.5):
         agent = self.get_agent(name)
         for cm in agent.colour_models.values():
@@ -273,28 +264,37 @@ class ResultsFile(object):
             suite = config['scenario_suite']
             agent = config['agent']
             threshold = config['threshold']
-            dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
+            dir_ = ResultsFile.get_dir(suite, agent, threshold)
+            # dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
             self.dir_ = dir_
 
             os.makedirs(dir_, exist_ok=True)
-
-            nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_))))
+            nr = ResultsFile.get_number(dir_)
+            # nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_))))
             self.nr = nr
             self.name = os.path.join(dir_, 'experiment{}.out'.format(nr))
         else:
             raise AttributeError('No config or name given')
 
+    def get_number(dir_):
+        return len([x for x in os.listdir(dir_) if 'experiment' in x])
+
+
+    def get_dir(suite, agent, threshold):
+        return os.path.join(results_location, suite, agent, threshold)
+
     def get(filename):
         return ResultsFile(name=filename)
 
     def read(config):
-        #rf = ResultsFile(name='')
+        # rf = ResultsFile(name='')
         suite = config['scenario_suite']
         agent = config['agent']
         threshold = config['threshold']
-        dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
+        dir_ = ResultsFile.get_dir(suite, agent, threshold)
+        # dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
 
-        nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_)))) - 1
+        nr = ResultsFile.get_number(dir_) - 1
         name = os.path.join(dir_, 'experiment{}.out'.format(nr))
         rf = ResultsFile(name=name)
         return rf
@@ -305,7 +305,8 @@ class ResultsFile(object):
             f.write(data)
 
     def save_agent(self, agent):
-        save_dir = os.path.join('results/agents/', self.dir_)
+        rel_path = os.path.relpath(self.dir_, results_location)
+        save_dir = os.path.join(results_location, 'agents/results', rel_path)
         os.makedirs(save_dir, exist_ok=True)
 
         file_name = 'agent{}.pickle'.format(self.nr)
@@ -324,7 +325,8 @@ class ResultsFile(object):
                 agents.pickle_agent(agent, f)
 
     def load_agent(self):
-        save_dir = os.path.join('results/agents/', self.dir_)
+        rel_path = os.path.relpath(self.dir_, results_location)
+        save_dir = os.path.join(results_location, 'agents/results', rel_path)
         file_name = 'agent{}.pickle'.format(self.nr)
         save_location = os.path.join(save_dir, file_name)
         try:

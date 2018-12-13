@@ -179,27 +179,27 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
     return results_file.name
 
-
-def pickle_agent(agent, file_name):
-    cms = {}
-    for colour, cm in agent.colour_models:
-        datas = (cm.model.data, cm.model.weights, cm.model.data_neg, cm.model.weights_neg)
-        cms[colour] = datas
-    agent.colour_models = None
-    output = (agent, cms)
-    with open(file_name, 'wb') as f:
-        pickle.dump(output, f)
-
-def load_agent(file_name):
-    with open(file_name, 'rb') as f:
-        agent, cms = pickle.load(f)
-    out_cms = {}
-    for colour, cm_data in cms.items():
-        data, weights, data_neg, weights_neg = cm_data
-        cm = prob_model.KDEColourModel(colour, data=data, weights=weights, data_neg=data_neg, weights_neg=weights_neg)
-        out_cms[colour] = cm
-    agent.colour_models = out_cms
-    return agent
+#
+# def pickle_agent(agent, file_name):
+#     cms = {}
+#     for colour, cm in agent.colour_models:
+#         datas = (cm.model.data, cm.model.weights, cm.model.data_neg, cm.model.weights_neg)
+#         cms[colour] = datas
+#     agent.colour_models = None
+#     output = (agent, cms)
+#     with open(file_name, 'wb') as f:
+#         pickle.dump(output, f)
+#
+# def load_agent(file_name):
+#     with open(file_name, 'rb') as f:
+#         agent, cms = pickle.load(f)
+#     out_cms = {}
+#     for colour, cm_data in cms.items():
+#         data, weights, data_neg, weights_neg = cm_data
+#         cm = prob_model.KDEColourModel(colour, data=data, weights=weights, data_neg=data_neg, weights_neg=weights_neg)
+#         out_cms[colour] = cm
+#     agent.colour_models = out_cms
+#     return agent
 
 
 def add_experiment(config_name, neural_config, debug=False):
