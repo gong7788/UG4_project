@@ -1,14 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
-from matplotlib.collections import PatchCollection
-import pddl_functions, ff
-import copy
-import random
-import data
+import pddl_functions
 import webcolors
-from matplotlib import colors
-import six
 from colour_dict import colour_dict, colour_names
 
 

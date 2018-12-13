@@ -1,18 +1,10 @@
 import world
 import agents
-from ff import Solved
-import ff
-import pddl_functions
 from teacher import TeacherAgent
 import os
-import numpy as np
-from scipy.stats import norm
-from IPython.display import clear_output
-import matplotlib.pyplot as plt
 import pandas as pd
-import gc
 import pickle
-from evaluation import plot_cumsum, test_colour_model, ResultsFile, get_agent
+from evaluation import test_colour_model, ResultsFile, get_agent
 import configparser
 import logging
 from collections import defaultdict

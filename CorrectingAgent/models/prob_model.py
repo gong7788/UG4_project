@@ -1,11 +1,9 @@
-from collections import namedtuple
 import numpy as np
 from scipy.stats import norm
 import copy
 import matplotlib.pyplot as plt
 import torch
 import logging
-from kde import gaussian_kde
 from KDEpy import NaiveKDE
 #ColourModel = namedtuple('ColourModel', ['name', 'mu', 'sigma'])
 #rule_belief = (0.5, 0.5)

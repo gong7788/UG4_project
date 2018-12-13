@@ -5,7 +5,7 @@ import webcolors
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from colour_dict import colour_dict, simple_colour_dict
+from colour_dict import colour_dict
 import agents
 import configparser
 from collections import defaultdict

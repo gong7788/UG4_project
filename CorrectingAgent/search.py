@@ -1,5 +1,3 @@
-import world
-import os
 import numpy as np
 from collections import defaultdict
 import goal_updates

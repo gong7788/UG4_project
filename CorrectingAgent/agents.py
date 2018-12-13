@@ -6,15 +6,12 @@ import goal_updates
 import prob_model
 import pddl_functions
 import numpy as np
-import multiprocessing as mp
-import time
-from ff import NoPlanError, IDontKnowWhatIsGoingOnError
+from ff import NoPlanError
 import logging
 from torch import nn
 import torch
 import torch.nn.functional as F
 from torch.distributions import Categorical
-from itertools import count
 from colour_dict import colour_names, colour_dict
 import pickle
 import search
@@ -817,7 +814,7 @@ class NoLanguageAgent(CorrectingAgent):
             i += 1
             if data['o2'] is not None:
                 c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
-                                        weights=np.array([1]), **self.model_config)
+                                                     weights=np.array([1]), **self.model_config)
             else:
                 c2_model = None
         elif cm2 is not None:
@@ -826,17 +823,17 @@ class NoLanguageAgent(CorrectingAgent):
             i += 1
             c1 = "C{}".format(n)
             c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
-                                        weights=np.array([1]), **self.model_config)
+                                                 weights=np.array([1]), **self.model_config)
         else:
 
             c1 = "C{}".format(n)
             c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
-                                        weights=np.array([1]), **self.model_config)
+                                                 weights=np.array([1]), **self.model_config)
 
             c2 = "C{}".format(n+1)
             if data['o2'] is not None:
                 c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
-                                        weights=np.array([1]), **self.model_config)
+                                                     weights=np.array([1]), **self.model_config)
             else:
                 c2_model = None
             i += 2
@@ -845,7 +842,7 @@ class NoLanguageAgent(CorrectingAgent):
         if message.T == 'tower':
             if data['o2'] is None:
                 return
-            rule = goal_updates.create_negative_goal([c1],[c2])
+            rule = goal_updates.create_negative_goal([c1], [c2])
 
             self.colour_models.update({c1:c1_model, c2:c2_model})
             self.rule_models['not {} and {}'.format(c1, c2)] = rule
