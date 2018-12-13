@@ -1,0 +1,7 @@
+README.txt
+setup.py
+CorrectingAgent.egg-info/PKG-INFO
+CorrectingAgent.egg-info/SOURCES.txt
+CorrectingAgent.egg-info/dependency_links.txt
+CorrectingAgent.egg-info/top_level.txt
+correctingagent/__init__.py
