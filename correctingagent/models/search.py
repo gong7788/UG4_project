@@ -1,12 +1,18 @@
 import numpy as np
-from collections import defaultdict
-from ..pddl import goal_updates
+import os
 import heapq
-from ..pddl import pddl_functions
 import copy
+from collections import defaultdict
+
+from ..pddl import goal_updates
+from ..pddl import pddl_functions
 from ..pddl.ff import NoPlanError, IDontKnowWhatIsGoingOnError
 from ..pddl import ff
+from ..util.util import get_config
 
+
+c = get_config()
+data_location = c['data_location']
 
 class GoalState(object):
 
@@ -230,13 +236,13 @@ def get_rules(goal):
 
 class Planner(object):
 
-    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.domain'):
+    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl'):
         self.current_state = State(obs, colour_choices)
         rules = get_rules(goal)
         rules = [Rule(r) for r in rules]
         self.constraints = ConstraintCollection.from_rules(rules)
         self.searched_states = {tuple(self.current_state.state)}
-        self.domain_file = domain_file
+        self.domain_file = os.path.join(data_location, 'domain', domain_file)
         self.goal = goal
         self.tmp_goal = tmp_goal
         self.problem = problem
@@ -259,10 +265,12 @@ class Planner(object):
         if success:
             self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
             self.problem.initialstate = self.current_state.to_pddl()
-            with open('tmp/problem.domain', 'w') as f:
+            tmp_problem = os.path.join(data_location, 'tmp/search-problem.pddl')
+            print(self.domain_file)
+            with open(tmp_problem, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
-                plan = ff.run(self.domain_file, 'tmp/problem.domain')
+                plan = ff.run(self.domain_file, tmp_problem)
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError) as e:
                 pass

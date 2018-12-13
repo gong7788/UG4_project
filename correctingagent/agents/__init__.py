@@ -1,2 +1,1 @@
-from .agents import *
-from .teacher import *
+from . import teacher, agents

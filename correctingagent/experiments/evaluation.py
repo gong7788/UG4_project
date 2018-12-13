@@ -17,21 +17,21 @@ c = get_config()
 results_location = c['results_location']
 
 
-def extract_file(filename):
-    with open(filename, 'rb') as f:
-        try:
-            colour_model = pickle.load(f)
-        except UnicodeDecodeError:
-            raise TypeError('Wrong file type, expected pickle file got {}'.format(os.path.splitext(filename)))
-    return colour_model
+# def extract_file(filename):
+#     with open(filename, 'rb') as f:
+#         try:
+#             colour_model = pickle.load(f)
+#         except UnicodeDecodeError:
+#             raise TypeError('Wrong file type, expected pickle file got {}'.format(os.path.splitext(filename)))
+#     return colour_model
 
-
-def extract_experiment_parameters(filename):
-    out = filename.strip('.pickle').split('_')
-    if len(out) < 3:
-        raise ValueError('unexpected input file format')
-    else:
-        return out
+#
+# def extract_experiment_parameters(filename):
+#     out = filename.strip('.pickle').split('_')
+#     if len(out) < 3:
+#         raise ValueError('unexpected input file format')
+#     else:
+#         return out
 
 
 def name_to_rgb(name):

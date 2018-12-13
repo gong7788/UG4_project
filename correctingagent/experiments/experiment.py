@@ -24,7 +24,7 @@ logger.addHandler(handler)
 
 config = get_config()
 data_location = config['data_location']
-
+db_location = config['db_location']
 
 class Debug(object):
 
@@ -118,7 +118,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     total_reward = 0
     problem_dir = os.path.join(data_location, problem_name)
     problems = os.listdir(problem_dir)
-    w = world.PDDLWorld('blocks-domain.domain', os.path.join(problem_dir, problems[0]))
+    w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problems[0]))
     teacher = TeacherAgent()
     if Agent in [agents.NeuralCorrectingAgent]:
         config_dict = get_neural_config(neural_config)
@@ -138,7 +138,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
     results_file.write('Results for {}\n'.format(problem_name))
     for problem in problems:
-        w = world.PDDLWorld('blocks-domain.domain', os.path.join(problem_dir, problem))
+        w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problem))
         agent.new_world(w)
         while not w.test_success():
             plan = agent.plan()
@@ -203,7 +203,9 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
 
 def add_experiment(config_name, neural_config, debug=False):
-    engine = sqlalchemy.create_engine('sqlite:///db/experiments.db')
+    experiment_db = os.path.join(db_location, 'experiments.db')
+
+    engine = sqlalchemy.create_engine('sqlite:///' + experiment_db)
     df = pd.read_sql('experiments', index_col='index', con=engine)
 
     df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)

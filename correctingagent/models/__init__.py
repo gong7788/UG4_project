@@ -1,2 +1,1 @@
-from .prob_model import *
-from .search import *
+from . import prob_model, search

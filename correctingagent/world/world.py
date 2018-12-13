@@ -4,8 +4,15 @@ from ..pddl.ff import Solved, NoPlanError, IDontKnowWhatIsGoingOnError
 from ..pddl import pddl_functions
 from ..pddl import block_plotting
 import numpy as np
-Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
+import os
+from ..util.util import get_config
 from ..util.colour_dict import colour_names
+
+Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
+
+c = get_config()
+data_dir = c['data_location']
+
 
 class World(object):
 
@@ -21,6 +28,7 @@ class World(object):
 class PDDLWorld(World):
 
     def __init__(self, domain_file, problem_file):
+        domain_file = os.path.join(data_dir, 'domain', domain_file)
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
         self.domain_file = domain_file
         self.objects = pddl_functions.get_objects(self.problem)
@@ -63,7 +71,7 @@ class PDDLWorld(World):
         problem = self.problem
         problem.initialstate = self.state
         problem_pddl = problem.asPDDL()
-        problem_file_name = 'tmp/world_problem.domain'
+        problem_file_name = os.path.join(data_dir, 'tmp/world_problem.domain')
         with open(problem_file_name, 'w') as f:
             f.write(problem_pddl)
         return self.domain_file, problem_file_name

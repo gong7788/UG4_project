@@ -203,7 +203,7 @@ class Tracker(object):
 
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain-colour-unknown.domain', teacher=None, threshold=0.7,
+                 domain_file='blocks-domain-colour-unknown.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
                  model_config={}, tracker=Tracker()):
         self.name = 'correcting'
@@ -461,7 +461,7 @@ class CorrectingAgent(Agent):
 class NeuralCorrectingAgent(CorrectingAgent):
 
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.domain', teacher=None, threshold=0.7, H=4, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, H=4, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
         self.H = H
         super().__init__(world, colour_models=colour_models, rule_beliefs=rule_beliefs, domain_file=domain_file, teacher=teacher, threshold=threshold)
 
@@ -509,7 +509,7 @@ class NeuralCorrectingAgent(CorrectingAgent):
 
 
 class RandomAgent(Agent):
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.domain', teacher=None, threshold=0.7):
+    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
         self.name = 'random'
         self.world = world
         self.domain = world.domain
@@ -539,9 +539,9 @@ class RandomAgent(Agent):
 
     def plan(self):
         self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
-        with open('tmp/problem.domain', 'w') as f:
+        with open('tmp/problem.pddl', 'w') as f:
             f.write(self.problem.asPDDL())
-        plan = ff.run(self.domain_file, 'tmp/problem.domain')
+        plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         return plan
 
 
