@@ -134,7 +134,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
-    print(agent)
+    # print(agent)
 
     results_file.write('Results for {}\n'.format(problem_name))
     for problem in problems:
@@ -172,10 +172,51 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 
     results_file.write('total reward: {}\n'.format(total_reward))
 
-    results_file.save_agent(agent)
+
+
     if debug and not 'Random' in config['agent']:
         debugger.save_confusion()
         debugger.save_params()
+
+
+    # total_reward = 0
+    # problem_dir = problem_dir + 'test'
+    # problems = os.listdir(problem_dir)
+    #
+    # results_file.write('Results for {}\n'.format(problem_dir))
+    # for problem in problems:
+    #     w = world.PDDLWorld('blocks-domain.pddl', '{}/{}'.format(problem_dir, problem))
+    #     agent.new_world(w)
+    #     while not w.test_success():
+    #         plan = agent.plan()
+    #         for a, args in plan:
+    #             if a == 'reach-goal':
+    #                 break
+    #             w.update(a, args)
+    #             if vis:
+    #                 w.draw()
+    #             correction = agent.teacher.correction(w)
+    #             if correction:
+    #                 logger.info("T: " + correction)
+    #                 agent.get_correction(correction, a, args, test=True)
+    #                 if vis:
+    #                     w.draw()
+    #                 break
+    #             elif no_correction_update:
+    #                 agent.no_correction(a, args)
+    #     if debug and not 'Random' in config['agent']:
+    #         debugger.cm_confusion(agent)
+    #         debugger.update_cm_params(agent)
+    #
+    #     total_reward += w.reward
+    #     print('{} reward: {}'.format(problem, w.reward))
+    #
+    #     results_file.write_test('{} reward: {}\n'.format(problem, w.reward))
+    #     results_file.write_test('{} cumulative reward: {}\n'.format(problem, total_reward))
+    #
+    # results_file.write_test('total reward: {}\n'.format(total_reward))
+
+    results_file.save_agent(agent)
 
     return results_file.name
 

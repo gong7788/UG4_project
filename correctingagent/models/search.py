@@ -6,13 +6,34 @@ from collections import defaultdict
 
 from ..pddl import goal_updates
 from ..pddl import pddl_functions
-from ..pddl.ff import NoPlanError, IDontKnowWhatIsGoingOnError
+from ..pddl.ff import NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError
 from ..pddl import ff
 from ..util.util import get_config
 
 
 c = get_config()
 data_location = c['data_location']
+
+
+
+class ActiveLearningTest(object):
+
+    def __init__(self, rule1, rule2, data, c3_model, c2_obj, w=None):
+        self.rule1 = Rule(rule1)
+        self.rule2 = Rule(rule2)
+        self.failed = False
+        results = {}
+
+        # for obj in pddl_functions.filter_tower_locations(data.keys(), get_locations=False):
+        for obj in w.objects_not_in_tower():
+            datum = data[obj]
+            p_colour = c3_model.p(1, datum)
+            results[obj] = p_colour
+
+        least_likely_obj = min(results, key=results.get)
+        self.objects = (least_likely_obj, c2_obj)
+        self.test_formula = pddl_functions.create_formula('on', [least_likely_obj, c2_obj])
+
 
 class GoalState(object):
 
@@ -105,8 +126,13 @@ class State(object):
             self.state.append((obj, colour))
             self.colour_counts[colour] += 1
         else:
-            self.state.remove((obj, colour))
-            self.colour_counts[colour] -= 1
+            try:
+                self.state.remove((obj, colour))
+                self.colour_counts[colour] -= 1
+            except ValueError as e:
+                print(self.state)
+                print(obj, colour)
+                raise e
 
     def to_pddl(self):
         pddl_state = copy.copy(self.initialstate)
@@ -247,6 +273,7 @@ class Planner(object):
         self.tmp_goal = tmp_goal
         self.problem = problem
         self.state_queue = []
+        # print(colour_choices)
 
     def _pop(self):
         return heapq.heappop(self.state_queue)
@@ -272,8 +299,7 @@ class Planner(object):
             try:
                 plan = ff.run(self.domain_file, tmp_problem)
                 return plan
-            except (NoPlanError, IDontKnowWhatIsGoingOnError) as e:
-                pass
+            except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
                 # print(e)
                 # for p in self.problem.initialstate:
                 #     print(p.asPDDL())
@@ -286,6 +312,7 @@ class Planner(object):
                     return False
                 except IndexError:
                     self.generate_candidates(self.current_state, increase, decrease)
+
         else:
             self.generate_candidates(self.current_state, increase, decrease)
 
@@ -297,10 +324,10 @@ class Planner(object):
 
 
     def plan(self):
-        print(self.goal.asPDDL())
+        # print(self.goal.asPDDL())
         plan = False
-        for i in range(20):
-            print(self.current_state.score, self.current_state.state)
+        for i in range(200):
+            # print(self.current_state.score, self.current_state.state)
             try:
                 plan = self.evaluate_current_state()
             except NoPlanError:
@@ -338,18 +365,32 @@ class Planner(object):
 
 class NoLanguagePlanner(Planner):
 
-    def __init__(self, colour_choices, obs, unsure, goal, tmp_goal, problem, domain_file='blocks-domain.domain', **kwargs):
-        self.unsure = unsure
-        print(colour_choices)
+    def __init__(self, colour_choices, obs, tests, goal, tmp_goal, problem, domain_file='blocks-domain.pddl', **kwargs):
+
         super().__init__(colour_choices, obs, goal, tmp_goal, problem, domain_file=domain_file, **kwargs)
         self.initial_state = self.current_state
         self.initial_goal = self.goal
-        print(self.current_state.state)
-        if len(unsure) > 1:
-            self.unsure_rules = GoalState(unsure)
+        self.tests = tests
 
-            for i in range(20):
-                self.unsure_rules.flip(np.random.choice(range(len(unsure))))
+        tmp_goal = goal_updates.update_goal(self.goal, tmp_goal)
+        for test in tests:
 
-            self.initial_goal = self.goal
-            self.goal = self.unsure_rules.to_goal(self.goal)
+            test_goal = goal_updates.update_goal(tmp_goal, test.test_formula)
+
+            self.problem.goal = test_goal
+            self.problem.initialstate = self.current_state.to_pddl()
+            # print(test_goal.asPDDL())
+            with open('tmp/problem.pddl', 'w') as f:
+                f.write(self.problem.asPDDL())
+            try:
+                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+            except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):
+
+                test.failed = True
+                continue
+            except (IDontKnowWhatIsGoingOnError, NoPlanError):
+                self.goal = goal_updates.update_goal(self.goal, test.test_formula)
+                tmp_goal = goal_updates.update_goal(tmp_goal, test.test_formula)
+            else:
+                self.goal = goal_updates.update_goal(self.goal, test.test_formula)
+                tmp_goal = goal_updates.update_goal(tmp_goal, test.test_formula)

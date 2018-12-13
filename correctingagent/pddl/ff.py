@@ -18,6 +18,9 @@ class Solved(Exception):
 class IDontKnowWhatIsGoingOnError(Exception):
     pass
 
+class ImpossibleGoalError(Exception):
+    pass
+
 def ff(domain, problem):
     process = subprocess.Popen([ff_location,
     '-o', domain,
@@ -38,12 +41,15 @@ def ff(domain, problem):
         time.sleep(0.001)
     else:
         process.terminate()
-        raise IDontKnowWhatIsGoingOnError('The amount of time taken was too long')
+        raise NoPlanError('The amount of time taken was too long')
 
     output = process.stdout.read().decode()
     exitCode = process.returncode
-    if "problem proven unsolvable" in output or "goal can be simplified to FALSE" in output:
+    if "problem proven unsolvable" in output:
         raise NoPlanError('No plan could be found')
+
+    elif  "goal can be simplified to FALSE" in output:
+        raise ImpossibleGoalError('goal simplified to FALSE')
 
     elif "goal can be simplified to TRUE" in output:
         raise Solved('The state satifies the goal')

@@ -10,6 +10,9 @@ from ..util.util import get_config, config_location
 from ..agents import agents
 import configparser
 from collections import defaultdict
+import seaborn as sns
+sns.set_style('darkgrid')
+sns.set_context("paper")
 # from experiment_tracking import read_experiments, get_results_file, get_baseline
 
 
@@ -90,6 +93,7 @@ def to_df(results_file, discount=False):
     df = pd.DataFrame(data={'rewards': rewards})
     if discount:
         df['rewards'] += 10
+        df['rewards'] = df['rewards']/2
     df['cumsum'] = df['rewards'].cumsum()
     return df
 
@@ -127,6 +131,8 @@ def plot_df(df, experiment, file_modifiers=''):
         elif name == 'correcting':
             name = 'lingustic agent'
         df[column].plot(label=name)
+    plt.tick_params(axis='both', which='major', labelsize=11)
+    plt.tick_params(axis='both', which='minor', labelsize=9)
     plt.xlabel('scenario #', fontsize=13)
     plt.ylabel('cumulative reward', fontsize=13)
     plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
@@ -208,10 +214,37 @@ class Experiment(object):
         if discount:
             for column in df.columns:
                 df[column] += 10
+                df[column] = df[column]/2
                 df['cumsum_{}'.format(column)] = df[column].cumsum()
         return df
 
-    def plot_df(self, df, labels=[]):
+    def to_test_df(self, discount=True):
+        results = {}
+        for name, f in self.results_files.items():
+            rewards, cum_rewards = read_file(f.test_name)
+            results[name] = rewards
+        df = pd.DataFrame(data=results)
+        if discount:
+            for column in df.columns:
+                df[column] += 10
+                df[column] = df[column]/2
+                df['cumsum_{}'.format(column)] = df[column].cumsum()
+        return df
+
+    def print_test(self, labels=[]):
+        df = self.to_test_df()
+        columns = list(filter(lambda x: 'cumsum' in x, df.columns))
+        if not labels:
+            labels = columns
+        for l, c in zip(labels, columns):
+            a = df[c].tail(1)
+            print(l, a.values[0])
+
+    def show_results(self, labels=[]):
+        self.plot(labels=labels)
+        self.print_test(labels=labels)
+
+    def plot_df(self, df, labels=[], dataset_label=None):
         experiment = self.name
         columns = filter(lambda x: 'cumsum' in x, df.columns)
         plt.figure()
@@ -229,9 +262,15 @@ class Experiment(object):
                     name = 'lingustic agent' + ' ' + str(nr)
                 df[column].plot(label=name)
 
-        plt.xlabel('scenario #', fontsize=13)
-        plt.ylabel('cumulative reward', fontsize=13)
-        plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
+        plt.tick_params(axis='both', which='major', labelsize=11)
+        #plt.tick_params(axis='both', which='minor', labelsize=9)
+        plt.xlabel('scenario #', fontsize=14)
+        plt.ylabel('cumulative reward', fontsize=14)
+        title_fontsize = 17
+        if dataset_label is None:
+            plt.title('Cumulative Reward for the {} Planning Problem'.format(experiment), fontsize=title_fontsize)
+        else:
+            plt.title('Cumulative Reward for the {} Planning Problem'.format(dataset_label), fontsize=title_fontsize)
         plt.legend(loc='lower left', prop={'size': 10})
         plt.savefig('results/plots/' + experiment + '.png')
         plt.show()
@@ -240,18 +279,24 @@ class Experiment(object):
         files = dict(self.results_files)
         return files[name].load_agent()
 
-    def plot(self, discount=True, labels=[]):
+    def plot(self, discount=True, labels=[], dataset_label=None):
         df = self.to_df(discount=discount)
-        self.plot_df(df, labels=labels)
+        self.plot_df(df, labels=labels, dataset_label=dataset_label)
 
-    def test_colour_models(self, name, colour_thresh=0.5):
+
+
+    def test_colour_models(self, name, colour_thresh=0.5, draw=False):
         agent = self.get_agent(name)
         for cm in agent.colour_models.values():
+            if draw:
+                cm.draw()
             yield(cm.name, test_colour_model(cm, colour_thresh=colour_thresh))
 
     def print_colour_models(self, name, colour_thresh=0.5):
         for name, values in self.test_colour_models(name, colour_thresh=colour_thresh):
             print(name, values)
+
+
 
 
 class ResultsFile(object):
@@ -260,6 +305,7 @@ class ResultsFile(object):
             self.name = name
             self.dir_ = os.path.split(name)[0]
             self.nr = int(os.path.split(name)[1].strip('experiment').strip('.out'))
+            self.test_name = os.path.join(self.dir_, 'test{}.out'.format(self.nr))
         elif config is not None:
             suite = config['scenario_suite']
             agent = config['agent']
@@ -273,6 +319,7 @@ class ResultsFile(object):
             # nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_))))
             self.nr = nr
             self.name = os.path.join(dir_, 'experiment{}.out'.format(nr))
+            self.test_name = os.path.join(self.dir_, 'test{}.out'.format(self.nr))
         else:
             raise AttributeError('No config or name given')
 
@@ -299,6 +346,10 @@ class ResultsFile(object):
         rf = ResultsFile(name=name)
         return rf
 
+
+    def write_test(self, data):
+        with open(self.test_name, 'a') as f:
+            f.write(data)
 
     def write(self, data):
         with open(self.name, 'a') as f:
@@ -343,6 +394,9 @@ class ResultsFile(object):
         # plt.figure()
         # df['cumsum'].plot()
         # plt.savefig(path.join(self.dir_, 'cumsum.png'))
+
+
+
 
 def get_agent(config):
     if config['agent'] == 'agents.CorrectingAgent':
