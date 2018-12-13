@@ -1,6 +1,6 @@
 from collections import namedtuple
 import ff
-from ff import Solved, NoPlanError, IDontKnowWhatIsGoingOnError
+from ff import Solved, NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError
 import pddl_functions
 import block_plotting
 import numpy as np
@@ -74,7 +74,7 @@ class PDDLWorld(World):
             ff.run(domain, problem)
         except Solved:
             return True
-        except (NoPlanError, IDontKnowWhatIsGoingOnError):
+        except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
             return False
         return False
 
@@ -82,7 +82,7 @@ class PDDLWorld(World):
         domain, problem = self.to_pddl()
         try:
             ff.run(domain, problem)
-        except (NoPlanError, IDontKnowWhatIsGoingOnError):
+        except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
             return True
         except Solved:
             return False

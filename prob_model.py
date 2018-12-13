@@ -19,6 +19,7 @@ class RuleBelief(object):
 
     def __init__(self, colours, rule1, rule2, prior=0.001):
         # [[(r1,r2), (r1,-r2)],[(-r1,r2), (-r1, -r2)]]
+        self.no_learning = False
         self.colours = colours
         self.rule1 = rule1
         self.rule2 = rule2
@@ -38,9 +39,12 @@ class RuleBelief(object):
          [0*self.p_r2()*m_r1 + 1*(1-self.p_r1())*m_r2, 0*(1-self.p_r2())*m_r1 + 0*(1-self.p_r1())*m_r2]])
 
     def get_as_priors(self):
-        r1 = self.p_r1()
-        r2 = self.p_r2()
-        return np.array([r1, r2])/(r1+r2)
+        if self.no_learning:
+            return np.array([0.5, 0.5])
+        else:
+            r1 = self.p_r1()
+            r2 = self.p_r2()
+            return np.array([r1, r2])/(r1+r2)
         #return np.array([0.5, 0.5])
 
 
@@ -274,8 +278,8 @@ class MLEColourModel(ColourModel):
 def get_bw_value(data):
     n = len(data)
     if n == 0:
-        return 1.
-    bw = max(1/n, 0.1)
+        return 0.5
+    bw = max(0.5/n, 0.1)
     return bw
 
 class KDEColourModel(ColourModel):

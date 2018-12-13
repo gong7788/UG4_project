@@ -207,7 +207,7 @@ class Tracker(object):
 
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain-colour-unknown.pddl', teacher=None, threshold=0.7,
+                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
                  model_config={}, tracker=Tracker()):
         self.name = 'correcting'
@@ -262,68 +262,79 @@ class CorrectingAgent(Agent):
     def _print_goal(self):
         print(self.goal.asPDDL())
 
-    def get_correction(self, user_input, action, args):
+    def get_correction(self, user_input, action, args, test=False):
         visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        if not test:
+            # get the relevant parts of the message
+            message = read_sentence(user_input, use_dmrs=False)
 
-        # get the relevant parts of the message
-        message = read_sentence(user_input, use_dmrs=False)
+            # build the rule model
+            rule_model, rules = self.build_model(message)
 
-        # build the rule model
-        rule_model, rules = self.build_model(message)
+            # if isinstance(self, CorrectingAgent):
+            #     log_cm(rule_model.c1)
+            #     log_cm(rule_model.c2)
+            #     if message.T.lower() == 'table':
+            #         log_cm(rule_model.c3)
 
-        # if isinstance(self, CorrectingAgent):
-        #     log_cm(rule_model.c1)
-        #     log_cm(rule_model.c2)
-        #     if message.T.lower() == 'table':
-        #         log_cm(rule_model.c3)
+            logger.debug('rule priors' + str(rule_model.rule_prior))
 
-        logger.debug('rule priors' + str(rule_model.rule_prior))
+            # gets F(o1), F(o2), and optionally F(o3)
+            data = self.get_data(message, args)
 
-        # gets F(o1), F(o2), and optionally F(o3)
-        data = self.get_data(message, args)
+            priors = self.priors.get_priors(message, args)
+            logger.debug('object priors: ' + str(priors))
+            r1, r2 = rule_model.get_message_probs(data, priors=priors)
+            logger.debug('predictions: ' + str((r1, r2)))
 
-        priors = self.priors.get_priors(message, args)
-        logger.debug('object priors: ' + str(priors))
-        r1, r2 = rule_model.get_message_probs(data, priors=priors)
-        logger.debug('predictions: ' + str((r1, r2)))
+            #print(r1, r2)
 
-        #print(r1, r2)
+            colour1 = message.o1[0]
+            colour2 = message.o2[0]
 
-        # if there is no confidence in the update then ask for help
-        if max(r1, r2) < self.threshold:
-            # logger.debug('asking question')
-            question = 'Is the top object {}?'.format(message.o1[0])
-            dialogue.info("R: " + question)
-            answer = self.teacher.answer_question(question, self.world)
-            dialogue.info("T: " +  answer)
+            _, results = self.sense()
+            result_c1 = results[args[0]][colour1]
+            result_c2 = results[args[1]][colour2]
 
-            bin_answer = int(answer.lower() == 'yes')
-            visible[message.o1[0]] = bin_answer
-            message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
-            r1, r2 = message_probs
+            # if there is no confidence in the update then ask for help
+            if max(r1, r2) < self.threshold or (result_c1 == 0.5 or result_c2 == 0.5):
+                # logger.debug('asking question')
+                question = 'Is the top object {}?'.format(message.o1[0])
+                dialogue.info("R: " + question)
+                answer = self.teacher.answer_question(question, self.world)
+                dialogue.info("T: " +  answer)
+
+                bin_answer = int(answer.lower() == 'yes')
+                visible[message.o1[0]] = bin_answer
+                message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
+                r1, r2 = message_probs
 
 
-        objs = [args[0], args[1], message.o3]
-        prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
+            objs = [args[0], args[1], message.o3]
+            prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
 
-        # update the goal belief
-        #logger.debug(prior_updates)
+            # update the goal belief
+            #logger.debug(prior_updates)
 
-        rule_model.update_belief_r(r1, r2)
-        which_to_update = [1,1,1]
-        if self.update_once:
-            for i, o in enumerate(objs):
-                if o in self.objects_used_for_update:
-                    which_to_update[i] = 0
-                self.objects_used_for_update.add(o)
+            rule_model.update_belief_r(r1, r2)
+            print(r1, r2)
+            print(rule_model, rule_model.rule_belief.belief)
+            print(args)
+            print(self.sense()[1])
+            which_to_update = [1,1,1]
+            if self.update_once:
+                for i, o in enumerate(objs):
+                    if o in self.objects_used_for_update:
+                        which_to_update[i] = 0
+                    self.objects_used_for_update.add(o)
 
-        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative, which_to_update=which_to_update)
+            rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative, which_to_update=which_to_update)
 
-        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
-        self.priors.update(prior_updates)
+            self.rule_models[(rule_model.rule_names, message.T)] = rule_model
+            self.priors.update(prior_updates)
         self.update_goal()
         logger.debug(self.goal.asPDDL())
         self.world.back_track()
@@ -555,7 +566,7 @@ class RandomAgent(Agent):
 
         return observation
 
-    def get_correction(self, user_input, action, args):
+    def get_correction(self, user_input, action, args, test=False):
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
@@ -721,24 +732,40 @@ def get_least_likely_object(results, colour_model_name):
 class NoLanguageAgent(CorrectingAgent):
 
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, domain_file='blocks-domain-colour-unknown.pddl', **kwargs):
         self.rules = []
-        self.unsure = []
-        self.unsure_rules = []
-        self.unsure_rules_test = []
-        super().__init__(*args, **kwargs)
+        self.active_tests = []
+        super().__init__(*args, domain_file=domain_file, **kwargs)
 
-    def get_correction(self, user_input, action, args):
+
+    def new_world(self, world):
+        self.active_tests = []
+        super().new_world(world)
+
+    def get_correction(self, user_input, action, args, test=False):
+
+
         # visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
 
-        # get the relevant parts of the message
-        message = read_sentence(user_input, use_dmrs=False)
 
-        # build the rule model
-        self.build_model(message, args)
+        if not test:
+
+            for test in self.active_tests:
+                if (test.objects[0] == args[0] and test.objects[1] == args[1]) or test.failed:
+                    correct_rule = test.rule1
+                    self.active_tests.remove(test)
+                else:
+                    continue
+                self.goal = goal_updates.update_goal(self.goal, correct_rule.rule_formula)
+
+            # get the relevant parts of the message
+            message = read_sentence(user_input, use_dmrs=False)
+
+            # build the rule model
+            self.build_model(message, args)
 
         self.update_goal()
         # logger.debug(self.goal.asPDDL())
@@ -749,9 +776,14 @@ class NoLanguageAgent(CorrectingAgent):
     def plan(self):
 
         observation, results = self.sense()
-        planner = search.NoLanguagePlanner(results, observation, self.unsure, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
-        return planner.plan()
 
+        planner = search.NoLanguagePlanner(results, observation, self.active_tests, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
+
+        try:
+            return planner.plan()
+        except ValueError as e:
+            print(self.goal.asPDDL())
+            raise e
 
     def get_data(self, message, args):
         observation = self.world.sense()
@@ -762,18 +794,8 @@ class NoLanguageAgent(CorrectingAgent):
         o1 = args[0]
         o2 = args[1]
         o3 = message.o3
-        colour_data = observation.colours
-        # try:
-        #     if 't' not in o2:
-        #         data_dict = {c1:colour_data[o1], c2:colour_data[o2], c3:colour_data[o3]}
-        #     else:
-        #         data_dict = {c1:colour_data[o1], c2:None, c3:colour_data[o3]}self.unsure_rules
-        # except KeyError:
-        #     if 't' not in o2:
-        #         data_dict = {c1:colour_data[o1], c2:colour_data[o2]}
-        #     else:
-        #         data_dict = {c1:colour_data[o1], c2:None}
 
+        colour_data = observation.colours
 
         try:
             if 't' not in o2:
@@ -785,61 +807,68 @@ class NoLanguageAgent(CorrectingAgent):
                 return {'o1':colour_data[o1], 'o2':colour_data[o2]}
             else:
                 return {'o1':colour_data[o1], 'o2':None}
-        # return data_dict
+
 
     def find_matching_cm(self, dp):
+        """If a stored colour model uses the same data point as dp then return that cm"""
         if dp is None:
             return None
         dp_prim = dp.tolist()
 
         for c, cm in self.colour_models.items():
             if dp_prim in cm.data.tolist():
-                print('found match', dp, cm.data, dp in cm.data)
+                # print('found match', dp, cm.data, dp in cm.data)
                 return c, cm
         else:
             return None
 
+    def no_correction(self, action, args):
+        for test in self.active_tests:
+            if (test.objects[0] == args[0] and test.objects[1] == args[1]):
+                correct_rule = test.rule2
+                self.active_tests.remove(test)
+            elif test.failed:
+                correct_rule = test.rule1
+                self.active_tests.remove(test)
+            else:
+                continue
+            self.goal = goal_updates.update_goal(self.goal, correct_rule.rule_formula)
+
+
     def build_model(self, message, args):
         data = self.get_data(message, args)
         i = 0
+        # To reduce the number of individual colour names reuse colour models where the colour is the same
+        # This only works because we have a set number of colour terms
+        # First try to find colour models that match particular data points
         cm1 = self.find_matching_cm(data['o1'])
         cm2 = self.find_matching_cm(data['o2'])
-        print('cm1', args[0], cm1, data['o1'])
-        print('cm2', args[1], cm2, data['o2'])
+
         n = len(self.colour_models)
-        if cm1 is not None and cm2 is not None:
-            c1, c1_model = cm1
-            c2, c2_model = cm2
-        elif cm1 is not None:
-            c1, c1_model = cm1
 
-            c2 = "C{}".format(n)
-            i += 1
-            if data['o2'] is not None:
-                c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
-                                        weights=np.array([1]), **self.model_config)
-            else:
-                c2_model = None
-        elif cm2 is not None:
-            c2, c2_model = cm2
-
-            i += 1
-            c1 = "C{}".format(n)
-            c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
-                                        weights=np.array([1]), **self.model_config)
+        # If such colour models exist, use those
+        # otherwise construct new colour models for any data point for which there was no match
+        if cm1 is not None:
+            c1, c1_model = cm1
         else:
-
             c1 = "C{}".format(n)
             c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
                                         weights=np.array([1]), **self.model_config)
+            i += 1
 
-            c2 = "C{}".format(n+1)
+        if cm2 is not None:
+            c2, c2_model = cm2
+        else:
+            c2 = "C{}".format(n + i)
+
             if data['o2'] is not None:
                 c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
                                         weights=np.array([1]), **self.model_config)
+                i += 1
             else:
                 c2_model = None
-            i += 2
+
+
 
         #If tower: create the negated rule and two new colour variables.
         if message.T == 'tower':
@@ -867,12 +896,10 @@ class NoLanguageAgent(CorrectingAgent):
                 self.rule_models['{}(x) -> {}(y)'.format(c3, c1)] = rule2
             else:
                 self.colour_models.update({c1:c1_model, c2:c2_model, c3:c3_model})
-                self.rule_models['{}(x) -> {}(y) or {}(y) -> {}(x)'.format(c3, c1, c3, c2)] = (rule1, rule2)
-                self.unsure_rules.append((rule1, rule2))
-                obs, results = self.sense()
-                most_different = get_least_likely_object(results, c3)
-                test = pddl_functions.create_formula('on', [args[1], most_different])
-                self.unsure_rules_test.append(test)
+
+                obs = self.world.sense()
+                test = search.ActiveLearningTest(rule1, rule2, obs.colours, c3_model, args[1], self.world)
+                self.active_tests.append(test)
 
             return
 
@@ -915,4 +942,4 @@ class PerfectColoursAgent(CorrectingAgent):
         #         if p_colour > threshold:
         #             colour_formula = pddl_functions.create_formula(colour, [obj])
         #             self.problem.initialstate.append(colour_formula)
-        return observation
+        return observation, {}

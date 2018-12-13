@@ -159,7 +159,7 @@ class TeacherAgent(Teacher):
 
     def answer_question(self, question, world_):
         if "Is the top object" in question:
-            colour = question.strip("Is the top object").strip("?").strip()
+            colour = question.replace("Is the top object", '').replace("?", '').strip()
             o1, o2 = get_top_two(world_)
             o1_colour = pddl_functions.create_formula(colour, [o1]).get_predicates(True)[0]
             o1_is_colour = pddl_functions.predicate_holds(o1_colour, world_.problem.initialstate)
