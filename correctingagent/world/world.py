@@ -107,3 +107,9 @@ class PDDLWorld(World):
             if 'in-tower' not in rels[o]:
                 out_objects.append(o)
         return out_objects
+
+
+class CNNPDDLWorld(PDDLWorld):
+
+    def __init__(self, domain_file, problem_file, net):
+        super(CNNPDDLWorld, self).__init__(domain_file, problem_file)
