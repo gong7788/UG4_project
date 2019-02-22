@@ -316,10 +316,10 @@ class CorrectingAgent(Agent):
             #logger.debug(prior_updates)
 
             rule_model.update_belief_r(r1, r2)
-            print(r1, r2)
-            print(rule_model, rule_model.rule_belief.belief)
-            print(args)
-            print(self.sense()[1])
+            # print(r1, r2)
+            # print(rule_model, rule_model.rule_belief.belief)
+            # print(args)
+            # print(self.sense()[1])
             which_to_update = [1,1,1]
             if self.update_once:
                 for i, o in enumerate(objs):

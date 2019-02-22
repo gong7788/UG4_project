@@ -106,12 +106,13 @@ def plot_cumsum(results_file, discount=False, save_loc='test.png'):
 
 
 def df_experiment(dataset, threshold=0.7, discount=True, file_modifiers=''):
-    files = os.listdir('results')
+    locations = get_config()
+    files = os.listdir(results_location)
     results_files = filter(lambda x: dataset in x and str(threshold) in x and (file_modifiers in x or 'random' in x), files)
     results = {}
     for f in results_files:
         name = f.split('_')[0]
-        rewards, cum_rewards = read_file('results/' + f)
+        rewards, cum_rewards = read_file('{}/{}'.format(locations['results_location'], f))
         results[name] = rewards
     df = pd.DataFrame(data=results)
     if discount:
@@ -122,6 +123,7 @@ def df_experiment(dataset, threshold=0.7, discount=True, file_modifiers=''):
 
 
 def plot_df(df, experiment, file_modifiers=''):
+    locations = get_config()
     columns = filter(lambda x: 'cumsum' in x, df.columns)
     plt.figure()
     for column in columns:
@@ -137,11 +139,12 @@ def plot_df(df, experiment, file_modifiers=''):
     plt.ylabel('cumulative reward', fontsize=13)
     plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
     plt.legend(loc='lower left', prop={'size': 10})
-    plt.savefig('results/plots/' + experiment + file_modifiers + '.png')
+    plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + file_modifiers + '.png'))
     plt.show()
 
 def load_agent(dataset, threshold=0.7, file_modifiers=''):
-    with open('results/agents/correcting_{}_{}{}.pickle'.format(dataset, threshold, file_modifiers), 'rb') as f:
+    locations = get_config()
+    with open('{}/agents/correcting_{}_{}{}.pickle'.format(locations['results_location'], dataset, threshold, file_modifiers), 'rb') as f:
         agent = pickle.load(f)
     return agent
 
@@ -170,6 +173,11 @@ def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_d
         cm.draw(save_location_basename=dataset)
 
 
+def get_agent_name(result_file):
+    name = result_file.name
+    return [c for c in name.split('/') if 'agents.' in c][0]
+
+
 class Experiment(object):
 
     def __init__(self, config_name='DEFAULT'):
@@ -183,7 +191,7 @@ class Experiment(object):
         suite = config['scenario_suite']
         self.name = suite
         threshold = config['threshold']
-        agents = os.listdir(os.path.join('results', suite))
+        agents = os.listdir(os.path.join(results_location, suite))
         results_files = []
         for agent in agents:
 
@@ -198,7 +206,7 @@ class Experiment(object):
         exp.name=name
         agent_name_counter = defaultdict(int)
         for rf in results_files:
-            agent_name = 'agents.' + type(rf.load_agent()).__name__
+            agent_name = get_agent_name(rf)
             nr = agent_name_counter[agent_name]
             agent_name_counter[agent_name] += 1
             rfs['_'.join([agent_name,str(nr)])] = rf
@@ -214,7 +222,7 @@ class Experiment(object):
         if discount:
             for column in df.columns:
                 df[column] += 10
-                df[column] = df[column]/2
+                df[column] = -1 * df[column]/2
                 df['cumsum_{}'.format(column)] = df[column].cumsum()
         return df
 
@@ -227,7 +235,7 @@ class Experiment(object):
         if discount:
             for column in df.columns:
                 df[column] += 10
-                df[column] = df[column]/2
+                df[column] = -1*df[column]/2
                 df['cumsum_{}'.format(column)] = df[column].cumsum()
         return df
 
@@ -245,6 +253,7 @@ class Experiment(object):
         self.print_test(labels=labels)
 
     def plot_df(self, df, labels=[], dataset_label=None):
+        locations = get_config()
         experiment = self.name
         columns = filter(lambda x: 'cumsum' in x, df.columns)
         plt.figure()
@@ -265,14 +274,14 @@ class Experiment(object):
         plt.tick_params(axis='both', which='major', labelsize=11)
         #plt.tick_params(axis='both', which='minor', labelsize=9)
         plt.xlabel('scenario #', fontsize=14)
-        plt.ylabel('cumulative reward', fontsize=14)
+        plt.ylabel('regret', fontsize=14)
         title_fontsize = 17
         if dataset_label is None:
-            plt.title('Cumulative Reward for the {} Planning Problem'.format(experiment), fontsize=title_fontsize)
+            plt.title('Cumulative Regret for the {} Planning Problem'.format(experiment), fontsize=title_fontsize)
         else:
-            plt.title('Cumulative Reward for the {} Planning Problem'.format(dataset_label), fontsize=title_fontsize)
-        plt.legend(loc='lower left', prop={'size': 10})
-        plt.savefig('results/plots/' + experiment + '.png')
+            plt.title('Cumulative Regret for the {} Planning Problem'.format(dataset_label), fontsize=title_fontsize)
+        plt.legend(loc='upper left', prop={'size': 10})
+        plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + '.png'))
         plt.show()
 
     def get_agent(self, name):
@@ -302,6 +311,7 @@ class Experiment(object):
 class ResultsFile(object):
     def __init__(self, config=None, name=None):
         if name is not None:
+
             self.name = name
             self.dir_ = os.path.split(name)[0]
             self.nr = int(os.path.split(name)[1].strip('experiment').strip('.out'))

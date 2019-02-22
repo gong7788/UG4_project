@@ -5,10 +5,10 @@ from delphin.mrs.dmrx import loads
 from delphin.extra.latex import dmrs_tikz_dependency
 from collections import defaultdict
 
-def parse_sentence2(sentence, grammar = 'ace-0.9.27/erg-1214-osx-0.9.27.dat'):#'../ace-0.9.26/erg-1214-x86-64-0.9.26.dat'):
+def parse_sentence2(sentence, grammar = '/home/mappelgren/Desktop/ace-0.9.30/erg-2018-x86-64-0.9.30.dat'):#'../ace-0.9.26/erg-1214-x86-64-0.9.26.dat'):
     p = ace.parse(grammar, sentence)
-    top_result = p['RESULTS'][0]['MRS']
-    dmrx = convert(p['RESULTS'][0]['MRS'], 'simplemrs', 'dmrx')
+    top_result = p['results'][0]['mrs']
+    dmrx = convert(top_result, 'simplemrs', 'dmrx')
     dmrxx = loads(dmrx, single=True)
     return dmrxx.to_dict()
 
