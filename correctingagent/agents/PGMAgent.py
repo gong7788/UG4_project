@@ -116,15 +116,15 @@ class PGMCorrectingAgent(CorrectingAgent):
         corr = 'corr_{}'.format(self.time)
 
         data[corr] = 1
-        for a in args:
-            self.marks.add(a)
+        # for a in args:
+        #     self.marks.add(a)
 
         red = '{}({})'.format(message.o1[0], args[0])
         blue = '{}({})'.format(message.o2[0], args[1])
         if message.T == 'table':
             redo3 = '{}({})'.format(message.o1[0], message.o3)
             blueo3 = '{}({})'.format(message.o2[0], message.o3)
-            self.marks.add(message.o3)
+            # self.marks.add(message.o3)
 
         if 't' in args[1]:
             data[blue] = 0
@@ -160,6 +160,18 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         #self.update_rules()
 
+        if m_r1 > self.threshold:
+            if message.T == 'tower':
+                self.marks.add(args[0])
+            else:
+                self.marks.add(args[1])
+                self.marks.add(message.o3)
+        else:
+            if message.T == 'tower':
+                self.marks.add(args[1])
+            else:
+                self.marks.add(args[0])
+                self.marks.add(message.o3)
 
 
         self.update_cms()
