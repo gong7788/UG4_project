@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from ..util.colour_dict import colour_dict
 from ..util.util import get_config, config_location
-from ..agents import agents
+from ..agents import agents, PGMAgent
 import configparser
 from collections import defaultdict
 import seaborn as sns
@@ -175,7 +175,7 @@ def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_d
 
 def get_agent_name(result_file):
     name = result_file.name
-    return [c for c in name.split('/') if 'agents.' in c][0]
+    return [c for c in name.split('/') if ('agents.' in c or 'PGM' in c)][0]
 
 
 class Experiment(object):
@@ -372,18 +372,28 @@ class ResultsFile(object):
 
         file_name = 'agent{}.pickle'.format(self.nr)
         save_location = os.path.join(save_dir, file_name)
+        agent_type = type(agent)
+        goal = agent.goal
+        cms = {}
+        for colour, cm in agent.colour_models.items():
+            datas = (cm.data, cm.weights, cm.data_neg, cm.weights_neg)
+            cms[colour] = datas
 
-        try:
-            agent.priors.to_dict()
-        except AttributeError:
-            pass
+        with open(save_location, 'wb') as f:
+            pickle.dump((agent_type, goal, cms), f)
 
-        try:
-            with open(save_location, 'wb') as f:
-                pickle.dump(agent, f)
-        except pickle.PicklingError:
-            with open(save_location, 'wb') as f:
-                agents.pickle_agent(agent, f)
+        #
+        # try:
+        #     agent.priors.to_dict()
+        # except AttributeError:
+        #     pass
+        #
+        # try:
+        #     with open(save_location, 'wb') as f:
+        #         pickle.dump(agent, f)
+        # except pickle.PicklingError:
+        #     with open(save_location, 'wb') as f:
+        #         agents.pickle_agent(agent, f)
 
     def load_agent(self):
         rel_path = os.path.relpath(self.dir_, results_location)
@@ -419,6 +429,8 @@ def get_agent(config):
         agent = agents.PerfectColoursAgent
     elif config['agent'] == 'agents.NoLanguageAgent':
         agent = agents.NoLanguageAgent
+    elif config['agent'] == 'PGMAgent':
+        agent = PGMAgent.PGMCorrectingAgent
     else:
         raise ValueError('invalid agent name')
     return agent

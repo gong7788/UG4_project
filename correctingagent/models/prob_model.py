@@ -291,6 +291,10 @@ class KDEColourModel(ColourModel):
         self.data_neg = data_neg
         self.weights_neg = weights_neg
         self.use_3d = use_3d
+        self.fixed_pos = None
+        self.fixed_neg = None
+        self.fixed_wpos = np.array([])
+        self.fixed_wneg = np.array([])
         if fix_bw:
             self.bw = lambda x: bw
         else:
@@ -301,6 +305,17 @@ class KDEColourModel(ColourModel):
         if data_neg is not None:
             self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
 
+    def reset(self):
+        self.data = self.fixed_pos
+        self.weights = self.fixed_wpos
+        self.data_neg = self.fixed_neg
+        self.weights_neg = self.fixed_wneg
+
+    def fix(self):
+        self.fixed_pos = self.data
+        self.fixed_neg = self.data_neg
+        self.fixed_wpos = self.weights
+        self.fixed_wneg = self.fixed_wneg
 
     def update(self, fx, w):
         if fx is None or w == 0:
@@ -310,6 +325,7 @@ class KDEColourModel(ColourModel):
         else:
             self.data = np.append(self.data, np.array([fx]), axis=0)
         self.weights = np.append(self.weights, w)
+        
         self.model = self.fit_model(self.data, self.weights)
 
     def update_negative(self, fx, w):

@@ -292,9 +292,14 @@ class CorrectingAgent(Agent):
             colour2 = message.o2[0]
 
             _, results = self.sense()
-            result_c1 = results[args[0]][colour1]
-            result_c2 = results[args[1]][colour2]
-
+            try:
+                result_c1 = results[args[0]][colour1]
+            except KeyError:
+                result_c1 = 0.
+            try:
+                result_c2 = results[args[1]][colour2]
+            except KeyError:
+                result_c2 = 0.
             # if there is no confidence in the update then ask for help
             if max(r1, r2) < self.threshold or (result_c1 == 0.5 or result_c2 == 0.5):
                 # logger.debug('asking question')

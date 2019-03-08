@@ -1,5 +1,5 @@
 from ..world import world
-from ..agents import agents
+from ..agents import agents, PGMAgent
 from ..agents.teacher import TeacherAgent
 import os
 import pandas as pd
@@ -123,7 +123,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     if Agent in [agents.NeuralCorrectingAgent]:
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
-    elif Agent in [agents.CorrectingAgent, agents.NoLanguageAgent]:
+    elif Agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if neural_config is None:
                 neural_config = 'DEFAULT'
