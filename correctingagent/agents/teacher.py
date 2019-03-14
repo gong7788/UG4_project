@@ -1,5 +1,6 @@
 from ..pddl import pddl_functions
-
+from collections import namedtuple
+import random
 
 def tower_correction(obj1, obj2):
     return "no, put {} blocks on {} blocks".format(obj1, obj2)
@@ -151,6 +152,7 @@ class TeacherAgent(Teacher):
             o3 = check_table_rule_violation(r, w)
             if o3:
                 c1, c2, _ = get_relevant_colours(r)
+
                 return table_correction(c1, c2, o3)
 
     def answer_question(self, question, world_):
@@ -163,3 +165,48 @@ class TeacherAgent(Teacher):
                 return "yes"
             else:
                 return "no"
+
+Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
+
+
+class ExtendedTeacherAgent(TeacherAgent):
+
+    def __init__(self):
+        self.previous_correction = None
+
+
+    def correction(self, w):
+        if not.w.test_failure():
+            return ""
+
+        possible_corrections = []
+        rules = list(get_rules(w.problem.goal))
+        for r in rules:
+            if check_rule_violated(r, w):
+                #print(r.asPDDL())
+                c1, c2, _ = get_relevant_colours(r)
+                o1, o2 = get_top_two(world_)
+                corr = Correction(r, c1, c2, [o1, o2], tower_correction(c1, c2))
+                possible_corrections.append(corr)
+
+        for r in rules:
+            o3 = check_table_rule_violation(r, w)
+            if o3:
+                c1, c2, _ = get_relevant_colours(r)
+                o1, o2 = get_top_two(world_)
+                corr = Correction(r, c1, c2, [o1, o2, o3], table_correction(c1, c2, o3))
+                possible_corrections.append(corr)
+
+
+
+
+    def select_correction(self, possible_corrections):
+        for correction in possible_corrections:
+
+            if self.previous_correction.rule == correction.rule:
+                return "no, that is wrong for the same reason"
+
+                #if self.previous_correction.args[0] == correction.args[0] and len(correction.args[]):
+
+
+        return random.choice(possible_corrections).sentence

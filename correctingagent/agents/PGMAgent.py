@@ -85,7 +85,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.time += 1
         #print(self.time)
         if args[0] in self.marks or args[1] in self.marks:
-            print('we did the thing')
+            #print('we did the thing')
             self.pgm_model.add_no_correction(args, self.time)
             data = self.get_colour_data(args)
             corr = 'corr_{}'.format(self.time)
