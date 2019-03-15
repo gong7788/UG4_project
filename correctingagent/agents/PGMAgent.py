@@ -43,7 +43,31 @@ def rule_to_pddl(rule):
     else:
         raise ValueError('Should not get here')
 
+Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
+
+def read_sentence(sentence, use_dmrs=True):
+    sentence = sentence.lower().strip('no,')
+    o3 = None
+    T = 'tower'
+    if 'for the same reason' in sentence:
+        return Message(None, None, None, 'same reason', None)
+    if 'tower because you must' in sentence:
+        T = 'table'
+        o3 = sentence.split('put')[1].split('in')[0].strip()
+        sentence = sentence.split('because you must')[1].strip()
+    if use_dmrs:
+        rel, o1, o2= dmrs_functions.sent_to_tripple(sentence)
+        o1 = dmrs_functions.get_adjectives(o1)
+        o2 = dmrs_functions.get_adjectives(o2)
+        rel = dmrs_functions.get_pred(rel['predicate'])
+        return Message(rel, o1, o2, T, o3)
+    else:
+        rel = 'on'
+        o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
+        o1 = o1.strip().split()[0]
+        o2 = o2.strip().split()[0]
+        return Message(rel, [o1], [o2], T, o3)
 
 
 class PGMCorrectingAgent(CorrectingAgent):
@@ -63,7 +87,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.time = 0
         self.last_correction = -1
         self.marks = set()
-
+        self.previous_corrections = []
 
 
     def update_goal(self):
@@ -101,6 +125,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.last_correction = self.time
         #print(self.time)
 
+
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
         #print(self.time)
@@ -109,25 +134,35 @@ class PGMCorrectingAgent(CorrectingAgent):
         #print(read_sentence(user_input, use_dmrs=False))
         message = read_sentence(user_input, use_dmrs=False)
         args_for_model = args.copy()
-        if message.T == 'table':
-            args_for_model += [message.o3]
-        data = self.get_colour_data(args_for_model)
-        violations = self.build_pgm_model(message, args)
-        corr = 'corr_{}'.format(self.time)
+        if message.T == 'same reason':
+            for prev_corr, prev_time in self.previous_corrections[::-1]:
+                if 'same reason' not in prev_corr:
+                    break
 
-        data[corr] = 1
-        # for a in args:
-        #     self.marks.add(a)
 
-        red = '{}({})'.format(message.o1[0], args[0])
-        blue = '{}({})'.format(message.o2[0], args[1])
-        if message.T == 'table':
-            redo3 = '{}({})'.format(message.o1[0], message.o3)
-            blueo3 = '{}({})'.format(message.o2[0], message.o3)
-            # self.marks.add(message.o3)
+            prev_message = read_sentence(prev_corr)
+            violations = self.build_same_reason(prev_message, args, prev_time)
 
-        if 't' in args[1]:
-            data[blue] = 0
+        else:
+            if message.T == 'table':
+                args_for_model += [message.o3]
+            data = self.get_colour_data(args_for_model)
+            violations = self.build_pgm_model(message, args)
+            corr = 'corr_{}'.format(self.time)
+
+            data[corr] = 1
+            # for a in args:
+            #     self.marks.add(a)
+
+            red = '{}({})'.format(message.o1[0], args[0])
+            blue = '{}({})'.format(message.o2[0], args[1])
+            if message.T == 'table':
+                redo3 = '{}({})'.format(message.o1[0], message.o3)
+                blueo3 = '{}({})'.format(message.o2[0], message.o3)
+                # self.marks.add(message.o3)
+
+            if 't' in args[1]:
+                data[blue] = 0
 
 
 
@@ -177,6 +212,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.update_cms()
         self.update_goal()
         self.world.back_track()
+        self.previous_corrections.append((user_input, time))
         #super(PGMCorrectingAgent, self).get_correction(user_input, actions, args, test=test)
 
 
@@ -203,6 +239,14 @@ class PGMCorrectingAgent(CorrectingAgent):
             red_cm = KDEColourModel(colour_name, **self.model_config)
             self.colour_models[colour_name] = red_cm
         return red_cm
+
+    def build_same_reason(self, message, args, prev_time):
+        violations = self.build_pgm_model(message, args)
+        rules = create_rules(message.o1[0], message.o2[0])
+        previous_violations = ['V_{}({})'.format(prev_time, rule) for rule in rules]
+        self.pgm_model.add_same_reason(violations, previous_violations)
+        return violations
+
 
     def build_pgm_model(self, message, args):
 

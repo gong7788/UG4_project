@@ -114,6 +114,32 @@ def generate_flips(variables, cardinalities=None, evidence={}, output=[]):
             new_evidence[variables[0]] = i
             generate_flips(variables[1:], cardinalities=cardinalities[1:], evidence=new_evidence, output=output)
 
+
+
+def equals_CPD(seta, setb, carda=None, cardb=None):
+    if len(seta) != len(setb):
+        raise TypeError('Lengths do not match')
+    if carda is None:
+        carda = [2]*len(seta)
+    if cardb is None:
+        cardb = [2]*len(setb)
+    results = []
+    def helper(settingsa, cardsa, settingsb, cardsb):
+        if len(cardsa) == 0:
+            results.append(int(all([a == b for a,b in zip(settingsa, settingsb)])))
+        else:
+            for i in range(cardsa[0]):
+                for j in range(cardsb[0]):
+                    sa = settingsa.copy()
+                    sb = settingsb.copy()
+                    helper(sa+[i], cardsa[1:], sb+[j], cardsb[1:])
+    helper([], carda, [], cardb)
+
+    return results
+
+
+
+
 class SearchInference(object):
 
     def __init__(self, model, beam_size=-1):
@@ -355,6 +381,16 @@ class PGMModel(object):
         return Vr1, Vr2
 
 
+    def add_same_reason(self, current_violations, previous_violations):
+        evidence = []
+        for c, p in zip(current_violations, previous_violations):
+            evidence.extend([c,p])
+
+        t = equals_CPD(current_violations, previous_violations)
+        f = DiscreteFactor(evidence, [2]*len(evidence), t)
+        self.add_factor(evidence, f)
+
+
     def observe(self, observable={}):
         if self.search_inference.beam:
             remains = set(observable.keys()) - set(self.observed.keys())
@@ -397,7 +433,7 @@ class PGMModel(object):
         for rule, p in q.items():
             if p is None:
                 q[rule] = self.rule_priors[rule]
-        
+
         if update_prior:
             for rule in rules:
                 self.rule_priors[rule] = q[rule]
