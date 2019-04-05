@@ -3,6 +3,8 @@ from pythonpddl.pddl import Predicate, TypedArgList, Formula
 import copy
 
 
+
+
 def create_goal(obj1, obj2, variables=("?x", "?y")):
     variables = pddl_functions.make_variable_list(variables)
     obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]

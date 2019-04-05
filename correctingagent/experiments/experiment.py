@@ -1,6 +1,6 @@
 from ..world import world
 from ..agents import agents, PGMAgent
-from ..agents.teacher import TeacherAgent
+from ..agents.teacher import TeacherAgent, ExtendedTeacherAgent
 import os
 import pandas as pd
 import pickle
@@ -90,7 +90,7 @@ class Debug(object):
 
 
 
-def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
+def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT', new_teacher=False):
 
     if debug:
         agent_logger.setLevel(logging.DEBUG)
@@ -119,7 +119,10 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
     problem_dir = os.path.join(data_location, problem_name)
     problems = os.listdir(problem_dir)
     w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problems[0]))
-    teacher = TeacherAgent()
+    if new_teacher:
+        teacher = ExtendedTeacherAgent()
+    else:
+        teacher = TeacherAgent()
     if Agent in [agents.NeuralCorrectingAgent]:
         config_dict = get_neural_config(neural_config)
         agent = Agent(w, teacher=teacher, **config_dict)
@@ -243,7 +246,7 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT'):
 #     return agent
 
 
-def add_experiment(config_name, neural_config, debug=False):
+def add_experiment(config_name, neural_config, debug=False, new_teacher=False):
     experiment_db = os.path.join(db_location, 'experiments.db')
 
     engine = sqlalchemy.create_engine('sqlite:///' + experiment_db)
@@ -252,12 +255,13 @@ def add_experiment(config_name, neural_config, debug=False):
     df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
     df.to_sql('experiments', con=engine, if_exists='replace')
     try:
-        results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug)
-    except:
+        results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug, new_teacher=new_teacher)
+    except Exception as e:
         df = pd.read_sql('experiments', index_col='index', con=engine)
         last_label = df.index[-1]
-        df.at[last_label, 'experiment_file'] = results_file
+        df.at[last_label, 'experiment_file'] = None
         df.at[last_label, 'status'] = 'ERROR'
+        raise e
     else:
         df = pd.read_sql('experiments', index_col='index', con=engine)
         last_label = df.index[-1]

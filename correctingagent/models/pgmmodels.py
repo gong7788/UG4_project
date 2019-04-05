@@ -7,11 +7,16 @@ from pgmpy.models import FactorGraph
 from pgmpy.factors.continuous import ContinuousFactor
 import numpy as np
 from functools import reduce
+from ..agents.PGMAgent import get_rule_type
 
 def create_rules(colour1, colour2):
     r1 = 'all x.({}(x) -> exists y. ({}(y) & on(x,y)))'.format(colour1, colour2)
     r2 = 'all y.({}(y) -> exists x. ({}(x) & on(x,y)))'.format(colour2, colour1)
     return r1, r2
+
+def create_neg_rule(red, blue):
+    rule = "- exists x. exists y. ({}(x) and {}(y) and on(x,y))".format(red, blue)
+    return rule
 
 def evaluate_rule(colour1, value1, colour2, value2, rule):
     c1_set = set()
@@ -61,6 +66,18 @@ def generate_table_cpd(rule_type):
                         cpd_line_corr0.append(1-result)
     return [cpd_line_corr0, cpd_line_corr1]
 
+
+def generate_neg_table_cpd():
+    cpd_line_corr0 = []
+    cpd_line_corr1 = []
+    for r1 in range(2):
+        for blueo1 in range(2):
+            for redo3 in range(2):
+                result = r1 * int(blueo1 and redo3)
+                cpd_line_corr1.append(result)
+                cpd_line_corr0.append(1-result)
+
+    return [cpd_line_corr0, cpd_line_corr1]
 
 def or_CPD():
     cpd_line1 = []
@@ -137,7 +154,10 @@ def equals_CPD(seta, setb, carda=None, cardb=None):
 
     return results
 
-
+def check_beam_holds(beam, worlds):
+    if not worlds:
+        return True
+    return any([all([beam[var] == w[var] if var in beam.keys() else False for var in w.keys()]) for w in worlds])
 
 
 class SearchInference(object):
@@ -186,6 +206,11 @@ class SearchInference(object):
             self.beam = [(beam, p) for beam, p in self.beam if beam[var] == val]
         self.norm = sum([p for _, p in self.beam])
 
+
+    def variable_clamp(self, worlds):
+        self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
+
+
     def query(self, variables, values=None):
         if values == None:
             values = [1]*len(variables)
@@ -212,11 +237,18 @@ class PGMModel(object):
         self.observed = {}
         self.colour_variables = []
 
+    def add_rules(self, rules, cm1, cm2):
+        self.colours[cm1.name] = cm1
+        self.colours[cm2.name] = cm2
+        for rule in rules:
+            self.known_rules[rule] = (cm1.name, cm2.name)
 
     def add_cm(self, cm, block):
 
         red_rgb = 'F({})'.format(block)
         red_o1 = '{}({})'.format(cm.name, block)
+        self.colours[cm.name] = cm
+        self.colour_variables.append(red_o1)
         if 't' in block:
             self.model.add_nodes_from([red_o1])
             return red_o1
@@ -225,8 +257,6 @@ class PGMModel(object):
             red_evidence = [red_rgb, red_o1]
             red_cm_factor = ContinuousFactor(red_evidence, red_distribution)
             self.add_factor(red_evidence + [red_cm_factor], red_cm_factor)
-        self.colours[cm.name] = cm
-        self.colour_variables.append(red_o1)
         return red_o1
 
 
@@ -284,6 +314,75 @@ class PGMModel(object):
         correction = TabularCPD(corr, 2, correction_table, evidence=violations, evidence_card=[2]*len(violations))
         correction_factor = correction.to_factor()
         self.add_factor([corr, correction_factor], correction_factor)
+        return violations
+
+    def add_no_table_correciton(self, args, time):
+        if not self.known_rules:
+            return
+
+        violations = []
+
+        for rule, (red, blue) in self.known_rules.items():
+            violations.append(self.add_table_violation(rule, self.colours[red], self.colours[blue], args, time))
+
+        corr = 'corr_{}'.format(time)
+        correction_table = variable_or_CPD(len(violations))
+        correction = TabularCPD(corr, 2, correction_table, evidence=violations, evidence_card=[2]*len(violations))
+        correction_factor = correction.to_factor()
+        self.add_factor([corr, correction_factor], correction_factor)
+        return violations
+
+    def create_negative_model(self, rule, red_cm, blue_cm, args, time):
+        o1, o2 = args[:2]
+
+        red_o1 = self.add_cm(red_cm, o1)
+        blue_o2 = self.add_cm(blue_cm, o2)
+
+        self.add_prior(rule)
+        self.known_rules[r1] = [red_cm.name, blue_cm.name]
+        violated_rule = generate_CPD(rule, red_cm.name, blue_cm.name)
+
+        correction_table = variable_or_CPD(1)
+
+        Vrule = 'V_{}({})'.format(time, r1)
+        corr = 'corr_{}'.format(time)
+
+        rule_violated = TabularCPD(Vrule, 2, violated_rule, evidence=[red_o1, blue_o2, rule], evidence_card = [2,2,2])
+        rule_violated_factor = rule_violated.to_factor()
+        self.add_factor([Vrule, rule, rule_violated_factor], rule_violated_factor)
+
+        correction = TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
+        correction_factor = correction.to_factor()
+        self.add_factor([corr, correction_factor], correction_factor)
+
+        return [Vrule]
+
+    def create_table_neg_model(self, rule, red_cm, blue_cm, args, time):
+        o1, o2, o3 = args[:3]
+        blue_o1 = self.add_cm(blue_cm, o1)
+        red_o3 = self.add_cm(red_cm, o3)
+
+        self.add_prior(rule)
+
+        self.known_rules[rule] = [red_cm.name, blue_cm.name]
+
+
+        rule_cpd = generate_neg_table_cpd()
+        correction_table = variable_or_CPD(1)
+
+
+        Vrule = 'V_{}({})'.format(time, rule)
+        corr = 'corr_{}'.format(time)
+
+        rule_evidence = [rule, blue_o1, red_o3]
+        rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])
+        self.add_factor(rule_evidence + [Vrule], rule_violated.to_factor())
+
+        correction =  TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
+        self.add_factor([Vrule, corr], correction.to_factor())
+
+        #self.inference = VariableElimination(self.model)
+        return [Vr1]
 
 
     def create_tower_model(self, rules, red_cm, blue_cm, args, time):
@@ -340,7 +439,30 @@ class PGMModel(object):
         return Vr1, Vr2
 
 
-    def create_table_model(self, rules, red_cm, blue_cm, args, time):
+    def add_table_violation(self, rule, red_cm, blue_cm, args, time):
+        rule_type = get_rule_type(rule)
+        o1, o2, o3 = args[:3]
+        red_o1 = self.add_cm(red_cm, o1)
+        blue_o2 = self.add_cm(blue_cm, o2)
+        red_o3 = self.add_cm(red_cm, o3)
+        blue_o3 = self.add_cm(blue_cm, o3)
+        if rule_type == 'r1':
+            rule_cpd = generate_table_cpd(1)
+        elif rule_type == 'r2':
+            rule_cpd = generate_table_cpd(2)
+
+        self.add_prior(rule)
+
+        rule_cpd = generate_table_cpd(1)
+
+        Vrule = 'V_{}({})'.format(time, rule)
+        rule_evidence = [rule, red_o1, blue_o2, red_o3, blue_o3]
+        rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])
+        self.add_factor(rule_evidence + [Vrule], rule_violated.to_factor())
+
+        return Vrule
+
+    def create_table_model(self, rules, red_cm, blue_cm, args, time, hold_correction=False):
         o1, o2, o3 = args[:3]
         red_o1 = self.add_cm(red_cm, o1)
         blue_o2 = self.add_cm(blue_cm, o2)
@@ -374,8 +496,9 @@ class PGMModel(object):
         r2_violated = TabularCPD(Vr2, 2, r2_cpd, evidence=r2_evidence, evidence_card=[2,2,2,2,2])
         self.add_factor(r2_evidence + [Vr2], r2_violated.to_factor())
 
-        correction =  TabularCPD(corr, 2, correction_table, evidence=[Vr1, Vr2], evidence_card=[2,2])
-        self.add_factor([Vr1, Vr2, corr], correction.to_factor())
+        if not hold_correction:
+            correction =  TabularCPD(corr, 2, correction_table, evidence=[Vr1, Vr2], evidence_card=[2,2])
+            self.add_factor([Vr1, Vr2, corr], correction.to_factor())
 
         #self.inference = VariableElimination(self.model)
         return Vr1, Vr2
@@ -392,6 +515,7 @@ class PGMModel(object):
 
 
     def observe(self, observable={}):
+        overlapping_vars = False
         if self.search_inference.beam:
             remains = set(observable.keys()) - set(self.observed.keys())
             overlapping_vars = remains.intersection(set(self.search_inference.beam[0][0].keys()))
@@ -401,6 +525,8 @@ class PGMModel(object):
         self.observed.update(observable)
         self.infer([])
 
+    def observe_uncertain(self, worlds):
+        self.search_inference.variable_clamp(worlds)
     # def infer(self, targets=[]):
     #     #print(self.observed.keys())
     #     #print(targets)
