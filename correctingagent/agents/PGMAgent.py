@@ -1,85 +1,12 @@
 
 from correctingagent.agents.agents import CorrectingAgent, Tracker
-from correctingagent.pddl.goal_updates import create_goal_options
 from correctingagent.pddl import goal_updates, pddl_functions
-from correctingagent.models.pgmmodels import PGMModel, create_rules, create_neg_rule
+from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple
 import re
 from .teacher import get_rules, get_relevant_colours
-
-
-def test_rule_type():
-    violation = 'V(all x.({}(x) -> exists y. ({}(y) & on(x,y))))'.format('red', 'blue')
-    violation2 = 'V(all y.({}(y) -> exists x. ({}(x) & on(x,y))))'.format('blue', 'red')
-
-    assert(get_rule_type(violation) == ('red', 'blue', 'r1'))
-    assert(get_rule_type(violation2) == ('red', 'blue', 'r2'))
-
-
-def get_violation_type(violation):
-    rule = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
-    return get_rule_type(rule)
-
-def get_rule_type(rule):
-    # print(violation)
-    # rule = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
-    # print(rule)
-    #rule = violation.replace('V_(', '')[:-1]
-    if rule[:3] != 'all':
-        raise NotImplemented('Not implemented non put red on blue rule')
-    else:
-        red, blue, on = split_rule(rule)
-        red_colour, o1 = get_predicate(red)
-        blue_colour, o2 = get_predicate(blue)
-        x, y = get_predicate_args(on)
-
-        if o1[0] == x:
-            rule_type = 'r1'
-            return red_colour, blue_colour, rule_type
-        elif o2[0] == x:
-            rule_type = 'r2'
-            return blue_colour, red_colour, rule_type
-        else:
-            raise ValueError('something went wrong')
-
-def split_rule(rule):
-    bits = rule.split('.(')
-    red = bits[1].split('->')[0].strip()
-    bits2 = bits[1].split(' (')
-    blue, on = bits2[1].split('&')
-    blue = blue.strip()
-    on = on.replace('))', '').strip()
-    return [red, blue, on]
-
-def get_predicate_name(predicate):
-    return predicate.split('(')[0]
-
-def get_predicate_args(predicate):
-    args = predicate.split('(')[1].replace(')', '')
-    return [arg.strip() for arg in args.split(',')]
-
-def get_predicate(predicate):
-    pred = predicate.split('(')[0]
-    args = predicate.split('(')[1].replace(')', '')
-    args = [arg.strip() for arg in args.split(',')]
-    return pred, args
-
-def rule_to_pddl(rule):
-    rule_split = split_rule(rule)
-    red, o1 = get_predicate(rule_split[0])
-    blue, o2 = get_predicate(rule_split[1])
-    on, (x, y) = get_predicate(rule_split[2])
-
-
-    if x == o1[0] and y == o2[0]:
-        r1, r2 = create_goal_options([red], [blue])
-        return r1
-    if x == o2[0] and y == o1[0]:
-        r1, r2 = create_goal_options([blue], [red])
-        return r2
-    else:
-        raise ValueError('Should not get here')
+from ..util.rules import *
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
@@ -160,7 +87,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.last_correction = -1
         self.marks = set()
         self.previous_corrections = []
-        self.previous_args = []
+        self.previous_args = {}
 
 
     def update_goal(self):
@@ -237,10 +164,9 @@ class PGMCorrectingAgent(CorrectingAgent):
                 if 'same reason' not in prev_corr:
                     break
 
-
             prev_message = read_sentence(prev_corr, use_dmrs=False)
+            user_input = prev_corr
             violations = self.build_same_reason(prev_message, args, prev_time)
-
 
             data = self.get_relevant_data(args, prev_message)
 
@@ -287,10 +213,10 @@ class PGMCorrectingAgent(CorrectingAgent):
                 if message.o1 in prev_corr:
                     break
 
+            user_input = prev_corr
             prev_message = read_sentence(prev_corr, use_dmrs=False)
             violations = self.build_pgm_model(prev_message, args)
-            prev_args, prev_args_time = self.previous_args[i]
-            assert(prev_args_time == prev_time)
+            prev_args = self.previous_args[prev_time]
 
 
             if message.o1 == prev_message.o1:
@@ -353,7 +279,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         #TODO fix this to deal with the fact that there might be more than 2 violations
 
         most_likely_violation = max(q, key=q.get)
-        c1, c2, rule_type = get_rule_type(most_likely_violation)
+        c1, c2, rule_type = get_violation_type(most_likely_violation)
 
 
 
@@ -375,7 +301,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.update_goal()
         self.world.back_track()
         self.previous_corrections.append((user_input, self.time))
-        self.previous_args.append((args, self.time))
+        self.previous_args[self.time] = args
         #super(PGMCorrectingAgent, self).get_correction(user_input, actions, args, test=test)
 
 
@@ -471,7 +397,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
 
 
 
-            super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
+            super(ClassicalAdviceBaseline, self).__init__(world, colour_models, rule_beliefs,
                      domain_file, teacher, threshold,
                      update_negative, update_once, colour_model_type,
                      model_config, tracker)
@@ -494,7 +420,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
                 violations = self.pgm_model.add_no_correction(args, self.time)
             else:
                 args.append(message.o3)
-                violations = self.pgm_model.add_no_correction(args, self.time)
+                violations = self.pgm_model.add_no_table_correciton(args, self.time)
             return violations
 
         def get_correction(self, user_input, actions, args, test=False):
@@ -580,5 +506,5 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
             self.update_goal()
             self.world.back_track()
             self.previous_corrections.append((user_input, self.time))
-            self.previous_args.append((args, self.time))
+            self.previous_args[self.time] = args
             #super(PGMCorrectingAgent, self).get_correction(user_input, actions, args, test=test)

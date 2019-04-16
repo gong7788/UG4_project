@@ -431,6 +431,8 @@ def get_agent(config):
         agent = agents.NoLanguageAgent
     elif config['agent'] == 'PGMAgent':
         agent = PGMAgent.PGMCorrectingAgent
+    elif config['agent'] == 'InitialAdvice':
+        agent = PGMAgent.ClassicalAdviceBaseline
     else:
         raise ValueError('invalid agent name')
     return agent

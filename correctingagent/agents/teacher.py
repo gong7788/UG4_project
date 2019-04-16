@@ -158,6 +158,9 @@ class HumanTeacher(Teacher):
 
 class TeacherAgent(Teacher):
 
+    def reset(self):
+        pass
+
     def correction(self, w):
         if not w.test_failure():
             return ""
