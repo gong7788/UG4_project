@@ -91,8 +91,7 @@ class Debug(object):
 
 
 def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file):
-    # if debug and not 'Random' in config['agent']:
-    #     debugger = Debug(config)
+
 
 
 
@@ -118,7 +117,7 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
-    # print(agent)
+
 
     results_file.write('Results for {}\n'.format(problem_name))
     for problem in problems:
@@ -163,42 +162,7 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
         debugger.save_params()
 
 
-    # total_reward = 0
-    # problem_dir = problem_dir + 'test'
-    # problems = os.listdir(problem_dir)
-    #
-    # results_file.write('Results for {}\n'.format(problem_dir))
-    # for problem in problems:
-    #     w = world.PDDLWorld('blocks-domain.pddl', '{}/{}'.format(problem_dir, problem))
-    #     agent.new_world(w)
-    #     while not w.test_success():
-    #         plan = agent.plan()
-    #         for a, args in plan:
-    #             if a == 'reach-goal':
-    #                 break
-    #             w.update(a, args)
-    #             if vis:
-    #                 w.draw()
-    #             correction = agent.teacher.correction(w)
-    #             if correction:
-    #                 logger.info("T: " + correction)
-    #                 agent.get_correction(correction, a, args, test=True)
-    #                 if vis:
-    #                     w.draw()
-    #                 break
-    #             elif no_correction_update:
-    #                 agent.no_correction(a, args)
-    #     if debug and not 'Random' in config['agent']:
-    #         debugger.cm_confusion(agent)
-    #         debugger.update_cm_params(agent)
-    #
-    #     total_reward += w.reward
-    #     print('{} reward: {}'.format(problem, w.reward))
-    #
-    #     results_file.write_test('{} reward: {}\n'.format(problem, w.reward))
-    #     results_file.write_test('{} cumulative reward: {}\n'.format(problem, total_reward))
-    #
-    # results_file.write_test('total reward: {}\n'.format(total_reward))
+
 
     results_file.save_agent(agent)
 
@@ -227,140 +191,6 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT', 
 
     return _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file)
 
-    # if debug and not 'Random' in config['agent']:
-    #     debugger = Debug(config)
-    #
-    # results_file = ResultsFile(config=config)
-    #
-    # total_reward = 0
-    # problem_dir = os.path.join(data_location, problem_name)
-    # problems = os.listdir(problem_dir)
-    # w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problems[0]))
-    # if new_teacher:
-    #     teacher = ExtendedTeacherAgent()
-    # else:
-    #     teacher = TeacherAgent()
-    # if Agent in [agents.NeuralCorrectingAgent]:
-    #     config_dict = get_neural_config(neural_config)
-    #     agent = Agent(w, teacher=teacher, **config_dict)
-    # elif Agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
-    #     if colour_model_type == 'kde':
-    #         if neural_config is None:
-    #             neural_config = 'DEFAULT'
-    #         model_config = get_kde_config(neural_config)
-    #     else:
-    #         model_config = {}
-    #     agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once, colour_model_type=colour_model_type, model_config=model_config)
-    # else:
-    #     agent = Agent(w, teacher=teacher, threshold=threshold)
-    #
-    # # print(agent)
-    #
-    # results_file.write('Results for {}\n'.format(problem_name))
-    # for problem in problems:
-    #     w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problem))
-    #     agent.new_world(w)
-    #     while not w.test_success():
-    #         plan = agent.plan()
-    #         for a, args in plan:
-    #             if a == 'reach-goal':
-    #                 break
-    #             w.update(a, args)
-    #             if vis:
-    #                 w.draw()
-    #             correction = agent.teacher.correction(w)
-    #             if correction:
-    #                 logger.info("T: " + correction)
-    #                 agent.get_correction(correction, a, args)
-    #                 if vis:
-    #                     w.draw()
-    #                 break
-    #             elif no_correction_update:
-    #                 agent.no_correction(a, args)
-    #     if debug and not 'Random' in config['agent']:
-    #         debugger.cm_confusion(agent)
-    #         debugger.update_cm_params(agent)
-    #
-    #
-    #
-    #     total_reward += w.reward
-    #     print('{} reward: {}'.format(problem, w.reward))
-    #
-    #     results_file.write('{} reward: {}\n'.format(problem, w.reward))
-    #     results_file.write('{} cumulative reward: {}\n'.format(problem, total_reward))
-    #
-    #
-    # results_file.write('total reward: {}\n'.format(total_reward))
-    #
-    #
-    #
-    # if debug and not 'Random' in config['agent']:
-    #     debugger.save_confusion()
-    #     debugger.save_params()
-    #
-    #
-    # # total_reward = 0
-    # # problem_dir = problem_dir + 'test'
-    # # problems = os.listdir(problem_dir)
-    # #
-    # # results_file.write('Results for {}\n'.format(problem_dir))
-    # # for problem in problems:
-    # #     w = world.PDDLWorld('blocks-domain.pddl', '{}/{}'.format(problem_dir, problem))
-    # #     agent.new_world(w)
-    # #     while not w.test_success():
-    # #         plan = agent.plan()
-    # #         for a, args in plan:
-    # #             if a == 'reach-goal':
-    # #                 break
-    # #             w.update(a, args)
-    # #             if vis:
-    # #                 w.draw()
-    # #             correction = agent.teacher.correction(w)
-    # #             if correction:
-    # #                 logger.info("T: " + correction)
-    # #                 agent.get_correction(correction, a, args, test=True)
-    # #                 if vis:
-    # #                     w.draw()
-    # #                 break
-    # #             elif no_correction_update:
-    # #                 agent.no_correction(a, args)
-    # #     if debug and not 'Random' in config['agent']:
-    # #         debugger.cm_confusion(agent)
-    # #         debugger.update_cm_params(agent)
-    # #
-    # #     total_reward += w.reward
-    # #     print('{} reward: {}'.format(problem, w.reward))
-    # #
-    # #     results_file.write_test('{} reward: {}\n'.format(problem, w.reward))
-    # #     results_file.write_test('{} cumulative reward: {}\n'.format(problem, total_reward))
-    # #
-    # # results_file.write_test('total reward: {}\n'.format(total_reward))
-    #
-    # results_file.save_agent(agent)
-    #
-    # return results_file.name
-
-#
-# def pickle_agent(agent, file_name):
-#     cms = {}
-#     for colour, cm in agent.colour_models:
-#         datas = (cm.model.data, cm.model.weights, cm.model.data_neg, cm.model.weights_neg)
-#         cms[colour] = datas
-#     agent.colour_models = None
-#     output = (agent, cms)
-#     with open(file_name, 'wb') as f:
-#         pickle.dump(output, f)
-#
-# def load_agent(file_name):
-#     with open(file_name, 'rb') as f:
-#         agent, cms = pickle.load(f)
-#     out_cms = {}
-#     for colour, cm_data in cms.items():
-#         data, weights, data_neg, weights_neg = cm_data
-#         cm = prob_model.KDEColourModel(colour, data=data, weights=weights, data_neg=data_neg, weights_neg=weights_neg)
-#         out_cms[colour] = cm
-#     agent.colour_models = out_cms
-#     return agent
 
 
 def add_experiment(config_name, neural_config, debug=False, new_teacher=False):
