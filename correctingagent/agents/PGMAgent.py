@@ -157,7 +157,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         #print(read_sentence(user_input, use_dmrs=False))
         message = read_sentence(user_input, use_dmrs=False)
         args_for_model = args.copy()
-        print(message)
+        #print(message)
         variable_clamp = []
         if message.T == 'same reason':
             for prev_corr, prev_time in self.previous_corrections[::-1]:
@@ -250,7 +250,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         # m_r2 = q[violations[1]].values[1]
         #print(m_r1, m_r2)
 
-        print(user_input)
+        #print(user_input)
 
         if message.T == 'same reason':
             message = prev_message
@@ -260,7 +260,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             #     message = prev_message
 
             if message.T in ['table', 'tower']:
-                question = 'Is the top object {}'.format(message.o1[0])
+                question = 'Is the top object {}?'.format(message.o1[0])
                 #dialogue.info('R: ' + question)
                 print(question)
                 red = '{}({})'.format(message.o1[0], args[0])

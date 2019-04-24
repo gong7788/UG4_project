@@ -11,6 +11,7 @@ from collections import defaultdict
 from ..models import prob_model
 import sqlalchemy
 from ..util.util import config_location, get_config, get_neural_config, get_kde_config
+from tqdm import tqdm
 
 handler = logging.StreamHandler()
 
@@ -92,9 +93,6 @@ class Debug(object):
 
 def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file):
 
-
-
-
     total_reward = 0
     problem_dir = os.path.join(data_location, problem_name)
     problems = os.listdir(problem_dir)
@@ -116,7 +114,6 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
         agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once, colour_model_type=colour_model_type, model_config=model_config)
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
-
 
 
     results_file.write('Results for {}\n'.format(problem_name))
@@ -192,6 +189,78 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT', 
     return _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file)
 
 
+def add_big_experiment(config_name, neural_config, debug=False):
+    #big_db = os.path.join(db_location, 'big.db')
+    experiment_db = os.path.join(db_location, 'experiments.db')
+    #rels_db = os.path.join(db_location, 'rels.db')
+
+    #big_engine = sqlalchemy.create_engine('sqlite:///' + big_db)
+    engine = sqlalchemy.create_engine('sqlite:///' + experiment_db)
+    #rels_engine = sqlalchemy.create_engine('sqlite:///' + rels_db)
+
+
+    df = pd.read_sql('big', index_col='index', con=engine)
+    df = df.append({'experiment_name':config_name, 'status':'running'}, ignore_index=True)
+    big_id = df.index[-1]
+    df.to_sql('big', con=engine, if_exists='replace')
+
+
+
+
+
+    config = configparser.ConfigParser()
+    config_file = os.path.join(config_location, 'experiments.ini')
+    config.read(config_file)
+    config = config[config_name]
+    problem_name = config['scenario_suite']
+    threshold = config.getfloat('threshold')
+    update_negative = config.getboolean('update_negative')
+    Agent = get_agent(config)
+    vis = config.getboolean('visualise')
+    update_once = config.getboolean('update_once')
+    colour_model_type = config['colour_model_type']
+    no_correction_update = config.getboolean('no_correction_update')
+    new_teacher = config.getboolean('new_teacher')
+
+    data_directories = os.listdir(os.path.join(data_location, problem_name))
+
+    for data_dir in tqdm(data_directories):
+
+        experiment_name = os.path.join(problem_name, data_dir)
+        config['scenario_suite'] = experiment_name
+        results_file = ResultsFile(config=config)
+
+        experiments = pd.read_sql('experiments', index_col='index', con=engine)
+        experiments = experiments.append({'config_name':experiment_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
+        experiment_id = experiments.index[-1]
+        experiments.to_sql('experiments', con=engine, if_exists='replace')
+        #print(experiments)
+
+        rels = pd.read_sql('rels', index_col='index', con=engine)
+        rels = rels.append({'big_id':big_id, 'experiment_id':experiment_id}, ignore_index=True)
+        rels.to_sql('rels', con=engine, if_exists='replace')
+        #print(rels)
+        try:
+            results_file = _run_experiment(experiment_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file)
+        except Exception as e:
+            experiments = pd.read_sql('experiments', index_col='index', con=engine)
+            experiments.at[experiment_id, 'experiment_file'] = None
+            experiments.at[experiment_id, 'status'] = 'ERROR'
+            experiments.to_sql('experiments', con=engine, if_exists='replace')
+            df = pd.read_sql('big', index_col='index', con=engine)
+            df.at[big_id, 'status'] = 'ERROR'
+            df.to_sql('big', con=engine, if_exists='replace')
+            raise e
+        else:
+            experiments = pd.read_sql('experiments', index_col='index', con=engine)
+            experiments.at[experiment_id, 'experiment_file'] = results_file
+            experiments.at[experiment_id, 'status'] = 'done'
+            experiments.to_sql('experiments', con=engine, if_exists='replace')
+
+    df = pd.read_sql('big', index_col='index', con=engine)
+    df.at[big_id, 'status'] = 'done'
+    df.to_sql('big', con=engine, if_exists='replace')
+
 
 def add_experiment(config_name, neural_config, debug=False, new_teacher=False):
     experiment_db = os.path.join(db_location, 'experiments.db')
@@ -208,6 +277,7 @@ def add_experiment(config_name, neural_config, debug=False, new_teacher=False):
         last_label = df.index[-1]
         df.at[last_label, 'experiment_file'] = None
         df.at[last_label, 'status'] = 'ERROR'
+        df.to_sql('experiments', con=engine, if_exists='replace')
         raise e
     else:
         df = pd.read_sql('experiments', index_col='index', con=engine)

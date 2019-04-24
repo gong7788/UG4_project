@@ -38,6 +38,9 @@ class PDDLWorld(World):
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
         self.reward = 0
+        self.tmp = os.path.join(data_dir, 'tmp/world')
+        n = len(os.listdir(self.tmp))
+        self.tmp_file = os.path.join(self.tmp, '{}.pddl'.format(n))
 
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)
@@ -71,10 +74,10 @@ class PDDLWorld(World):
         problem = self.problem
         problem.initialstate = self.state
         problem_pddl = problem.asPDDL()
-        problem_file_name = os.path.join(data_dir, 'tmp/world_problem.domain')
-        with open(problem_file_name, 'w') as f:
+        #problem_file_name = os.path.join(data_dir, 'tmp/world_problem.domain')
+        with open(self.tmp_file, 'w') as f:
             f.write(problem_pddl)
-        return self.domain_file, problem_file_name
+        return self.domain_file, self.tmp_file
 
     def test_success(self):
         domain, problem = self.to_pddl()
@@ -113,4 +116,3 @@ class CNNPDDLWorld(PDDLWorld):
 
     def __init__(self, domain_file, problem_file, net):
         super(CNNPDDLWorld, self).__init__(domain_file, problem_file)
-        

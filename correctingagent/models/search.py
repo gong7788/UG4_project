@@ -274,6 +274,9 @@ class Planner(object):
         self.problem = problem
         self.state_queue = []
         # print(colour_choices)
+        self.search_dir = os.path.join(data_location, 'tmp/search_problem')
+        n = len(os.listdir(self.search_dir))
+        self.search_file = os.path.join(self.search_dir, '{}.pddl'.format(n))
 
     def _pop(self):
         return heapq.heappop(self.state_queue)
@@ -292,12 +295,14 @@ class Planner(object):
         if success:
             self.problem.goal = goal_updates.update_goal(self.goal, self.tmp_goal)
             self.problem.initialstate = self.current_state.to_pddl()
-            tmp_problem = os.path.join(data_location, 'tmp/search-problem.pddl')
-            print(self.domain_file)
-            with open(tmp_problem, 'w') as f:
+            #search_dir = os.path.join(data_location, 'search_problem')
+            #n = len(os.listdir(search_dir))
+            #tmp_problem = os.path.join(search_dir, '{}.pddl'.format(n))
+            #print(self.domain_file)
+            with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
-                plan = ff.run(self.domain_file, tmp_problem)
+                plan = ff.run(self.domain_file, self.search_file)
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
                 # print(e)
@@ -326,14 +331,16 @@ class Planner(object):
     def plan(self):
         # print(self.goal.asPDDL())
         plan = False
-        for i in range(200):
+        for i in range(20):
             # print(self.current_state.score, self.current_state.state)
             try:
                 plan = self.evaluate_current_state()
+                if plan:
+                    return plan
             except NoPlanError:
                 break
-            if plan:
-                return plan
+            #if plan:
+            #    return plan
 
         return self.evaluate_current_state(default_plan=True)
 
@@ -380,10 +387,10 @@ class NoLanguagePlanner(Planner):
             self.problem.goal = test_goal
             self.problem.initialstate = self.current_state.to_pddl()
             # print(test_goal.asPDDL())
-            with open('tmp/problem.pddl', 'w') as f:
+            with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
-                plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+                plan = ff.run(self.domain_file, self.search_file)
             except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):
 
                 test.failed = True

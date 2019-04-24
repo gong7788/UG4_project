@@ -6,7 +6,7 @@ from pgmpy.models import FactorGraph
 from pgmpy.factors.continuous import ContinuousFactor
 import numpy as np
 from ..util.rules import *
-
+from tqdm import tqdm
 
 def check_beam_holds(beam, worlds):
     if not worlds:
@@ -22,6 +22,72 @@ class SearchInference(object):
         self.beam_size = -1
         self.norm = 0
 
+
+    def infer2(self, evidence):
+        variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
+        # print(variables)
+        if len(variables) == 0:
+            return
+        factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
+
+        #factors = []
+        #for factor in self.model.factors:
+
+
+        # print(factors)
+
+        for var, val in evidence.items():
+            for factor in factors:
+                if var in factor.scope():
+                    factor.reduce([(var, val)])
+
+        updated_factors = []
+        for factor in factors:
+            if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
+                factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
+            updated_factors.append(factor)
+
+        phi = reduce(lambda x, y: x * y, updated_factors)
+        variables = phi.scope()
+        nonzero = np.nonzero(phi.values)
+        assert(len(variables) == len(nonzero))
+        viable = []
+        for i in range(len(nonzero[0])):
+            d = {}
+            for j, var in enumerate(variables):
+                d[var] = nonzero[j][i]
+            viable.append(d)
+        new_beams = []
+        for trace in viable:
+            a = []
+            for var in phi.scope():
+                a.append(trace[var])
+            a = tuple(a)
+            new_beams.append((trace, phi.values[a]))
+
+        norm = 0
+        out_beams = []
+        for beam, val in self.beam:
+            for new_beam, new_val in new_beams:
+                #print(beam, new_beam)
+                overlap = set(beam.keys()).intersection(set(new_beam.keys()))
+                #print(overlap)
+                #for var in overlap:
+                #    print(beam[var], new_beam[var])
+                if all([beam[var] == new_beam[var] for var in overlap]):
+                #    print('in here')
+                    out_beam = beam.copy()
+                    out_beam.update(new_beam)
+                    out_beam.update(evidence)
+                    p = val * new_val
+                    out_beams.append((out_beam, p))
+                    norm += p
+
+        out_beams = [(b, p/norm) for b, p in out_beams]
+        self.norm = 1
+        self.beam = out_beams
+        #print(viable)
+
     def infer(self, evidence):
 
         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
@@ -29,8 +95,11 @@ class SearchInference(object):
         generate_flips(variables, output=flips)
         new_beam = []
         norm = 0
-        for beam, _ in self.beam:
-            for flip in flips:
+
+        # if len(self.beam) > 20:
+        #     print(self.beam[0])
+        for beam, _ in tqdm(self.beam):
+            for flip in tqdm(flips):
                 new_evidence = evidence.copy()
                 new_evidence.update(flip)
                 new_evidence.update(beam)
@@ -393,7 +462,8 @@ class PGMModel(object):
     #     return q
 
     def infer(self, variable=[]):
-        self.search_inference.infer(self.observed)
+
+        self.search_inference.infer2(self.observed)
 
 
     def query(self, variables, values=None):

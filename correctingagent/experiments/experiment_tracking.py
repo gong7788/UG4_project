@@ -38,3 +38,10 @@ def load_experiments(list_of_experiments, dataset):
     for experiment in list_of_experiments:
         experiments.append(get_results_file(experiments_df, experiment))
     return Experiment.from_results_files(experiments, dataset)
+
+
+def read_big():
+    config = get_config()
+    engine = sqlalchemy.create_engine('sqlite:///{}/experiments.db'.format(config['db_location']))
+    df = pd.read_sql('big', index_col='index', con=engine)
+    return df
