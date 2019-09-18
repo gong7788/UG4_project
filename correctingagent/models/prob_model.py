@@ -55,7 +55,8 @@ class RuleBelief(object):
 
 class NeuralColourModel(object):
 
-    def __init__(self, name, lr=0.1, H=10, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
+    def __init__(self, name, lr=0.1, H=10, momentum=0, dampening=0, weight_decay=0,
+            nesterov=False, optimiser='Adam'):
         self.name = name
         D_in = 3
         H = H
@@ -282,7 +283,9 @@ def get_bw_value(data):
 
 class KDEColourModel(ColourModel):
 
-    def __init__(self, name, bw=0.15, data = None, weights=np.array([]), data_neg=None, weights_neg=np.array([]), kernel='gaussian', fix_bw=False, use_3d=False, norm=2):
+    def __init__(self, name, bw=0.15, data = None, weights=np.array([]),
+                 data_neg=None, weights_neg=np.array([]), kernel='gaussian',
+                 fix_bw=False, use_3d=False, norm=2, num_channels=3):
         self.name = name
         self.data = data
         self.weights = weights
@@ -295,6 +298,7 @@ class KDEColourModel(ColourModel):
         self.fixed_neg = None
         self.fixed_wpos = np.array([])
         self.fixed_wneg = np.array([])
+        self.num_channels = num_channels
         if fix_bw:
             self.bw = lambda x: bw
         else:
@@ -325,7 +329,7 @@ class KDEColourModel(ColourModel):
         else:
             self.data = np.append(self.data, np.array([fx]), axis=0)
         self.weights = np.append(self.weights, w)
-        
+
         self.model = self.fit_model(self.data, self.weights)
 
     def update_negative(self, fx, w):
@@ -341,8 +345,10 @@ class KDEColourModel(ColourModel):
     def fit_model(self, data, weights):
         #print('data', data)
         if not self.use_3d:
+
             train_data = np.concatenate([data, -data, 2-data])
             #print('train data', train_data)
+
             r = train_data[:,0]
             g = train_data[:,1]
             b = train_data[:,2]
@@ -373,7 +379,12 @@ class KDEColourModel(ColourModel):
                 p_g = g_model.evaluate(np.array([g]))[0]
                 p_b = b_model.evaluate(np.array([b]))[0]
             if not split:
-                return 3*p_r * 3*p_g * 3*p_b
+                if self.num_channels == 3:
+                    return 3*p_r * 3*p_g * 3*p_b
+                elif self.num_channels == 2:
+                    return 3*p_r * 3 * p_g
+                elif self.num_channels == 1:
+                    return 3 * p_r
             else:
                 return 3*p_r, 3*p_g, 3*p_b
         else:

@@ -260,22 +260,27 @@ class ExtendedTeacherAgent(TeacherAgent):
 
             if self.previous_correction is not None and self.previous_correction.rule == correction.rule:
 
-                for previous_corr in self.dialogue_history[::-1]:
-                    if 'now you cannot put' not in  previous_corr.sentence and 'same reason' not in previous_corr.sentence:
-                        colours = [previous_corr.c1, previous_corr.c2]
-                        if correction.c1 in colours or correction.c2 in colours:
+                if "now you cannot put" not in correction.sentence:
+                    for previous_corr in self.dialogue_history[::-1]:
+                        if 'now you cannot put' not in  previous_corr.sentence and 'same reason' not in previous_corr.sentence:
+                            colours = [previous_corr.c1, previous_corr.c2]
+                            if correction.c1 in colours or correction.c2 in colours:
 
-                            if correction.c1 == colours[0]:
-                                current_colour = get_colour(correction.args[0], world_.problem.initialstate)
-                                prev_colour = get_colour(previous_corr.args[0], world_.problem.initialstate)
-                                if current_colour != correction.c1 and prev_colour != correction.c1:
-                                    possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
-                            if correction.c2 == colours[1]:
-                                current_colour = get_colour(correction.args[1], world_.problem.initialstate)
-                                prev_colour = get_colour(previous_corr.args[1], world_.problem.initialstate)
-                                if current_colour != correction.c2 and prev_colour != correction.c2:
-                                    possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
-                            break
+                                if correction.c1 == colours[0]:
+                                    current_colour = get_colour(correction.args[0], world_.problem.initialstate)
+                                    prev_colour = get_colour(previous_corr.args[0], world_.problem.initialstate)
+                                    if current_colour != correction.c1 and prev_colour != correction.c1:
+                                        possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
+                                if correction.c2 == colours[1]:
+                                    current_colour = get_colour(correction.args[1], world_.problem.initialstate)
+                                    prev_colour = get_colour(previous_corr.args[1], world_.problem.initialstate)
+                                    if current_colour != correction.c2 and prev_colour != correction.c2:
+                                        possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
+                                break
+                        elif 'now you cannot put' in previous_corr.sentence:
+                            colours = [previous_corr.c1, previous_corr.c2]
+                            if correction.c1 in colours or correction.c2 in colours:
+                                break
 
                 if self.previous_correction.sentence == correction.sentence:
                      possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))

@@ -331,7 +331,7 @@ class Planner(object):
     def plan(self):
         # print(self.goal.asPDDL())
         plan = False
-        for i in range(20):
+        for i in range(100):
             # print(self.current_state.score, self.current_state.state)
             try:
                 plan = self.evaluate_current_state()

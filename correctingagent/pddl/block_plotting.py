@@ -86,6 +86,9 @@ def place_objects(objects, state, y_start):
 def namedtuple_to_rgb(rgb):
     return np.array(rgb, dtype=np.float32)/255
 
+def get_colour(colour_name):
+    colour_tuple = webcolors.name_to_rgb(colour_name)
+    return np.array(colour_tuple, dtype=np.float32)/255
 
 def get_colours(objects, state):
     objects = pddl_functions.filter_tower_locations(objects, get_locations=False)
@@ -99,8 +102,10 @@ def get_colours(objects, state):
         else:
             colours[o] = c[0]
 
-    c = [webcolors.name_to_rgb(colours[o]) for o in objects]
-    return map(namedtuple_to_rgb, c)
+    return [get_colour(colours[o]) for o in objects]
+    #
+    # c = [webcolors.name_to_rgb(colours[o]) for o in objects]
+    # return map(namedtuple_to_rgb,
 
 if __name__ == '__main__':
     height = width = 0.2

@@ -41,6 +41,8 @@ class PDDLWorld(World):
         self.tmp = os.path.join(data_dir, 'tmp/world')
         n = len(os.listdir(self.tmp))
         self.tmp_file = os.path.join(self.tmp, '{}.pddl'.format(n))
+        with open(self.tmp_file, 'w') as f:
+            f.write('this one is mine!')
 
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)

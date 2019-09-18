@@ -11,6 +11,7 @@ from ..agents import agents, PGMAgent
 import configparser
 from collections import defaultdict
 import seaborn as sns
+from skimage.color import rgb2hsv
 sns.set_style('darkgrid')
 sns.set_context("paper")
 # from experiment_tracking import read_experiments, get_results_file, get_baseline
@@ -41,14 +42,21 @@ def name_to_rgb(name):
     rgb = webcolors.name_to_rgb(name)
     return np.array(rgb, dtype=np.float32) / 255
 
+def name_to_hsv(name):
+    rgb = name_to_rgb(name)
+    hsv = rgb2hsv([[rgb]])[0][0]
+    return hsv
 
-def colour_probs(colour_model, colour_dict=colour_dict, prior=0.5):
-    output = {c:{c_i:-1 for c_i in cs} for c, cs in colour_dict.items()}
+def colour_probs(colour_model, colour_dict=colour_dict, prior=0.5, use_hsv=False):
+    results_dict = {c:{c_i:-1 for c_i in cs} for c, cs in colour_dict.items()}
     for c, cs in colour_dict.items():
         for c_i in cs:
-            p_c = colour_model.p(1, name_to_rgb(c_i))
-            output[c][c_i] = p_c
-    return output
+            if use_hsv:
+                p_c = colour_model.p(1, name_to_hsv(c_i))
+            else:
+                p_c = colour_model.p(1, name_to_rgb(c_i))
+            results_dict[c][c_i] = p_c
+    return results_dict
 
 
 def colour_confusion(colour, results_dict, threshold=0.5):
@@ -256,12 +264,12 @@ class Experiment(object):
         locations = get_config()
         experiment = self.name
         columns = filter(lambda x: 'cumsum' in x, df.columns)
-        plt.figure()
+        plt.figure()#figsize=(12.8, 9.6))
         if labels:
-            for column, name in zip(columns, labels):
-                df[column].plot(label=name)
+            for column, name, linestyle in zip(columns, labels, ['-.', '--', ':', '-']):
+                df[column].plot(label=name, linestyle=linestyle, linewidth=5)
         else:
-            for column in columns:
+            for column, linestyle in zip(columns, ['-', '--', ':', '-.']*3):
                 _, name, nr = column.split('_')
                 if 'Random' in name:
                     name = 'naive agent' + ' ' + str(nr)
@@ -269,19 +277,19 @@ class Experiment(object):
                     name = 'neural agent' + ' ' + str(nr)
                 elif 'Correcting' in name:
                     name = 'lingustic agent' + ' ' + str(nr)
-                df[column].plot(label=name)
+                df[column].plot(label=name, linestyle=linestyle, linewidth=3)
 
-        plt.tick_params(axis='both', which='major', labelsize=11)
+        plt.tick_params(axis='both', which='major', labelsize=13)
         #plt.tick_params(axis='both', which='minor', labelsize=9)
-        plt.xlabel('scenario #', fontsize=14)
-        plt.ylabel('regret', fontsize=14)
-        title_fontsize = 17
+        #plt.xlabel('scenario #', fontsize=20)
+        plt.ylabel('regret', fontsize=20)
+        title_fontsize = 20
         if dataset_label is None:
-            plt.title('Cumulative Regret for the {} Planning Problem'.format(experiment), fontsize=title_fontsize)
+            plt.title('Cumulative Regret for {}'.format(experiment), fontsize=title_fontsize)
         else:
-            plt.title('Cumulative Regret for the {} Planning Problem'.format(dataset_label), fontsize=title_fontsize)
-        plt.legend(loc='upper left', prop={'size': 10})
-        plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + '.png'))
+            plt.title('Cumulative Regret for {}'.format(dataset_label), fontsize=title_fontsize)
+        plt.legend(loc='upper left', fontsize=18)
+        plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + '.png'), dpi=200)
         plt.show()
 
     def get_agent(self, name):
