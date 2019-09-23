@@ -4,6 +4,7 @@ from matplotlib.patches import Rectangle
 from . import pddl_functions
 import webcolors
 from ..util.colour_dict import colour_dict, colour_names
+from ..world.colours import get_colour
 
 
 # colors_ = [color for color in list(six.iteritems(colors.cnames)) if not ':' in color]
@@ -82,13 +83,6 @@ def place_objects(objects, state, y_start):
                     x_pos[x] = x_pos[y]
     return [(x_pos[o], y_pos[o]) for o in objects]
 
-
-def namedtuple_to_rgb(rgb):
-    return np.array(rgb, dtype=np.float32)/255
-
-def get_colour(colour_name):
-    colour_tuple = webcolors.name_to_rgb(colour_name)
-    return np.array(colour_tuple, dtype=np.float32)/255
 
 def get_colours(objects, state):
     objects = pddl_functions.filter_tower_locations(objects, get_locations=False)

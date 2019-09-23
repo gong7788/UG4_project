@@ -1,4 +1,6 @@
 from collections import namedtuple
+from pathlib import Path
+
 from ..pddl import ff
 from ..pddl.ff import Solved, NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError
 from ..pddl import pddl_functions
@@ -7,12 +9,20 @@ import numpy as np
 import os
 from ..util.util import get_config
 from ..util.colour_dict import colour_names
+import json
+from skimage.color import rgb2hsv, hsv2rgb
+
 
 Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
 
 c = get_config()
-data_dir = c['data_location']
+data_dir = Path(c['data_location'])
 
+
+def get_world(problem_name, problem_number, domain_file='blocks_domain.pddl', world_type='PDDL'):
+    world_types = {'PDDL': PDDLWorld,
+                   'RandomColours': RandomColoursWorld}
+    return world_types[world_type](domain_file, problem_name, problem_number)
 
 class World(object):
 
@@ -27,22 +37,39 @@ class World(object):
 
 class PDDLWorld(World):
 
-    def __init__(self, domain_file, problem_file):
-        domain_file = os.path.join(data_dir, 'domain', domain_file)
+    def __init__(self, domain_file, problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+        config = get_config()
+        data_dir = Path(config['data_location'])
+        self.data_dir = data_dir
+
+        domain_file = data_dir / 'domain' / domain_file
+        if problem_file is None:
+            problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
         self.domain_file = domain_file
         self.objects = pddl_functions.get_objects(self.problem)
         self.previous_state = None
         self.state = self.problem.initialstate
-        self.colours = {o:np.array(c) for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
+        self.use_hsv = use_hsv
+        if use_hsv:
+            self.colours = {o: rgb2hsv([[np.array(c)]])[0][0] for o, c in
+                            zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
+        else:
+            self.colours = {o:np.array(c) for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
         self.reward = 0
-        self.tmp = os.path.join(data_dir, 'tmp/world')
+
+        self.tmp = data_dir / 'tmp' / 'world'
         n = len(os.listdir(self.tmp))
         self.tmp_file = os.path.join(self.tmp, '{}.pddl'.format(n))
         with open(self.tmp_file, 'w') as f:
             f.write('this one is mine!')
+
+    def clean_up(self):
+        os.remove(self.tmp_file)
+
 
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)
@@ -70,7 +97,10 @@ class PDDLWorld(World):
     def draw(self):
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
         objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
-        block_plotting.plot_blocks(positions, [self.colours[o] for o in objects])
+        if self.use_hsv:
+            block_plotting.plot_blocks(positions, [hsv2rgb([[self.colours[o]]])[0][0] for o in objects])
+        else:
+            block_plotting.plot_blocks(positions, [self.colours[o] for o in objects])
 
     def to_pddl(self):
         problem = self.problem
@@ -113,6 +143,20 @@ class PDDLWorld(World):
                 out_objects.append(o)
         return out_objects
 
+class RandomColoursWorld(PDDLWorld):
+    def __init__(self, domain_file, problem_diretory=None, problem_number=None):
+        super().__init__(domain_file, problem_diretory, problem_number)
+        colour_file = self.data_dir / problem_diretory / f'colours{problem_number}.json'
+        self.colours = RandomColoursWorld.load_colours(colour_file)
+        if not self.use_hsv:
+            self.colours = {o: np.array(hsv2rgb([[colour]])[0][0]) for o, colour in self.colours.items()}
+        else:
+            self.colours = {o: np.array(colour) for o, colour in self.colours.items()}
+
+    @staticmethod
+    def load_colours(colour_file):
+        colours = json.load(open(colour_file))
+        return colours
 
 class CNNPDDLWorld(PDDLWorld):
 

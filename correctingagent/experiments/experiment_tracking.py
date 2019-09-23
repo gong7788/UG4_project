@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import sqlalchemy
 import pandas as pd
 from .evaluation import ResultsFile, Experiment
@@ -26,7 +28,7 @@ def get_baseline(dataset):
     locations = get_config()
     config_name = dataset + '_random'
     config = configparser.ConfigParser()
-    config.read('{}/experiments.ini'.format(locations['config_location']))
+    config.read(Path(locations["config_location"]) / 'experiments.ini')
 
     config = config[config_name]
     return ResultsFile.read(config)

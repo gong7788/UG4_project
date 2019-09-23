@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from ..world import world
 from ..agents import agents, PGMAgent
 from ..agents.teacher import TeacherAgent, ExtendedTeacherAgent
@@ -90,13 +92,18 @@ class Debug(object):
         df.to_pickle(os.path.join(self.dir_, 'cm_params{}.pickle'.format(self.nr)))
 
 
-
-def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file):
+def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type,
+                    no_correction_update, debug, neural_config, new_teacher, results_file, world_type='PDDL'):
+    config = get_config()
+    data_location = Path(config['data_location'])
 
     total_reward = 0
-    problem_dir = os.path.join(data_location, problem_name)
+    problem_dir = data_location / problem_name
     problems = os.listdir(problem_dir)
-    w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problems[0]))
+    num_problems = len(problems)
+    w = world.get_world(problem_name, 1, world_type=world_type, domain_file='blocks-domain.pddl')
+    if world_type == 'RandomColours':
+        num_problems = int(num_problems / 2)
     if new_teacher:
         teacher = ExtendedTeacherAgent()
     else:
@@ -115,10 +122,9 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
     else:
         agent = Agent(w, teacher=teacher, threshold=threshold)
 
-
     results_file.write('Results for {}\n'.format(problem_name))
-    for problem in problems:
-        w = world.PDDLWorld('blocks-domain.pddl', os.path.join(problem_dir, problem))
+    for i in range(num_problems):
+        w = world.get_world(problem_name, i+1, world_type=world_type, domain_file='blocks-domain.pddl')
         agent.new_world(w)
         while not w.test_success():
             plan = agent.plan()
@@ -144,10 +150,10 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
 
 
         total_reward += w.reward
-        print('{} reward: {}'.format(problem, w.reward))
+        print('{} reward: {}'.format(problem_name, w.reward))
 
-        results_file.write('{} reward: {}\n'.format(problem, w.reward))
-        results_file.write('{} cumulative reward: {}\n'.format(problem, total_reward))
+        results_file.write('{} reward: {}\n'.format(problem_name, w.reward))
+        results_file.write('{} cumulative reward: {}\n'.format(problem_name, total_reward))
 
 
     results_file.write('total reward: {}\n'.format(total_reward))
@@ -166,7 +172,7 @@ def _run_experiment(problem_name, threshold, update_negative, Agent, vis, update
     return results_file.name
 
 
-def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT', new_teacher=False):
+def run_experiment(config_name='DEFAULT', debug=False, colour_model_config='DEFAULT'):
 
     if debug:
         agent_logger.setLevel(logging.DEBUG)
@@ -183,10 +189,13 @@ def run_experiment(config_name='DEFAULT', debug=False, neural_config='DEFAULT', 
     update_once = config.getboolean('update_once')
     colour_model_type = config['colour_model_type']
     no_correction_update = config.getboolean('no_correction_update')
+    new_teacher = config.getboolean('new_teacher')
+    world_type = config['world_type']
 
     results_file = ResultsFile(config=config)
 
-    return _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type, no_correction_update, debug, neural_config, new_teacher, results_file)
+    return _run_experiment(problem_name, threshold, update_negative, Agent, vis, update_once, colour_model_type,
+                           no_correction_update, debug, colour_model_config, new_teacher, results_file, world_type=world_type)
 
 
 def add_big_experiment(config_name, neural_config, debug=False):
@@ -349,7 +358,7 @@ def add_experiment(config_name, neural_config, debug=False, new_teacher=False):
     df = df.append({'config_name':config_name, 'neural_config':neural_config, 'status':'running'}, ignore_index=True)
     df.to_sql('experiments', con=engine, if_exists='replace')
     try:
-        results_file = run_experiment(config_name=config_name, neural_config=neural_config, debug=debug, new_teacher=new_teacher)
+        results_file = run_experiment(config_name=config_name, colour_model_config=neural_config, debug=debug, new_teacher=new_teacher)
     except Exception as e:
         df = pd.read_sql('experiments', index_col='index', con=engine)
         last_label = df.index[-1]

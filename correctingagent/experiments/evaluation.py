@@ -8,6 +8,7 @@ import pandas as pd
 from ..util.colour_dict import colour_dict
 from ..util.util import get_config, config_location
 from ..agents import agents, PGMAgent
+from ..world.colours import name_to_rgb, name_to_hsv
 import configparser
 from collections import defaultdict
 import seaborn as sns
@@ -37,15 +38,6 @@ results_location = c['results_location']
 #     else:
 #         return out
 
-
-def name_to_rgb(name):
-    rgb = webcolors.name_to_rgb(name)
-    return np.array(rgb, dtype=np.float32) / 255
-
-def name_to_hsv(name):
-    rgb = name_to_rgb(name)
-    hsv = rgb2hsv([[rgb]])[0][0]
-    return hsv
 
 def colour_probs(colour_model, colour_dict=colour_dict, prior=0.5, use_hsv=False):
     results_dict = {c:{c_i:-1 for c_i in cs} for c, cs in colour_dict.items()}
