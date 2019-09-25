@@ -8,32 +8,7 @@ from ..util.colour_dict import colour_dict
 from collections import defaultdict
 import numpy as np
 import json
-
-
-def generate_colour_generator(mean=0, std=0):
-    """ Creates a colour generator function which generates random HSV colours based on the provided mean and std
-
-    the SV channels will always use the same mean and std, ensuring that colours are not too dark or too light
-
-    :param mean:
-    :param std:
-    :return: colour_generator function
-    """
-    def colour_generator():
-        return np.array((((np.random.randn() * std + mean) % 360) / 3.6 , 100 - np.abs(np.random.randn() * 10), 100 - np.abs(np.random.rand() * 20)))/100
-    return colour_generator
-
-# These mean and std values seem to generate good values for each colour which all look sensibly like the specified colour
-colour_values = {"red": (0, 5),
-                 "orange": (30, 5),
-                 "yellow": (58, 2),
-                 "green": (120, 9),
-                 "blue": (220, 13),
-                 "purple": (270, 9),
-                 "pink": (315, 9)}
-# This dict maps a colour to its colour generator
-# So to generate red use colour_generators['red']()
-colour_generators = {colour: generate_colour_generator(*values) for colour, values in colour_values.items()}
+from .colours import colour_generators
 
 
 def sample_colour(colour_dict):
@@ -145,6 +120,7 @@ def generate_from_colour_count(rules, colour_count):
     random.shuffle(colours)
     return colours
 
+
 def generate_random_colour_from_colour_count(colour_count):
     colours = []
     for colour, count in colour_count.items():
@@ -153,6 +129,7 @@ def generate_random_colour_from_colour_count(colour_count):
 
     random.shuffle(colours)
     return colours
+
 
 def generate_colour(p_primary_colour=0.8):
     if np.random.random() < p_primary_colour:
@@ -212,15 +189,29 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             dataset.append(file_name)
 
 
+def rules_consistent(rules):
+    first = [rule.first_obj for rule in rules if rule.constrained_obj == 'first']
+    second = [rule.second_obj for rule in rules if rule.constrained_obj == 'second']
+    for colour in first:
+        if first.count(colour) > 1:
+            return False
+    for colour in second:
+        if first.count(colour) > 1:
+            return False
+    return True
 
 
-def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dict=colour_dict, p_primary_colour=0.8):
+def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dict=colour_dict,
+                         p_primary_colour=0.8, use_random_colours=True):
     data_path = '/home/mappelgren/Desktop/correcting-agent/data'
     top_path = os.path.join(data_path, dataset_name)
-    rules = [generate_rule() for i in range(num_rules)]
+    rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
+    while not rules_consistent(rules):
+        rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
     for i in range(N_datasets):
         dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, i))
         os.makedirs(dataset_path, exist_ok=True)
 
-        generate_biased_dataset(N_data, rules, dataset_path, colour_dict=colour_dict)
+        generate_biased_dataset(N_data, rules, dataset_path, colour_dict=colour_dict,
+                                use_random_colours=use_random_colours)
 

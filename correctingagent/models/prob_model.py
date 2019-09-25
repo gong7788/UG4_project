@@ -196,7 +196,6 @@ class ColourModel(object):
         #updated_mu = (w*fx*self.sigma_prior + self.mu * self.sigma)/(w*self.sigma_prior + self.sigma)
         #return updated_mu
 
-
     def draw(self, show=False, save_location_basename=None, draw_both=False):
         x = np.linspace(0, 1, 100)
         mu_r,mu_g,mu_b = self.mu0
@@ -281,11 +280,13 @@ def get_bw_value(data):
     bw = max(0.5/n, 0.1)
     return bw
 
+
 class KDEColourModel(ColourModel):
 
-    def __init__(self, name, bw=0.15, data = None, weights=np.array([]),
+    def __init__(self, name, bw=0.15, data=None, weights=np.array([]),
                  data_neg=None, weights_neg=np.array([]), kernel='gaussian',
-                 fix_bw=False, use_3d=False, norm=2, num_channels=3):
+                 fix_bw=False, use_3d=False, norm=2, num_channels=3, use_hsv=False):
+        self.norm = norm
         self.name = name
         self.data = data
         self.weights = weights
@@ -308,6 +309,7 @@ class KDEColourModel(ColourModel):
             self.model = self.fit_model(self.data, self.weights)
         if data_neg is not None:
             self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
+        self.use_hsv = use_hsv
 
     def reset(self):
         self.data = self.fixed_pos
@@ -363,7 +365,7 @@ class KDEColourModel(ColourModel):
         else:
             assert(data.shape[1] == 3)
             bw = self.bw(data)
-            model = NaiveKDE(kernel=self.kernel, bw=bw, norm=2).fit(data)
+            model = NaiveKDE(kernel=self.kernel, bw=bw, norm=self.norm).fit(data)
             return model
 
     def evaluate_model(self, model, fx, split=False):

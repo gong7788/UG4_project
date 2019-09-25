@@ -15,6 +15,7 @@ from ..util.colour_dict import colour_names, colour_dict
 import pickle
 from ..models import search
 
+
 def log_cm(cm):
     logger.debug(cm.name)
     logger.debug('Positive class attributs: ' + str(cm.mu0) + ' ' + str(cm.sigma0))
@@ -197,10 +198,6 @@ class Tracker(object):
         # Probably a dataframe where each row is one of the instances. However things like the correct state might be difficult to store in DF form.
         #
 
-
-
-
-
 class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
@@ -238,7 +235,6 @@ class CorrectingAgent(Agent):
         self.colour_model_type = colour_model_type
         self.model_config = model_config
         self.tracker = tracker
-
 
     def new_world(self, world):
         self.world = world

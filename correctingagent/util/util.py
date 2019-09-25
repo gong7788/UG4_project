@@ -86,4 +86,6 @@ def get_kde_config(config_name):
     config_dict['fix_bw'] = model_config.getboolean('fix_bw')
     config_dict['bw'] = model_config.getfloat('bw')
     config_dict['norm'] = model_config.getfloat('norm')
+    config_dict['use_hsv'] = model_config.getboolean('use_hsv')
+    config_dict['num_channels'] = model_config.getint('num_channels')
     return config_dict

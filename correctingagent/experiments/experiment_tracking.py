@@ -7,6 +7,7 @@ import configparser
 from ..util.util import get_config
 import os
 
+
 def read_experiments():
     config = get_config()
     engine = sqlalchemy.create_engine('sqlite:///{}/experiments.db'.format(config['db_location']))
@@ -32,6 +33,7 @@ def get_baseline(dataset):
 
     config = config[config_name]
     return ResultsFile.read(config)
+
 
 def load_experiments(list_of_experiments, dataset):
     """plot the cumulative reward for a number of experiments listed on the same axis"""

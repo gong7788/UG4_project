@@ -11,6 +11,7 @@ from ..util.util import get_config
 from ..util.colour_dict import colour_names
 import json
 from skimage.color import rgb2hsv, hsv2rgb
+import matplotlib.pyplot as plt
 
 
 Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
@@ -19,20 +20,23 @@ c = get_config()
 data_dir = Path(c['data_location'])
 
 
-def get_world(problem_name, problem_number, domain_file='blocks_domain.pddl', world_type='PDDL'):
+def get_world(problem_name, problem_number, domain_file='blocks-domain.pddl', world_type='PDDL', use_hsv=False):
     world_types = {'PDDL': PDDLWorld,
                    'RandomColours': RandomColoursWorld}
-    return world_types[world_type](domain_file, problem_name, problem_number)
+    return world_types[world_type](domain_file, problem_directory=problem_name,
+                                   problem_number=problem_number, use_hsv=use_hsv)
+
 
 class World(object):
 
     def update(self, action, args):
         raise NotImplementedError()
+
     def sense(self):
         raise NotImplementedError()
+
     def draw(self):
         raise NotImplementedError()
-
 
 
 class PDDLWorld(World):
@@ -70,13 +74,11 @@ class PDDLWorld(World):
     def clean_up(self):
         os.remove(self.tmp_file)
 
-
     def update(self, action, args):
         actions = pddl_functions.create_action_dict(self.domain)
         self.previous_state = self.state
         self.state = pddl_functions.apply_action(args, actions[action], self.state)
         self.reward += -1
-
 
     def back_track(self):
         self.state = self.previous_state
@@ -95,7 +97,9 @@ class PDDLWorld(World):
         return self.domain.actions
 
     def draw(self):
+
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
+
         objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
         if self.use_hsv:
             block_plotting.plot_blocks(positions, [hsv2rgb([[self.colours[o]]])[0][0] for o in objects])
@@ -143,20 +147,22 @@ class PDDLWorld(World):
                 out_objects.append(o)
         return out_objects
 
-class RandomColoursWorld(PDDLWorld):
-    def __init__(self, domain_file, problem_diretory=None, problem_number=None):
-        super().__init__(domain_file, problem_diretory, problem_number)
-        colour_file = self.data_dir / problem_diretory / f'colours{problem_number}.json'
-        self.colours = RandomColoursWorld.load_colours(colour_file)
-        if not self.use_hsv:
-            self.colours = {o: np.array(hsv2rgb([[colour]])[0][0]) for o, colour in self.colours.items()}
-        else:
-            self.colours = {o: np.array(colour) for o, colour in self.colours.items()}
 
-    @staticmethod
-    def load_colours(colour_file):
+class RandomColoursWorld(PDDLWorld):
+    def __init__(self, domain_file, problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+        super().__init__(domain_file, problem_directory=problem_directory,
+                         problem_number=problem_number, problem_file=problem_file, use_hsv=use_hsv)
+        colour_file = self.data_dir / problem_directory / f'colours{problem_number}.json'
+        self.colours = self.load_colours(colour_file)
+
+    def load_colours(self, colour_file):
         colours = json.load(open(colour_file))
+        if not self.use_hsv:
+            colours = {o: np.array(hsv2rgb([[colour]])[0][0]) for o, colour in colours.items()}
+        else:
+            colours = {o: np.array(colour) for o, colour in colours.items()}
         return colours
+
 
 class CNNPDDLWorld(PDDLWorld):
 

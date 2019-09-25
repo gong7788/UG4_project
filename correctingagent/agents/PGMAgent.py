@@ -1,9 +1,10 @@
 
 from correctingagent.agents.agents import CorrectingAgent, Tracker
+from correctingagent.experiments.colour_model_evaluation import evaluate_colour_model
 from correctingagent.pddl import goal_updates, pddl_functions
 from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import re
 from .teacher import get_rules, get_relevant_colours
 from ..util.rules import *
@@ -41,7 +42,6 @@ def read_sentence(sentence, use_dmrs=False):
     #         T = T + 'partial'
     #     return Message(None, sentence, None, T, None)
 
-
     elif "that is not" in sentence:
          sentence = sentence.replace('that is not', '').strip()
          sentence = sentence.replace('again', '').strip()
@@ -61,7 +61,6 @@ def read_sentence(sentence, use_dmrs=False):
         else:
             sentence = sentence.replace('must', '').strip()
 
-
     rel = 'on'
     o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
     o1 = o1.strip().split()[0]
@@ -73,14 +72,16 @@ class PGMCorrectingAgent(CorrectingAgent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
-                 model_config={}, tracker=Tracker()):
-
-
+                 model_config={}, tracker=Tracker(), debug=None):
 
         super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
-                 domain_file, teacher, threshold,
-                 update_negative, update_once, colour_model_type,
-                 model_config, tracker)
+                                                 domain_file, teacher, threshold,
+                                                 update_negative, update_once, colour_model_type,
+                                                 model_config, tracker)
+
+        self.debug = defaultdict(lambda: False)
+        if debug is not None:
+            self.debug.update(debug)
 
         self.pgm_model = PGMModel()
         self.time = 0
@@ -89,27 +90,21 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.previous_corrections = []
         self.previous_args = {}
 
-
     def update_goal(self):
         rule_probs = self.pgm_model.get_rule_probs(update_prior=True)
         rules = []
         for rule, p in rule_probs.items():
-            #print(rule, p)
 
             if p > 0.5:
                 rules.append(rule_to_pddl(rule))
-                #print(rule)
+                if self.debug['show_rules']:
+                    print(f'Added rule {rule} to goal')
 
         self.goal = goal_updates.goal_from_list(rules)
-        #print(self.goal.asPDDL())
-
-
 
     def no_correction(self, action, args):
         self.time += 1
-        #print(self.time)
         if args[0] in self.marks or args[1] in self.marks:
-            #print('we did the thing')
             self.pgm_model.add_no_correction(args, self.time)
             data = self.get_colour_data(args)
             corr = 'corr_{}'.format(self.time)
@@ -117,7 +112,6 @@ class PGMCorrectingAgent(CorrectingAgent):
             self.pgm_model.observe(data)
             self.pgm_model.infer()
             self.update_cms()
-
 
     def get_relevant_data(self, args, message):
         args_for_model = args.copy()
@@ -142,19 +136,13 @@ class PGMCorrectingAgent(CorrectingAgent):
             data[blue] = 0
         return data
 
-
     def get_correction(self, user_input, actions, args, test=False):
         self.time += 1
         self.last_correction = self.time
-        #print(self.time)
-
 
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
-        #print(self.time)
-        args_for_model = args.copy()
-        #print(actions, args, user_input)
-        #print(read_sentence(user_input, use_dmrs=False))
+
         message = read_sentence(user_input, use_dmrs=False)
         args_for_model = args.copy()
         #print(message)
@@ -233,8 +221,6 @@ class PGMCorrectingAgent(CorrectingAgent):
         else:
             raise NotImplemented('This type of correction is not implemented: {}'.format(message.T))
 
-
-
         self.pgm_model.observe(data)
 
         if variable_clamp:
@@ -242,22 +228,10 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         q = self.pgm_model.query(list(violations))
 
-        #m_r1 = q[violations[0]]
-        #m_r2 = q[violations[1]]
-        # q = self.pgm_model.infer(list(violations))
-        #
-        # m_r1 = q[violations[0]].values[1]
-        # m_r2 = q[violations[1]].values[1]
-        #print(m_r1, m_r2)
-
-        #print(user_input)
-
         if message.T == 'same reason':
             message = prev_message
 
         if max(q.values()) < self.threshold:
-            # if message.T == 'same reason':
-            #     message = prev_message
 
             if message.T in ['table', 'tower']:
                 question = 'Is the top object {}?'.format(message.o1[0])
@@ -268,20 +242,11 @@ class PGMCorrectingAgent(CorrectingAgent):
                 #dialogue.info("T: " + answer)
                 print(answer)
                 bin_answer = int(answer.lower() == 'yes')
-                self.pgm_model.observe({red:bin_answer})
+                self.pgm_model.observe({red: bin_answer})
                 q = self.pgm_model.query(list(violations))
-                m_r1 = q[violations[0]]
-                m_r2 = q[violations[1]]
-
-
-
-        #self.update_rules()
-        #TODO fix this to deal with the fact that there might be more than 2 violations
 
         most_likely_violation = max(q, key=q.get)
         c1, c2, rule_type = get_violation_type(most_likely_violation)
-
-
 
         if rule_type == 'r1':
             if message.T == 'tower':
@@ -296,21 +261,16 @@ class PGMCorrectingAgent(CorrectingAgent):
                 self.marks.add(args[0])
                 self.marks.add(message.o3)
 
-
         self.update_cms()
         self.update_goal()
         self.world.back_track()
         self.previous_corrections.append((user_input, self.time))
         self.previous_args[self.time] = args
-        #super(PGMCorrectingAgent, self).get_correction(user_input, actions, args, test=test)
-
-
 
     def update_cms(self):
         colours = self.pgm_model.get_colour_predictions()
         for cm in self.colour_models.values():
             cm.reset()
-
 
         for colour, p in colours.items():
 
@@ -319,10 +279,18 @@ class PGMCorrectingAgent(CorrectingAgent):
             if 't' in arg:
                 continue
             fx = self.get_colour_data([arg])['F({})'.format(arg)]
-            #print(colour, p)
+
             if p > 0.7:
                 self.colour_models[colour].update(fx, p)
+                if self.debug['show_cm_update']:
+                    print(f'Updated {colour} model with: {fx} at probability {p}')
+            elif self.debug['show_cm_update']:
+                print(f'Did not update {colour} model with: {fx} at probability {p}')
 
+        if self.debug['evaluate_cms']:
+            for colour, cm in self.colour_models.items():
+                print(f'Evaluating {colour} model')
+                evaluate_colour_model(cm)
 
     def add_cm(self, colour_name):
         try:
@@ -339,7 +307,6 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.pgm_model.add_same_reason(violations, previous_violations)
         return violations
 
-
     def build_pgm_model(self, message, args):
 
         rules = create_rules(message.o1[0], message.o2[0])
@@ -353,12 +320,10 @@ class PGMCorrectingAgent(CorrectingAgent):
         #print(rules)
         return violations
 
-
     def build_neg_model(self, message, args):
         rule = create_neg_rule(message.o1[0], message.o2[0])
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
-
 
         if message.T == 'neg':
             violations = self.pgm_model.create_negative_model(rule, red_cm, blue_cm, args, self.time)
@@ -371,7 +336,6 @@ class PGMCorrectingAgent(CorrectingAgent):
         colour_data = observation.colours
         data = {'F({})'.format(arg): colour_data[arg] for arg in args if 't' not in arg}
         return data
-
 
     def new_world(self, world):
 
@@ -387,15 +351,11 @@ class PGMCorrectingAgent(CorrectingAgent):
         super(PGMCorrectingAgent, self).new_world(world)
 
 
-
 class ClassicalAdviceBaseline(PGMCorrectingAgent):
         def __init__(self, world, colour_models=None, rule_beliefs=None,
                      domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                      update_negative=True, update_once=True, colour_model_type='default',
                      model_config={}, tracker=Tracker()):
-
-
-
 
             super(ClassicalAdviceBaseline, self).__init__(world, colour_models, rule_beliefs,
                      domain_file, teacher, threshold,
@@ -414,7 +374,6 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
 
                 self.pgm_model.add_rules(rules, red_cm, blue_cm)
 
-
         def do_correction(self, message, args):
             if message.o3 is None:
                 violations = self.pgm_model.add_no_correction(args, self.time)
@@ -427,7 +386,6 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
             self.time += 1
             self.last_correction = self.time
             #print(self.time)
-
 
             not_on_xy = pddl_functions.create_formula('on', args, op='not')
             self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)

@@ -8,11 +8,13 @@ import pandas as pd
 from ..util.colour_dict import colour_dict
 from ..util.util import get_config, config_location
 from ..agents import agents, PGMAgent
-from ..world.colours import name_to_rgb, name_to_hsv
+from ..world.colours import name_to_rgb, name_to_hsv, get_colour
 import configparser
 from collections import defaultdict
 import seaborn as sns
-from skimage.color import rgb2hsv
+from skimage.color import rgb2hsv, hsv2rgb
+from ..world.colours import colour_generators
+from ..models import prob_model
 sns.set_style('darkgrid')
 sns.set_context("paper")
 # from experiment_tracking import read_experiments, get_results_file, get_baseline
@@ -21,156 +23,51 @@ sns.set_context("paper")
 c = get_config()
 results_location = c['results_location']
 
-
-# def extract_file(filename):
-#     with open(filename, 'rb') as f:
-#         try:
-#             colour_model = pickle.load(f)
-#         except UnicodeDecodeError:
-#             raise TypeError('Wrong file type, expected pickle file got {}'.format(os.path.splitext(filename)))
-#     return colour_model
-
-#
-# def extract_experiment_parameters(filename):
-#     out = filename.strip('.pickle').split('_')
-#     if len(out) < 3:
-#         raise ValueError('unexpected input file format')
-#     else:
-#         return out
+# def plot_cumsum(results_file, discount=False, save_loc='test.png'):
+#     df = to_df(results_file, discount=discount)
+#     plt.figure()
+#     df['cumsum'].plot()
+#     plt.savefig(save_loc)
 
 
-def colour_probs(colour_model, colour_dict=colour_dict, prior=0.5, use_hsv=False):
-    results_dict = {c:{c_i:-1 for c_i in cs} for c, cs in colour_dict.items()}
-    for c, cs in colour_dict.items():
-        for c_i in cs:
-            if use_hsv:
-                p_c = colour_model.p(1, name_to_hsv(c_i))
-            else:
-                p_c = colour_model.p(1, name_to_rgb(c_i))
-            results_dict[c][c_i] = p_c
-    return results_dict
+# def df_experiment(dataset, threshold=0.7, discount=True, file_modifiers=''):
+#     locations = get_config()
+#     files = os.listdir(results_location)
+#     results_files = filter(lambda x: dataset in x and str(threshold) in x and (file_modifiers in x or 'random' in x), files)
+#     results = {}
+#     for f in results_files:
+#         name = f.split('_')[0]
+#         rewards, cum_rewards = read_file('{}/{}'.format(locations['results_location'], f))
+#         results[name] = rewards
+#     df = pd.DataFrame(data=results)
+#     if discount:
+#         for column in df.columns:
+#             df[column] += 10
+#             df['cumsum_{}'.format(column)] = df[column].cumsum()
+#     return df
 
 
-def colour_confusion(colour, results_dict, threshold=0.5):
-    output = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
-    for c, cs in results_dict.items():
-        for p in cs.values():
-            if c == colour and p > threshold:
-                output['tp'] += 1
-            elif c == colour:
-                output['fn'] += 1
-            elif p > threshold:
-                output['fp'] += 1
-            else:
-                output['tn'] += 1
-    return output
+# def plot_df(df, experiment, file_modifiers=''):
+#     locations = get_config()
+#     columns = filter(lambda x: 'cumsum' in x, df.columns)
+#     plt.figure()
+#     for column in columns:
+#         name = column.split('_')[1]
+#         if name == 'random':
+#             name = 'naive agent'
+#         elif name == 'correcting':
+#             name = 'lingustic agent'
+#         df[column].plot(label=name)
+#     plt.tick_params(axis='both', which='major', labelsize=11)
+#     plt.tick_params(axis='both', which='minor', labelsize=9)
+#     plt.xlabel('scenario #', fontsize=13)
+#     plt.ylabel('cumulative reward', fontsize=13)
+#     plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
+#     plt.legend(loc='lower left', prop={'size': 10})
+#     plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + file_modifiers + '.png'))
+#     plt.show()
 
 
-def extract_data(line):
-    data = int(line.split(':')[1])
-    return data
-
-
-def read_file(results_file):
-    rewards = []
-    cumulative_rewards = []
-    with open(results_file, 'r') as f:
-        data = f.readlines()
-    for line in data:
-        if 'total reward' in line:
-            pass
-        elif 'cumulative reward' in line:
-            datum = extract_data(line)
-            cumulative_rewards.append(datum)
-        elif 'reward' in line:
-            datum = extract_data(line)
-            rewards.append(datum)
-    return rewards, cumulative_rewards
-
-
-def to_df(results_file, discount=False):
-    rewards, _ = read_file(results_file)
-    df = pd.DataFrame(data={'rewards': rewards})
-    if discount:
-        df['rewards'] += 10
-        df['rewards'] = df['rewards']/2
-    df['cumsum'] = df['rewards'].cumsum()
-    return df
-
-
-def plot_cumsum(results_file, discount=False, save_loc='test.png'):
-    df = to_df(results_file, discount=discount)
-    plt.figure()
-    df['cumsum'].plot()
-    plt.savefig(save_loc)
-
-
-def df_experiment(dataset, threshold=0.7, discount=True, file_modifiers=''):
-    locations = get_config()
-    files = os.listdir(results_location)
-    results_files = filter(lambda x: dataset in x and str(threshold) in x and (file_modifiers in x or 'random' in x), files)
-    results = {}
-    for f in results_files:
-        name = f.split('_')[0]
-        rewards, cum_rewards = read_file('{}/{}'.format(locations['results_location'], f))
-        results[name] = rewards
-    df = pd.DataFrame(data=results)
-    if discount:
-        for column in df.columns:
-            df[column] += 10
-            df['cumsum_{}'.format(column)] = df[column].cumsum()
-    return df
-
-
-def plot_df(df, experiment, file_modifiers=''):
-    locations = get_config()
-    columns = filter(lambda x: 'cumsum' in x, df.columns)
-    plt.figure()
-    for column in columns:
-        name = column.split('_')[1]
-        if name == 'random':
-            name = 'naive agent'
-        elif name == 'correcting':
-            name = 'lingustic agent'
-        df[column].plot(label=name)
-    plt.tick_params(axis='both', which='major', labelsize=11)
-    plt.tick_params(axis='both', which='minor', labelsize=9)
-    plt.xlabel('scenario #', fontsize=13)
-    plt.ylabel('cumulative reward', fontsize=13)
-    plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
-    plt.legend(loc='lower left', prop={'size': 10})
-    plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + file_modifiers + '.png'))
-    plt.show()
-
-def load_agent(dataset, threshold=0.7, file_modifiers=''):
-    locations = get_config()
-    with open('{}/agents/correcting_{}_{}{}.pickle'.format(locations['results_location'], dataset, threshold, file_modifiers), 'rb') as f:
-        agent = pickle.load(f)
-    return agent
-
-
-def test_colour_model(colour_model, colour_dict=colour_dict, colour_thresh=0.5, pretty_printing=True):
-    probs = colour_probs(colour_model, colour_dict)
-    confusion = colour_confusion(colour_model.name, probs, colour_thresh)
-    colour_initial = colour_model.name[0].upper()
-    if pretty_printing:
-        print_confusion(confusion, colour_initial)
-    return confusion
-
-def print_confusion(confusion_dict, colour_initial):
-    print('True Label  {ci}=1 {ci}=0'.format(ci=colour_initial))
-    print('Predict {ci}=1| {tp} | {fp} |'.format(ci=colour_initial, **confusion_dict))
-    print('        {ci}=0| {fn} | {tn} |'.format(ci=colour_initial, **confusion_dict))
-
-
-
-def plot_colours(dataset, threshold=0.7, file_modifiers='', colour_dict=colour_dict, colour_thresh=0.5):
-    agent = load_agent(dataset, threshold=threshold, file_modifiers=file_modifiers)
-    for cm in agent.colour_models.values():
-        probs = colour_probs(cm, colour_dict, prior=0.5)
-        confusion = colour_confusion(cm.name, probs, colour_thresh)
-        print(cm.name, confusion)
-        cm.draw(save_location_basename=dataset)
 
 
 def get_agent_name(result_file):
@@ -190,7 +87,7 @@ class Experiment(object):
 
         suite = config['scenario_suite']
         self.name = suite
-        threshold = config['threshold']
+        self.threshold = config['threshold']
         agents = os.listdir(os.path.join(results_location, suite))
         results_files = []
         for agent in agents:
@@ -200,10 +97,11 @@ class Experiment(object):
             results_files.append((agent, rf))
         self.results_files = results_files
 
+    @staticmethod
     def from_results_files(results_files, name):
         exp = Experiment()
         rfs = {}
-        exp.name=name
+        exp.name = name
         agent_name_counter = defaultdict(int)
         for rf in results_files:
             agent_name = get_agent_name(rf)
@@ -216,7 +114,7 @@ class Experiment(object):
     def to_df(self, discount=True):
         results = {}
         for name, f in self.results_files.items():
-            rewards, cum_rewards = read_file(f.name)
+            rewards, cum_rewards = f.read_file()
             results[name] = rewards
         df = pd.DataFrame(data=results)
         if discount:
@@ -229,7 +127,7 @@ class Experiment(object):
     def to_test_df(self, discount=True):
         results = {}
         for name, f in self.results_files.items():
-            rewards, cum_rewards = read_file(f.test_name)
+            rewards, cum_rewards = f.read_file()
             results[name] = rewards
         df = pd.DataFrame(data=results)
         if discount:
@@ -306,7 +204,9 @@ class Experiment(object):
             print(name, values)
 
 
-
+def extract_data(line):
+    data = int(line.split(':')[1])
+    return data
 
 class ResultsFile(object):
     def __init__(self, config=None, name=None):
@@ -407,34 +307,40 @@ class ResultsFile(object):
             with open(save_location, 'rb') as f:
                 return pickle.load(f)
 
+    def read_file(self):
+        rewards = []
+        cumulative_rewards = []
+        with open(self.name, 'r') as f:
+            data = f.readlines()
+        for line in data:
+            if 'total reward' in line:
+                pass
+            elif 'cumulative reward' in line:
+                datum = extract_data(line)
+                cumulative_rewards.append(datum)
+            elif 'reward' in line:
+                datum = extract_data(line)
+                rewards.append(datum)
+        return rewards, cumulative_rewards
+
+    def to_df(self, discount=False):
+        rewards, _ = self.read_file()
+        df = pd.DataFrame(data={'rewards': rewards})
+        if discount:
+            df['rewards'] += 10
+            df['rewards'] = df['rewards']/2
+        df['cumsum'] = df['rewards'].cumsum()
+        return df
 
     def plot_cumsum(self, discount=False, save_loc='test.png'):
-        plot_cumsum(self.name, discount=discount, save_loc=os.path.join(self.dir_, 'cumsum.png'))
+        # plot_cumsum(self.name, discount=discount, save_loc=os.path.join(self.dir_, 'cumsum.png'))
         # df = to_df(self.name, discount=discount)
         # plt.figure()
         # df['cumsum'].plot()
         # plt.savefig(path.join(self.dir_, 'cumsum.png'))
+        df = self.to_df(discount=discount)
+        plt.figure()
+        df['cumsum'].plot()
+        plt.savefig(save_loc)
 
 
-
-
-
-
-def get_agent(config):
-    if config['agent'] == 'agents.CorrectingAgent':
-        agent = agents.CorrectingAgent
-    elif config['agent'] == 'agents.RandomAgent':
-        agent = agents.RandomAgent
-    elif config['agent'] == 'agents.NeuralCorrectingAgent':
-        agent = agents.NeuralCorrectingAgent
-    elif config['agent'] == 'agents.PerfectColoursAgent':
-        agent = agents.PerfectColoursAgent
-    elif config['agent'] == 'agents.NoLanguageAgent':
-        agent = agents.NoLanguageAgent
-    elif config['agent'] == 'PGMAgent':
-        agent = PGMAgent.PGMCorrectingAgent
-    elif config['agent'] == 'InitialAdvice':
-        agent = PGMAgent.ClassicalAdviceBaseline
-    else:
-        raise ValueError('invalid agent name')
-    return agent
