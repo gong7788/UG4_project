@@ -288,7 +288,7 @@ class Planner(object):
     def evaluate_current_state(self, default_plan=False):
         if default_plan:
             self.current_state.state = []
-            self.current_state.colour_counts = {c:0 for c in self.current_state.colour_counts.keys()}
+            self.current_state.colour_counts = {c: 0 for c in self.current_state.colour_counts.keys()}
         success, increase, decrease = self.constraints.evaluate(self.current_state)
         #print(self.current_state.state)
         #print(success)
@@ -327,7 +327,6 @@ class Planner(object):
         except IndexError:
             raise NoPlanError('Search could not find a possible plan')
 
-
     def plan(self):
         # print(self.goal.asPDDL())
         plan = False
@@ -343,7 +342,6 @@ class Planner(object):
             #    return plan
 
         return self.evaluate_current_state(default_plan=True)
-
 
     def add_candidate(self, colour, increase_count=True):
         new_state = copy.deepcopy(self.current_state)

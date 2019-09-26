@@ -3,40 +3,54 @@ from collections import namedtuple
 import random
 from ..util.colour_dict import colour_dict
 
+
 def tower_correction(obj1, obj2):
-    return "no, put {} blocks on {} blocks".format(obj1, obj2)
+    return f"no, put {obj1} blocks on {obj2} blocks"
+
 
 def table_correction(obj1, obj2, obj3):
-    return "No, now you cannot put {} in the tower because you must put {} blocks on {} blocks".format(obj3, obj1, obj2)
+    return f"No, now you cannot put {obj3} in the tower because you must put {obj1} blocks on {obj2} blocks"
+
 
 def not_correction(obj1, obj2):
-    return "No, don't put {} blocks on blue blocks".format(obj1, obj2)
+    return f"No, don't put {obj1} blocks on {obj2} blocks"
+
 
 def table_not_correction(obj1, obj2, obj3):
-    return "No, now you cannot put {} in the tower because you cannot put {} blocks on {} blocks".format(obj3, obj1, obj2)
+    return f"No, now you cannot put {obj3} in the tower because you cannot put {obj1} blocks on {obj2} blocks"
+
 
 def get_top_two(world_):
-    r = world_.sense().relations
-    for o in r.keys():
-        if 'clear' in r[o] and 'in-tower' in r[o]:
-            o1 = o
-    on = r[o1]['on']
-    o2 = on.args.args[1].arg_name
-    return o1, o2
+    """ Returns the top two objects of the tower (assumes 1 tower)"""
+    relations = world_.sense().relations
+    for obj in relations.keys():
+        if 'clear' in relations[obj] and 'in-tower' in relations[obj]:
+            top_object = obj
+    top_objects_on_relation = relations[top_object]['on']
+    second_object = top_objects_on_relation.args.args[1].arg_name
+    return top_object, second_object
+
 
 def get_rules(goal):
+    """Returns the individual rules which make up the goal"""
     for f in goal.subformulas:
         if "in-tower" not in f.asPDDL():
             yield f
 
 def get_name(formula):
+    """Returns the name of the predicate, e.g. red for red(x) or on for on(x,y)"""
     return formula.get_predicates(True)[0].name
 
+
 def get_args(formula):
+    """Returns the arguments of a formula. e.g. [x] for red(x) or [x, y] for on(x,y)"""
     return list(map(lambda x: x.arg_name, formula.get_predicates(True)[0].args.args))
 
+
 def get_relevant_colours(rule):
+    """returns the colours that make up a rule plus which of the colours is on the left of the implication"""
     if rule.op == 'not':
+        raise NotImplementedError("This code is not stable...")
         exists = neg_rule.subformulas[0]
         and_ = exists.subformulas[0]
         c1, c2, on = and_.subformulas
@@ -49,10 +63,11 @@ def get_relevant_colours(rule):
         colour2 = (list(filter(lambda x: get_name(x) != 'on', r2.subformulas[0].subformulas))[0])
         on = list(filter(lambda x: get_name(x) == 'on', r2.subformulas[0].subformulas))[0]
         o1, o2 = on.get_predicates(True)[0].args.args
-        out = (o1, o2)
+
         c1 = list(filter(lambda x: get_args(x)[0] == o1.arg_name, [colour1, colour2]))[0]
         c2 = list(filter(lambda x: get_args(x)[0] == o2.arg_name, [colour1, colour2]))[0]
         return get_name(c1), get_name(c2), get_name(colour1) # on(c1, c2) colour1 -> colour2
+
 
 def check_rule_violated(rule, world_):
     c1, c2, impl = get_relevant_colours(rule)
@@ -72,28 +87,71 @@ def check_rule_violated(rule, world_):
     else:
         return False
 
-def check_table_rule_violation(rule, world_):
-    c1, c2, impl = get_relevant_colours(rule)
-    o1, o2 = get_top_two(world_)
+
+def get_all_relevant_colours(rules, red, blue, constrained_object):
+    """
+
+    :param rules:
+    :param red:
+    :param blue:
+    :param constrained_object:
+    :return:
+    """
+    additional_red_constraints = []
+    additional_blue_constraints = []
+    for rule in rules:
+        green, yellow, other_constrained_object = get_relevant_colours(rule)
+        if red == green and constrained_object != other_constrained_object:
+            additional_red_constraints.append(yellow)
+        if blue == yellow and constrained_object != other_constrained_object:
+            additional_blue_constraints.append(green)
+    return additional_red_constraints, additional_blue_constraints
+
+
+def check_table_rule_violation(rule, world_, additional_rules=[]):
+
+    # constrained_object represents which of the two objects is on the left of the implication
+    # eg. red, blue, red = red(x) -> blue(y) on(x,y)
+    red, blue, constrained_object = get_relevant_colours(rule)
+    top_object, second_object = get_top_two(world_)
+
+    additional_bottom_constrained_objects, additional_top_constrained_objects = get_all_relevant_colours(additional_rules, red, blue, constrained_object)
+
+
     state = world_.problem.initialstate
-    f1 = pddl_functions.create_formula(c1, [o1])
-    f2 = pddl_functions.create_formula(c2, [o2])
-    f3 = pddl_functions.create_formula(c2, [o1])
-    c1_o1 = pddl_functions.predicate_holds(f1.get_predicates(True)[0], state)
-    c2_o2 = pddl_functions.predicate_holds(f2.get_predicates(True)[0], state)
-    c2_o1 = pddl_functions.predicate_holds(f3.get_predicates(True)[0], state)
-    table_objs = blocks_on_table(world_)
-    c1_count = count_coloured_blocks(c1, table_objs, state)
-    c2_count = count_coloured_blocks(c2, table_objs, state)
-    if impl == 'not' and (c1_count + c2_count) == len(table_objs) and c2_o1:
-        return get_block_with_colour(c1, table_objs, state)
-    if not c1_o1 and c2_o2 and c1 == impl:
-        if c1_count > c2_count:
-            return get_block_with_colour(c1, table_objs, state)
-    if c1_o1 and not c2_o2 and c2 == impl:
-        if c2_count > c1_count:
-            return get_block_with_colour(c2, table_objs, state)
+    # create a PDDL forumal for each object
+    top_object_red = pddl_functions.create_formula(red, [top_object])
+    second_object_blue = pddl_functions.create_formula(blue, [second_object])
+    top_object_blue = pddl_functions.create_formula(blue, [top_object])
+
+    top_object_is_red = pddl_functions.predicate_holds(top_object_red.get_predicates(True)[0], state)
+    second_object_is_blue = pddl_functions.predicate_holds(second_object_blue.get_predicates(True)[0], state)
+    # this is required for "don't put red blocks on blue blocks"
+    top_object_is_blue = pddl_functions.predicate_holds(top_object_blue.get_predicates(True)[0], state)
+
+    objects_left_on_table = blocks_on_table(world_)
+    number_red_blocks = count_coloured_blocks(red, objects_left_on_table, state)
+    number_blue_blocks = count_coloured_blocks(blue, objects_left_on_table, state)
+    number_additional_bottom_objects = sum(
+        [count_coloured_blocks(colour, objects_left_on_table, state) for colour in additional_bottom_constrained_objects])
+    number_additional_top_objects = sum(
+        [count_coloured_blocks(colour, objects_left_on_table, state) for colour in additional_top_constrained_objects]
+    )
+
+    # If we're dealing with a "don't put red blocks on blue blocks" rule
+    # Then we are dealing with a violation if all the remaining blocks are either red or blue
+    if constrained_object == 'not' and (number_red_blocks + number_blue_blocks) == len(objects_left_on_table) and top_object_is_blue:
+        return get_block_with_colour(red, objects_left_on_table, state)
+
+    # put red(x) -> blue(y) on(x,y) is table violated only in this case:
+    if not top_object_is_red and second_object_is_blue and red == constrained_object:
+        if (number_red_blocks+number_additional_top_objects) > number_blue_blocks:
+            return get_block_with_colour(red, objects_left_on_table, state)
+    if top_object_is_red and not second_object_is_blue and blue == constrained_object:
+        if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
+            return get_block_with_colour(blue, objects_left_on_table, state)
     return False
+
 
 def blocks_on_table(world_):
     r = world_.sense().relations
@@ -103,6 +161,7 @@ def blocks_on_table(world_):
             objs.append(o)
     return objs
 
+
 def count_coloured_blocks(colour, objects, state):
     count = 0
     for o in objects:
@@ -111,30 +170,13 @@ def count_coloured_blocks(colour, objects, state):
             count += 1
     return count
 
+
 def get_block_with_colour(colour, objects, state):
     for o in objects:
         c_o = pddl_functions.create_formula(colour, [o]).get_predicates(True)[0]
         if pddl_functions.predicate_holds(c_o, state):
             return o
     return
-
-def teacher_correction(w):
-    if not w.test_failure():
-        return ""
-    #Reasons for failure:
-    # a->b, a -b
-    # b-> a b -a
-    rules = list(get_rules(w.problem.goal))
-    for r in rules:
-        if check_rule_violated(r, w):
-            #print(r.asPDDL())
-            c1, c2, _ = get_relevant_colours(r)
-            return tower_correction(c1, c2)
-    for r in rules:
-        o3 = check_table_rule_violation(r, w)
-        if o3:
-            c1, c2, _ = get_relevant_colours(r)
-            return table_correction(c1, c2, o3)
 
 
 class Teacher(object):
@@ -162,19 +204,24 @@ class TeacherAgent(Teacher):
         pass
 
     def correction(self, w):
-        if not w.test_failure():
+        failure = w.test_failure()
+
+        if not failure:
             return ""
         #Reasons for failure:
         # a->b, a -b
         # b-> a b -a
         rules = list(get_rules(w.problem.goal))
         for r in rules:
-            if check_rule_violated(r, w):
-                #print(r.asPDDL())
+            rule_violated = check_rule_violated(r, w)
+
+            if rule_violated:
+
                 c1, c2, _ = get_relevant_colours(r)
                 return tower_correction(c1, c2)
         for r in rules:
-            o3 = check_table_rule_violation(r, w)
+            o3 = check_table_rule_violation(r, w, rules)
+
             if o3:
                 c1, c2, _ = get_relevant_colours(r)
 
@@ -191,6 +238,7 @@ class TeacherAgent(Teacher):
             else:
                 return "no"
 
+
 Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
 
 
@@ -201,7 +249,6 @@ def get_colour(obj, state):
         return None
     else:
         return colour[0]
-
 
 
 class ExtendedTeacherAgent(TeacherAgent):
@@ -217,7 +264,9 @@ class ExtendedTeacherAgent(TeacherAgent):
         self.dialogue_history = []
 
     def correction(self, w):
-        if not w.test_failure():
+        failure = w.test_failure()
+        print('failure?', failure)
+        if not failure:
             return ""
 
         possible_corrections = []
@@ -229,25 +278,25 @@ class ExtendedTeacherAgent(TeacherAgent):
                 o1, o2 = get_top_two(w)
                 if impl == 'not':
                     corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
+                    possible_corrections.append(corr)
                 else:
                     corr = Correction(r, c1, c2, [o1, o2], tower_correction(c1, c2))
                     possible_corrections.append(corr)
 
         for r in rules:
-            o3 = check_table_rule_violation(r, w)
+            o3 = check_table_rule_violation(r, w, rules)
             if o3:
                 c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = get_top_two(w)
                 if impl == 'not':
                     corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
+                    possible_corrections.append(corr)
                 else:
                     corr = Correction(r, c1, c2, [o1, o2, o3], table_correction(c1, c2, o3))
                     possible_corrections.append(corr)
 
-
         possible_corrections = self.generate_possible_corrections(possible_corrections, w)
         return self.select_correction(possible_corrections)
-
 
     def generate_possible_corrections(self, violations, world_):
 

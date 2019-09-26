@@ -217,9 +217,11 @@ class ResultsFile(object):
             self.nr = int(os.path.split(name)[1].strip('experiment').strip('.out'))
             self.test_name = os.path.join(self.dir_, 'test{}.out'.format(self.nr))
         elif config is not None:
-            suite = config['scenario_suite']
+            suite = config['problem_name']
             agent = config['agent']
-            threshold = config['threshold']
+            if not isinstance(agent, str):
+                agent = str(agent)
+            threshold = str(config['threshold'])
             dir_ = ResultsFile.get_dir(suite, agent, threshold)
             # dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
             self.dir_ = dir_
@@ -228,8 +230,8 @@ class ResultsFile(object):
             nr = ResultsFile.get_number(dir_)
             # nr = len(list(filter(lambda x: 'experiment' in x, os.listdir(dir_))))
             self.nr = nr
-            self.name = os.path.join(dir_, 'experiment{}.out'.format(nr))
-            self.test_name = os.path.join(self.dir_, 'test{}.out'.format(self.nr))
+            self.name = os.path.join(dir_, f'experiment{nr}.out')
+            self.test_name = os.path.join(self.dir_, f'test{self.nr}.out')
         else:
             raise AttributeError('No config or name given')
 

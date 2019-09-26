@@ -104,9 +104,9 @@ class Debug(object):
         df.to_pickle(os.path.join(self.dir_, 'cm_params{}.pickle'.format(self.nr)))
 
 
-def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, Agent=None, vis=False, update_once=True,
+def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
                     colour_model_type='KDE', no_correction_update=False, debug=False, colour_model_config_name='DEFAULT',
-                    new_teacher=False, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None):
+                    new_teacher=False, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
@@ -121,25 +121,27 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, Age
         teacher = ExtendedTeacherAgent()
     else:
         teacher = TeacherAgent()
-    if Agent in [agents.NeuralCorrectingAgent]:
+    if agent in [agents.NeuralCorrectingAgent]:
         colour_model_config = get_neural_config(colour_model_config_name)
-        agent = Agent(w, teacher=teacher, **colour_model_config)
-    elif Agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
+        agent = agent(w, teacher=teacher, **colour_model_config)
+    elif agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
                 colour_model_config_name = 'DEFAULT'
             colour_model_config = get_kde_config(colour_model_config_name)
         else:
             colour_model_config = {}
-        agent = Agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
+        agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
                       colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent)
     else:
-        agent = Agent(w, teacher=teacher, threshold=threshold)
+        agent = agent(w, teacher=teacher, threshold=threshold)
 
     results_file.write('Results for {}\n'.format(problem_name))
     print(num_problems)
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file='blocks-domain.pddl')
+        if vis:
+            w.draw()
         agent.new_world(w)
         while not w.test_success():
             plan = agent.plan()
@@ -147,11 +149,13 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, Age
                 if a == 'reach-goal':
                     break
                 w.update(a, args)
+                print(a, args)
                 if vis:
                     w.draw()
                 correction = agent.teacher.correction(w)
                 if correction:
-                    logger.info("T: " + correction)
+                    #logger.info("T: " + correction)
+                    print(f"T: {correction}")
                     agent.get_correction(correction, a, args)
                     if vis:
                         w.draw()
@@ -201,7 +205,7 @@ def get_experiment_config(config_name, colour_model_config):
         "problem_name": config['scenario_suite'],
         "threshold": config.getfloat('threshold'),
         "update_negative": config.getboolean('update_negative'),
-        "Agent": get_agent(config),
+        "agent": get_agent(config),
         "vis": config.getboolean('visualise'),
         "update_once": config.getboolean('update_once'),
         "colour_model_type": config['colour_model_type'],
@@ -213,7 +217,7 @@ def get_experiment_config(config_name, colour_model_config):
     return config_dict
 
 
-def add_big_experiment(config_name, colour_model_config, debug=False):
+def add_big_experiment(config_name, colour_model_config, debug=False, vis=False):
     #big_db = os.path.join(db_location, 'big.db')
     experiment_db = os.path.join(db_location, 'experiments.db')
     #rels_db = os.path.join(db_location, 'rels.db')
@@ -229,14 +233,18 @@ def add_big_experiment(config_name, colour_model_config, debug=False):
     df.to_sql('big', con=engine, if_exists='replace')
 
     config_dict = get_experiment_config(config_name, colour_model_config)
-
+    config_dict['vis'] = vis
     data_directories = os.listdir(os.path.join(data_location, config_dict['problem_name']))
+
+    experiment_base_name = config_dict['problem_name']
 
     for data_dir in tqdm(data_directories):
 
-        experiment_name = os.path.join(config_dict['problem_name'], data_dir)
-        config['scenario_suite'] = experiment_name
-        results_file = ResultsFile(config=config)
+        experiment_name = os.path.join(experiment_base_name, data_dir)
+
+        config_dict['problem_name'] = experiment_name
+
+        results_file = ResultsFile(config=config_dict)
 
         experiments = pd.read_sql('experiments', index_col='index', con=engine)
         experiments = experiments.append({'config_name':experiment_name, 'neural_config':colour_model_config, 'status': 'running'}, ignore_index=True)

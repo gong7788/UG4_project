@@ -41,7 +41,7 @@ class World(object):
 
 class PDDLWorld(World):
 
-    def __init__(self, domain_file, problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+    def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
         config = get_config()
         data_dir = Path(config['data_location'])
         self.data_dir = data_dir
@@ -96,11 +96,14 @@ class PDDLWorld(World):
     def get_actions(self):
         return self.domain.actions
 
-    def draw(self):
+    def draw(self, debug=False):
 
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
-
+        if debug:
+            print(positions)
         objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
+        if debug:
+            print(objects)
         if self.use_hsv:
             block_plotting.plot_blocks(positions, [hsv2rgb([[self.colours[o]]])[0][0] for o in objects])
         else:
@@ -149,7 +152,7 @@ class PDDLWorld(World):
 
 
 class RandomColoursWorld(PDDLWorld):
-    def __init__(self, domain_file, problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+    def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
         super().__init__(domain_file, problem_directory=problem_directory,
                          problem_number=problem_number, problem_file=problem_file, use_hsv=use_hsv)
         colour_file = self.data_dir / problem_directory / f'colours{problem_number}.json'

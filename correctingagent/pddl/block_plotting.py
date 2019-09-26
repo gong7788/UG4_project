@@ -34,14 +34,20 @@ def generate_start_position(problem, width=0.2):
 
 
 def plot_blocks(posns, colours, height = 0.2, width=0.2, object_separation=0.1):
+    n_c = len(colours)
+    n_p = len(posns)
+    posns = posns[n_p-n_c:]
     fig, ax = plt.subplots()
+    resolution = 50
 
+    patches = []
     for (x1, y1), c in zip(posns, colours):
         rectangle = Rectangle((x1, y1), width=width, height=height,
-                              edgecolor=(0, 0, 0), facecolor=c)
+            edgecolor= (0,0,0), facecolor=c)
         ax.add_artist(rectangle)
-
-    plt.xlim([0, (width+object_separation)*(len(posns)+4)])
+    x_pos = posns[:][0]
+    y_pos = posns[:][1]
+    plt.xlim([0, 2*(width+object_separation)*len(posns)])
     plt.ylim([0, (height*len(posns)+object_separation)])
     plt.axis('off')
 
