@@ -3,6 +3,7 @@ import heapq
 from collections import defaultdict
 
 import numpy as np
+from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
 from correctingagent.pddl import pddl_functions
 from correctingagent.world import goals
@@ -24,6 +25,80 @@ class Rule(object):
             self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
         else:
             self.name = 'r_not^({},{})'.format(self.c1, self.c2)
+
+    def __repr__(self):
+        return self.name
+
+    def __str__(self):
+        if self.rule_type == 1:
+            return f'all x.({self.c1}(x) -> exists y. ({self.c2}(y) & on(x,y)))'
+        elif self.rule_type == 2:
+            return f'all y.({self.c2}(y) -> exists x. ({self.c1}(x) & on(x,y)))'
+        elif self.rule_type == 3:
+            return f"- exists x. exists y. ({self.c1}(x) and {self.c2}(y) and on(x,y))"
+
+    def asPDDL(self):
+        return self.rule_formula.asPDDL()
+
+    def asFormula(self):
+        return self.rule_formula
+
+    @staticmethod
+    def create_red_on_blue_rule(obj1, obj2, variables=("?x", "?y"), rule_type=None):
+        if rule_type is not None:
+            if rule_type == 1:
+                variables = ("?x", "?y")
+            elif rule_type == 2:
+                variables = ("?y", "?x")
+            else:
+                raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
+
+        variables = pddl_functions.make_variable_list(variables)
+        obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
+        obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
+        on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
+
+        if len(obj1_preds) > 1:
+            obj1_formula = Formula(obj1_preds, op='and')
+        else:
+            obj1_formula = Formula(obj1_preds)
+
+        if len(obj2_preds) > 1:
+            obj2_formula = Formula(obj2_preds, op='and')
+        else:
+            obj2_formula = Formula(obj2_preds)
+
+        second_part = Formula([obj2_formula, on], op='and')
+        existential = Formula([second_part], op='exists',
+                              variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
+        neg_o1 = Formula([obj1_formula], op='not')
+        subformula = Formula([neg_o1, existential], op='or')
+
+        return Rule(Formula([subformula], op='forall',
+                       variables=pddl_functions.make_variable_list([variables.args[0].arg_name])))
+
+    @staticmethod
+    def create_not_red_on_blue_rule(obj1, obj2, variables=("?x", "?y")):
+        variables = pddl_functions.make_variable_list(variables)
+        obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
+        obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
+        on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
+
+        if len(obj1_preds) > 1:
+            obj1_formula = Formula(obj1_preds, op='and')
+        else:
+            obj1_formula = Formula(obj1_preds)
+
+        if len(obj2_preds) > 1:
+            obj2_formula = Formula(obj2_preds, op='and')
+        else:
+            obj2_formula = Formula(obj2_preds)
+
+        conjunction_part = Formula([obj1_formula, obj2_formula, on], op='and')
+        existential = Formula([conjunction_part], op='exists', variables=variables)
+        neg_formula = Formula([existential], op='not')
+
+        return Rule(neg_formula)
 
     @staticmethod
     def get_rule_colours(formula):
@@ -62,6 +137,11 @@ class Rule(object):
     def get_rules(goal):
         return [Rule(subformula) for subformula in goal.subformulas[1:]]
 
+    @staticmethod
+    def generate_red_on_blue_options(red, blue):
+        return[Rule.create_red_on_blue_rule(red, blue),
+              Rule.create_red_on_blue_rule(red, blue, variables=("?y", "?x"))]
+
 
 class RuleConstraint(object):
 
@@ -89,7 +169,6 @@ class ConstraintCollection(object):
 
     def __init__(self, constraints):
         self.constraints = constraints
-
 
     def from_rules(rules):
         return ConstraintCollection([r.constraint for r in rules])
@@ -231,3 +310,4 @@ class State(object):
             return len(self.state) > len(other.state)
         else:
             return False
+

@@ -164,7 +164,7 @@ class PGMModel(object):
         self.colours[cm1.name] = cm1
         self.colours[cm2.name] = cm2
         for rule in rules:
-            self.known_rules[rule] = (cm1.name, cm2.name)
+            self.known_rules[str(rule)] = (cm1.name, cm2.name)
 
     def add_cm(self, cm, block):
 
@@ -195,10 +195,9 @@ class PGMModel(object):
 #     def node_filter(self, nodes):
 #         return filter(lambda y: y not in self.model.nodes(), nodes)
 
-
     def get_rule_prior(self, rule):
         try:
-            return self.rule_priors[rule]
+            return self.rule_priors[str(rule)]
         except KeyError:
             return 0.01
 
@@ -206,9 +205,8 @@ class PGMModel(object):
         if rule not in self.known_rules:
             rule_prior_value = self.get_rule_prior(rule)
 
-            rule_prior = DiscreteFactor([rule], [2], [1-rule_prior_value, rule_prior_value])
-            self.add_factor([rule], rule_prior)
-
+            rule_prior = DiscreteFactor([str(rule)], [2], [1-rule_prior_value, rule_prior_value])
+            self.add_factor([str(rule)], rule_prior)
 
     def add_no_correction(self, args, time):
         if not self.known_rules:
@@ -216,7 +214,6 @@ class PGMModel(object):
         o1, o2 = args
 
         violations = []
-
 
         for rule, (red, blue) in self.known_rules.items():
             red_o1 = self.add_cm(self.colours[red], o1)
@@ -262,15 +259,15 @@ class PGMModel(object):
         blue_o2 = self.add_cm(blue_cm, o2)
 
         self.add_prior(rule)
-        self.known_rules[r1] = [red_cm.name, blue_cm.name]
+        self.known_rules[str(rule)] = [red_cm.name, blue_cm.name]
         violated_rule = generate_CPD(rule, red_cm.name, blue_cm.name)
 
         correction_table = variable_or_CPD(1)
 
-        Vrule = 'V_{}({})'.format(time, r1)
+        Vrule = 'V_{}({})'.format(time, rule)
         corr = 'corr_{}'.format(time)
 
-        rule_violated = TabularCPD(Vrule, 2, violated_rule, evidence=[red_o1, blue_o2, rule], evidence_card = [2,2,2])
+        rule_violated = TabularCPD(Vrule, 2, violated_rule, evidence=[red_o1, blue_o2, rule], evidence_card=[2, 2, 2])
         rule_violated_factor = rule_violated.to_factor()
         self.add_factor([Vrule, rule, rule_violated_factor], rule_violated_factor)
 
@@ -289,10 +286,8 @@ class PGMModel(object):
 
         self.known_rules[rule] = [red_cm.name, blue_cm.name]
 
-
         rule_cpd = generate_neg_table_cpd()
         correction_table = variable_or_CPD(1)
-
 
         Vrule = 'V_{}({})'.format(time, rule)
         corr = 'corr_{}'.format(time)
@@ -305,11 +300,9 @@ class PGMModel(object):
         self.add_factor([Vrule, corr], correction.to_factor())
 
         #self.inference = VariableElimination(self.model)
-        return [Vr1]
-
+        return [Vrule]
 
     def create_tower_model(self, rules, red_cm, blue_cm, args, time):
-
 
         # create the factors for the colour models
 
@@ -323,8 +316,8 @@ class PGMModel(object):
         self.add_prior(r1)
         self.add_prior(r2)
 
-        self.known_rules[r1] = [red_cm.name, blue_cm.name]
-        self.known_rules[r2] = [red_cm.name, blue_cm.name]
+        self.known_rules[str(r1)] = [red_cm.name, blue_cm.name]
+        self.known_rules[str(r2)] = [red_cm.name, blue_cm.name]
 
 
 
@@ -397,8 +390,8 @@ class PGMModel(object):
         self.add_prior(r1)
         self.add_prior(r2)
 
-        self.known_rules[r1] = [red_cm.name, blue_cm.name]
-        self.known_rules[r2] = [red_cm.name, blue_cm.name]
+        self.known_rules[str(r1)] = [red_cm.name, blue_cm.name]
+        self.known_rules[str(r2)] = [red_cm.name, blue_cm.name]
 
 
 
@@ -407,15 +400,15 @@ class PGMModel(object):
         correction_table = or_CPD()
 
 
-        Vr1 = 'V_{}({})'.format(time, r1)
-        Vr2 = 'V_{}({})'.format(time, r2)
-        corr = 'corr_{}'.format(time)
+        Vr1 = f'V_{time}({str(r1)})'
+        Vr2 = f'V_{time}({str(r2)})'
+        corr = f'corr_{time}'
 
-        r1_evidence = [r1, red_o1, blue_o2, red_o3, blue_o3]
+        r1_evidence = [str(r1), red_o1, blue_o2, red_o3, blue_o3]
         r1_violated = TabularCPD(Vr1, 2, r1_cpd, evidence=r1_evidence, evidence_card=[2,2,2,2,2])
         self.add_factor(r1_evidence + [Vr1], r1_violated.to_factor())
 
-        r2_evidence = [r2, red_o1, blue_o2, red_o3, blue_o3]
+        r2_evidence = [str(r2), red_o1, blue_o2, red_o3, blue_o3]
         r2_violated = TabularCPD(Vr2, 2, r2_cpd, evidence=r2_evidence, evidence_card=[2,2,2,2,2])
         self.add_factor(r2_evidence + [Vr2], r2_violated.to_factor())
 
@@ -430,7 +423,7 @@ class PGMModel(object):
     def add_same_reason(self, current_violations, previous_violations):
         evidence = []
         for c, p in zip(current_violations, previous_violations):
-            evidence.extend([c,p])
+            evidence.extend([c, p])
 
         t = equals_CPD(current_violations, previous_violations)
         f = DiscreteFactor(evidence, [2]*len(evidence), t)

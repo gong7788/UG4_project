@@ -3,7 +3,7 @@ from pathlib import Path
 from . import world
 import random
 import os
-from ..pddl import problem_def
+from correctingagent.world import problem_def
 from ..util.colour_dict import colour_dict
 from collections import defaultdict
 import numpy as np
@@ -34,7 +34,9 @@ def generate_dataset(N, rules, directory, colour_dict=colour_dict):
     while len(dataset) < N:
         colours = sample_colours(10, colour_dict=colour_dict)
         with open('tmp/generation.pddl', 'w') as f:
-            f.write(problem_def.create_problem(colours, rules).asPDDL())
+            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules)
+            f.write(problem.asPDDL())
+
         w = world.PDDLWorld('blocks-domain.pddl', 'tmp/generation.pddl')
         if not w.test_failure():
             file_name = '{}/problem{}.pddl'.format(directory,len(dataset)+1)
@@ -177,7 +179,8 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             colours = generate_from_colour_count(rules, cc)
 
         with open('../data/tmp/generation.pddl', 'w') as f:
-            f.write(problem_def.create_problem(colours, rules).asPDDL())
+            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).asPDDL()
+            f.write(problem)
         w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
         if not w.test_failure():
             file_name = directory / f"problem{len(dataset)+1}.pddl"

@@ -373,10 +373,10 @@ class CorrectingAgent(Agent):
                 data_dict = {c1:colour_data[o1], c2:None}
         return data_dict
 
-
     def build_model(self, message):
-
-        rules = goals.create_goal_options(message.o1, message.o2)
+        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
+        #TODO change downstreem to expect Rule class rather than formula
+        rules = [rule.asFormula() for rule in rules]
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
         # If this this rule model already exists, keep using the same
@@ -483,8 +483,9 @@ class NeuralCorrectingAgent(CorrectingAgent):
 
 
     def build_model(self, message):
-
-        rules = goals.create_goal_options(message.o1, message.o2)
+        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
+        # TODO change downstreem to expect Rule class rather than formula
+        rules = [rule.asFormula() for rule in rules]
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
         # If this this rule model already exists, keep using the same
@@ -876,7 +877,7 @@ class NoLanguageAgent(CorrectingAgent):
         if message.T == 'tower':
             if data['o2'] is None:
                 return
-            rule = goals.create_negative_goal([c1], [c2])
+            rule = correctingagent.world.rules.create_not_red_on_blue_rule([c1], [c2])
 
             self.colour_models.update({c1:c1_model, c2:c2_model})
             self.rule_models['not {} and {}'.format(c1, c2)] = rule
@@ -891,8 +892,8 @@ class NoLanguageAgent(CorrectingAgent):
                 c3_model = prob_model.KDEColourModel(c3, data=np.array([data['o3']]), weights=np.array([1]), **self.model_config)
 
 
-            rule1 = goals.create_goal([c3], [c2])
-            rule2 = goals.create_goal([c3], [c1], ['?y', '?x'])
+            rule1 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c2])
+            rule2 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c1], ['?y', '?x'])
             if data['o2'] is None:
                 self.colour_models.update({c1:c1_model, c3:c3_model})
                 self.rule_models['{}(x) -> {}(y)'.format(c3, c1)] = rule2

@@ -1,19 +1,19 @@
 
 import numpy as np
 import re
-from correctingagent.world.goals import create_goal_options
+from correctingagent.world.rules import Rule
 import nltk
 from nltk.sem import Valuation, Model
 from functools import reduce
 
 
 
-def test_rule_type():
-    violation = 'V(all x.({}(x) -> exists y. ({}(y) & on(x,y))))'.format('red', 'blue')
-    violation2 = 'V(all y.({}(y) -> exists x. ({}(x) & on(x,y))))'.format('blue', 'red')
-
-    assert(get_rule_type(violation) == ('red', 'blue', 'r1'))
-    assert(get_rule_type(violation2) == ('red', 'blue', 'r2'))
+# def test_rule_type():
+#     violation = 'V(all x.({}(x) -> exists y. ({}(y) & on(x,y))))'.format('red', 'blue')
+#     violation2 = 'V(all y.({}(y) -> exists x. ({}(x) & on(x,y))))'.format('blue', 'red')
+#
+#     assert(get_rule_type(violation) == ('red', 'blue', 'r1'))
+#     assert(get_rule_type(violation2) == ('red', 'blue', 'r2'))
 
 
 def get_violation_type(violation):
@@ -64,32 +64,24 @@ def get_predicate(predicate):
     args = [arg.strip() for arg in args.split(',')]
     return pred, args
 
+
 def rule_to_pddl(rule):
     rule_split = split_rule(rule)
     red, o1 = get_predicate(rule_split[0])
     blue, o2 = get_predicate(rule_split[1])
     on, (x, y) = get_predicate(rule_split[2])
 
-
     if x == o1[0] and y == o2[0]:
-        r1, r2 = create_goal_options([red], [blue])
-        return r1
+        r1, r2 = Rule.generate_red_on_blue_options([red], [blue])
+        # TODO change downstream to expect Rule rather than Formula
+        return r1.asFormula()
     if x == o2[0] and y == o1[0]:
-        r1, r2 = create_goal_options([blue], [red])
-        return r2
+        r1, r2 = Rule.generate_red_on_blue_options([blue], [red])
+        # TODO change downstream to expect Rule rather than Formula
+        return r2.asFormula()
     else:
         raise ValueError('Should not get here')
 
-
-
-def create_rules(colour1, colour2):
-    r1 = 'all x.({}(x) -> exists y. ({}(y) & on(x,y)))'.format(colour1, colour2)
-    r2 = 'all y.({}(y) -> exists x. ({}(x) & on(x,y)))'.format(colour2, colour1)
-    return r1, r2
-
-def create_neg_rule(red, blue):
-    rule = "- exists x. exists y. ({}(x) and {}(y) and on(x,y))".format(red, blue)
-    return rule
 
 def evaluate_rule(colour1, value1, colour2, value2, rule):
     c1_set = set()

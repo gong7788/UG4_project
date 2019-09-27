@@ -302,14 +302,14 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def build_same_reason(self, message, args, prev_time):
         violations = self.build_pgm_model(message, args)
-        rules = create_rules(message.o1[0], message.o2[0])
-        previous_violations = ['V_{}({})'.format(prev_time, rule) for rule in rules]
+        rules = Rule.generate_red_on_blue_options(message.o1, message.o2)
+        previous_violations = [f'V_{prev_time}({str(rule)})' for rule in rules]
         self.pgm_model.add_same_reason(violations, previous_violations)
         return violations
 
     def build_pgm_model(self, message, args):
 
-        rules = create_rules(message.o1[0], message.o2[0])
+        rules = Rule.generate_red_on_blue_options(message.o1, message.o2)
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
@@ -317,11 +317,12 @@ class PGMCorrectingAgent(CorrectingAgent):
             violations = self.pgm_model.create_tower_model(rules, red_cm, blue_cm, args, self.time)
         elif message.T == 'table':
             violations = self.pgm_model.create_table_model(rules, red_cm, blue_cm, args + [message.o3], self.time)
-        #print(rules)
+
         return violations
 
     def build_neg_model(self, message, args):
-        rule = create_neg_rule(message.o1[0], message.o2[0])
+        rule = Rule.create_not_red_on_blue_rule(message.o1, message.o2)
+
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
@@ -370,7 +371,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
 
                 red_cm = self.add_cm(c1)
                 blue_cm = self.add_cm(c2)
-                rules = create_rules(c1, c2)
+                rules = Rule.generate_red_on_blue_options(c1, c2)
 
                 self.pgm_model.add_rules(rules, red_cm, blue_cm)
 
