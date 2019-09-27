@@ -1,7 +1,7 @@
 
 import numpy as np
 import re
-from ..pddl.goal_updates import create_goal_options
+from correctingagent.world.goals import create_goal_options
 import nltk
 from nltk.sem import Valuation, Model
 from functools import reduce

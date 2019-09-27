@@ -149,7 +149,6 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
                 if a == 'reach-goal':
                     break
                 w.update(a, args)
-                print(a, args)
                 if vis:
                     w.draw()
                 correction = agent.teacher.correction(w)

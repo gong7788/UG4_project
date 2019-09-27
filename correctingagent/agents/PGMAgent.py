@@ -1,11 +1,11 @@
 
 from correctingagent.agents.agents import CorrectingAgent, Tracker
 from correctingagent.experiments.colour_model_evaluation import evaluate_colour_model
-from correctingagent.pddl import goal_updates, pddl_functions
+from correctingagent.pddl import pddl_functions
+from correctingagent.world import goals
 from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
-import re
 from .teacher import get_rules, get_relevant_colours
 from ..util.rules import *
 
@@ -100,7 +100,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                 if self.debug['show_rules']:
                     print(f'Added rule {rule} to goal')
 
-        self.goal = goal_updates.goal_from_list(rules)
+        self.goal = goals.goal_from_list(rules)
 
     def no_correction(self, action, args):
         self.time += 1
@@ -141,7 +141,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.last_correction = self.time
 
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
 
         message = read_sentence(user_input, use_dmrs=False)
         args_for_model = args.copy()
@@ -388,7 +388,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
             #print(self.time)
 
             not_on_xy = pddl_functions.create_formula('on', args, op='not')
-            self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+            self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
             #print(self.time)
             args_for_model = args.copy()
             #print(actions, args, user_input)

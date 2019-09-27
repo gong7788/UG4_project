@@ -1,8 +1,10 @@
 import copy
+
+import correctingagent.world.rules
 from ..pddl import ff
 from ..language import dmrs_functions
 from collections import namedtuple, defaultdict
-from ..pddl import goal_updates
+from correctingagent.world import goals
 from ..models import prob_model
 from ..pddl import pddl_functions
 import numpy as np
@@ -209,7 +211,7 @@ class CorrectingAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goal_updates.create_default_goal()
+        self.goal = goals.create_default_goal()
         self.tmp_goal = None
         self.problem.initialstate = observation.state
         if colour_models is None:
@@ -258,7 +260,7 @@ class CorrectingAgent(Agent):
         visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
         if not test:
             # get the relevant parts of the message
             message = read_sentence(user_input, use_dmrs=False)
@@ -374,7 +376,7 @@ class CorrectingAgent(Agent):
 
     def build_model(self, message):
 
-        rules = goal_updates.create_goal_options(message.o1, message.o2)
+        rules = goals.create_goal_options(message.o1, message.o2)
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
         # If this this rule model already exists, keep using the same
@@ -437,7 +439,7 @@ class CorrectingAgent(Agent):
                 logger.debug(rules)
                 used_models.add(rule_name)
 
-        self.goal = goal_updates.goal_from_list(rules)
+        self.goal = goals.goal_from_list(rules)
         # print(self.goal.asPDDL())
 
     def sense(self, threshold=0.5):
@@ -455,7 +457,7 @@ class CorrectingAgent(Agent):
 
                 results[obj][colour] = p_colour
         results = dict(results)
-        self.state = search.State(observation, results, threshold)
+        self.state = correctingagent.world.rules.State(observation, results, threshold)
         self.problem.initialstate = self.state.to_pddl()
 
 
@@ -482,7 +484,7 @@ class NeuralCorrectingAgent(CorrectingAgent):
 
     def build_model(self, message):
 
-        rules = goal_updates.create_goal_options(message.o1, message.o2)
+        rules = goals.create_goal_options(message.o1, message.o2)
         rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
         # If this this rule model already exists, keep using the same
@@ -528,7 +530,7 @@ class RandomAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goal_updates.create_default_goal()
+        self.goal = goals.create_default_goal()
         self.tmp_goal = None
         self.problem.initialstate = observation.state
         #self.colour_models = colour_models
@@ -550,7 +552,7 @@ class RandomAgent(Agent):
 
 
     def plan(self):
-        self.problem.goal = goal_updates.update_goal(goal_updates.create_default_goal(), self.tmp_goal)
+        self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
         with open('tmp/problem.pddl', 'w') as f:
             f.write(self.problem.asPDDL())
         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
@@ -566,7 +568,7 @@ class RandomAgent(Agent):
     def get_correction(self, user_input, action, args, test=False):
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
         self.world.back_track()
         self.sense()
 
@@ -664,7 +666,7 @@ class RLAgent(Agent):
         visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
 
         # get the relevant parts of the message
         message = read_sentence(user_input, use_dmrs=False)
@@ -745,7 +747,7 @@ class NoLanguageAgent(CorrectingAgent):
         # visible = {}
         # since this action is incorrect, ensure it is not done again
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goal_updates.update_goal(self.tmp_goal, not_on_xy)
+        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
 
 
         if not test:
@@ -756,7 +758,7 @@ class NoLanguageAgent(CorrectingAgent):
                     self.active_tests.remove(test)
                 else:
                     continue
-                self.goal = goal_updates.update_goal(self.goal, correct_rule.rule_formula)
+                self.goal = goals.update_goal(self.goal, correct_rule.rule_formula)
 
             # get the relevant parts of the message
             message = read_sentence(user_input, use_dmrs=False)
@@ -829,7 +831,7 @@ class NoLanguageAgent(CorrectingAgent):
                 self.active_tests.remove(test)
             else:
                 continue
-            self.goal = goal_updates.update_goal(self.goal, correct_rule.rule_formula)
+            self.goal = goals.update_goal(self.goal, correct_rule.rule_formula)
 
 
     def build_model(self, message, args):
@@ -874,7 +876,7 @@ class NoLanguageAgent(CorrectingAgent):
         if message.T == 'tower':
             if data['o2'] is None:
                 return
-            rule = goal_updates.create_negative_goal([c1], [c2])
+            rule = goals.create_negative_goal([c1], [c2])
 
             self.colour_models.update({c1:c1_model, c2:c2_model})
             self.rule_models['not {} and {}'.format(c1, c2)] = rule
@@ -889,8 +891,8 @@ class NoLanguageAgent(CorrectingAgent):
                 c3_model = prob_model.KDEColourModel(c3, data=np.array([data['o3']]), weights=np.array([1]), **self.model_config)
 
 
-            rule1 = goal_updates.create_goal([c3], [c2])
-            rule2 = goal_updates.create_goal([c3], [c1], ['?y', '?x'])
+            rule1 = goals.create_goal([c3], [c2])
+            rule2 = goals.create_goal([c3], [c1], ['?y', '?x'])
             if data['o2'] is None:
                 self.colour_models.update({c1:c1_model, c3:c3_model})
                 self.rule_models['{}(x) -> {}(y)'.format(c3, c1)] = rule2
@@ -913,7 +915,7 @@ class NoLanguageAgent(CorrectingAgent):
             except:
                 self.rules.append(rule)
 
-        self.goal = goal_updates.goal_from_list(self.rules)
+        self.goal = goals.goal_from_list(self.rules)
         # print(self.goal.asPDDL())
 
 

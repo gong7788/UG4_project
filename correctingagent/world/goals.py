@@ -1,6 +1,7 @@
-from . import pddl_functions
+from correctingagent.pddl import pddl_functions
 from pythonpddl.pddl import Predicate, TypedArgList, Formula
 import copy
+
 
 
 
@@ -28,6 +29,7 @@ def create_goal(obj1, obj2, variables=("?x", "?y")):
 
     return Formula([subformula], op='forall', variables=pddl_functions.make_variable_list([variables.args[0].arg_name]))
 
+
 def create_negative_goal(obj1, obj2, variables=("?x", "?y")):
     variables = pddl_functions.make_variable_list(variables)
     obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
@@ -50,11 +52,13 @@ def create_negative_goal(obj1, obj2, variables=("?x", "?y")):
 
     return neg_formula
 
+
 def create_default_goal():
     var = pddl_functions.make_variable_list(['?x'])
     pred = Predicate('in-tower', var)
     goal = Formula([pred], op='forall', variables=var)
     return goal
+
 
 def create_goal_options(obj1, obj2):
     return [create_goal(obj1, obj2), create_goal(obj2, obj1, variables=("?y", "?x"))]
@@ -71,6 +75,7 @@ def update_goal(goal, rule):
     else:
         goal = Formula([goal, rule], op='and')
     return goal
+
 
 def goal_from_list(rules):
     goal = create_default_goal()

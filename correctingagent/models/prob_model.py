@@ -736,7 +736,6 @@ class TableCorrectionModel(CorrectionModel):
             if which_to_update[1]:
                 self.c2.update_negative(data[self.c2.name], 1-w2)
 
-
     def updated_object_priors(self, data, objs, priors, visible={}):
         obj_dict = super().updated_object_priors(data, objs, priors, visible=copy.copy(visible))
         p3 = self.p_c(self.c3.name, data, priors=priors, visible=copy.copy(visible))

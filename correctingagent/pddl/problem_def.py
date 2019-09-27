@@ -1,6 +1,6 @@
 from . import pddl_functions
 from collections import namedtuple
-from . import goal_updates
+from correctingagent.world import goals
 from pythonpddl.pddl import Problem
 from ..util.colour_dict import colour_dict
 
@@ -40,7 +40,7 @@ def add_colours(state, objects, colours):
     return state
 
 def generate_rule(ruledef):
-    return goal_updates.create_goal_options(
+    return goals.create_goal_options(
             ruledef.first_obj, ruledef.second_obj
         )[int(ruledef.constrained_obj == 'second')]
 
@@ -48,10 +48,10 @@ def create_problem(colours, ruledefs, name='block-problem', domainname='blockswo
     objects = create_objects(len(colours))
     initialstate = generate_default_position(objects)
     initialstate = add_colours(initialstate, objects, colours)
-    goal = goal_updates.create_default_goal()
+    goal = goals.create_default_goal()
     for rule in ruledefs:
         rule = generate_rule(rule)
-        goal = goal_updates.update_goal(goal, rule)
+        goal = goals.update_goal(goal, rule)
     return Problem(name, domainname, objects, initialstate, goal)
 
 def save_problem(colours, ruledefs, name='blocks-problem', domainnname='blocksworld'):
