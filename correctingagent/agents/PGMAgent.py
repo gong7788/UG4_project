@@ -96,7 +96,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         for rule, p in rule_probs.items():
 
             if p > 0.5:
-                rules.append(rule_to_pddl(rule))
+                rules.append(rule.asFormula())
                 if self.debug['show_rules']:
                     print(f'Added rule {rule} to goal')
 
@@ -107,7 +107,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         if args[0] in self.marks or args[1] in self.marks:
             self.pgm_model.add_no_correction(args, self.time)
             data = self.get_colour_data(args)
-            corr = 'corr_{}'.format(self.time)
+            corr = f'corr_{self.time}'
             data[corr] = 0
             self.pgm_model.observe(data)
             self.pgm_model.infer()
@@ -120,7 +120,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             args_for_model += [message.o3]
         data = self.get_colour_data(args_for_model)
 
-        corr = 'corr_{}'.format(self.time)
+        corr = f'corr_{self.time}'
 
         data[corr] = 1
 
@@ -132,7 +132,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         #     # self.marks.add(message.o3)
 
         if 't' in args[1] and message.o2 is not None:
-            blue = '{}({})'.format(message.o2[0], args[1])
+            blue = f'{message.o2[0]}({args[1]})'
             data[blue] = 0
         return data
 
@@ -161,17 +161,17 @@ class PGMCorrectingAgent(CorrectingAgent):
         elif message.T == 'evidence':
             violations = self.pgm_model.add_no_correction(args, self.time)
             data = self.get_colour_data(args)
-            corr = 'corr_{}'.format(self.time)
+            corr = f'corr_{self.time}'
             data[corr] = 1
-            red = '{}({})'.format(message.o1[0], args[0])
-            blue = '{}({})'.format(message.o2[0], args[1])
+            red = f'{message.o1[0]}({args[0]})'
+            blue = f'{message.o2[0]}({args[1]})'
             data[red] = 1
             data[blue] = 1
 
         elif message.T == 'no':
             violations = self.pgm_model.add_no_correction(args, self.time)
             data = self.get_colour_data(args)
-            corr = 'corr_{}'.format(self.time)
+            corr = f'corr_{self.time}'
             data[corr] = 1
 
         elif message.T in ['tower', 'table']:
@@ -196,7 +196,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         #         variable_clamp = [{redo1:1}, {redo2:1}]
 
         elif 'partial.neg' == message.T:
-            data = self.get_relevant_data(args, message)
+
             for i, (prev_corr, prev_time) in enumerate(self.previous_corrections[::-1]):
                 if message.o1 in prev_corr:
                     break
@@ -206,20 +206,18 @@ class PGMCorrectingAgent(CorrectingAgent):
             violations = self.build_pgm_model(prev_message, args)
             prev_args = self.previous_args[prev_time]
 
-
             if message.o1 == prev_message.o1:
-                curr_negation = '{}({})'.format(message.o1, args[0])
-                prev_negation = '{}({})'.format(message.o1, prev_args[0])
+                curr_negation = f'{message.o1}({args[0]})'
+                prev_negation = f'{message.o1}({prev_args[0]})'
             else:
-                curr_negation = '{}({})'.format(message.o1, args[1])
-                prev_negation = '{}({})'.format(message.o1, prev_args[1])
-
+                curr_negation = f'{message.o1}({args[1]})'
+                prev_negation = f'{message.o1}({prev_args[1]})'
 
             data = self.get_relevant_data(args, prev_message)
             data[curr_negation] = 0
             data[prev_negation] = 0
         else:
-            raise NotImplemented('This type of correction is not implemented: {}'.format(message.T))
+            raise NotImplemented(f'This type of correction is not implemented: {message.T}')
 
         self.pgm_model.observe(data)
 
@@ -234,14 +232,15 @@ class PGMCorrectingAgent(CorrectingAgent):
         if max(q.values()) < self.threshold:
 
             if message.T in ['table', 'tower']:
-                question = 'Is the top object {}?'.format(message.o1[0])
+                question = f'Is the top object {message.o1[0]}?'
                 #dialogue.info('R: ' + question)
                 print(question)
-                red = '{}({})'.format(message.o1[0], args[0])
+                red = f'{message.o1[0]}({args[0]})'
                 answer = self.teacher.answer_question(question, self.world)
                 #dialogue.info("T: " + answer)
                 print(answer)
                 bin_answer = int(answer.lower() == 'yes')
+
                 self.pgm_model.observe({red: bin_answer})
                 q = self.pgm_model.query(list(violations))
 
@@ -278,7 +277,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             arg = arg[0]
             if 't' in arg:
                 continue
-            fx = self.get_colour_data([arg])['F({})'.format(arg)]
+            fx = self.get_colour_data([arg])[f'F({arg})']
 
             if p > 0.7:
                 self.colour_models[colour].update(fx, p)
@@ -313,10 +312,10 @@ class PGMCorrectingAgent(CorrectingAgent):
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
-        if message.T == 'tower':
-            violations = self.pgm_model.create_tower_model(rules, red_cm, blue_cm, args, self.time)
-        elif message.T == 'table':
-            violations = self.pgm_model.create_table_model(rules, red_cm, blue_cm, args + [message.o3], self.time)
+        if message.T == 'table':
+            args += [message.o3]
+
+        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args + [message.o3], self.time, table_correction=(message.T == 'table'))
 
         return violations
 
@@ -327,9 +326,9 @@ class PGMCorrectingAgent(CorrectingAgent):
         blue_cm = self.add_cm(message.o2[0])
 
         if message.T == 'neg':
-            violations = self.pgm_model.create_negative_model(rule, red_cm, blue_cm, args, self.time)
+            violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args, self.time, table_correction=False)
         if message.T == 'table.neg':
-            violations = self.pgm_model.create_table_neg_model(rule, red_cm, blue_cm, args + [message.o3], self.time)
+            violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args + [message.o3], self.time, table_correction=True)
         return violations
 
     def get_colour_data(self, args):
@@ -353,6 +352,7 @@ class PGMCorrectingAgent(CorrectingAgent):
 
 
 class ClassicalAdviceBaseline(PGMCorrectingAgent):
+
         def __init__(self, world, colour_models=None, rule_beliefs=None,
                      domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                      update_negative=True, update_once=True, colour_model_type='default',

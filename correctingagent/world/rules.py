@@ -2,7 +2,9 @@ import copy
 import heapq
 from collections import defaultdict
 
+import nltk
 import numpy as np
+from nltk import Valuation, Model
 from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
 from correctingagent.pddl import pddl_functions
@@ -27,7 +29,7 @@ class Rule(object):
             self.name = 'r_not^({},{})'.format(self.c1, self.c2)
 
     def __repr__(self):
-        return self.name
+        return self.__str__()
 
     def __str__(self):
         if self.rule_type == 1:
@@ -37,6 +39,18 @@ class Rule(object):
         elif self.rule_type == 3:
             return f"- exists x. exists y. ({self.c1}(x) and {self.c2}(y) and on(x,y))"
 
+    def __eq__(self, other):
+        if isinstance(other, Rule):
+            return (str(self) == str(other))
+        else:
+            return False
+
+    def __ne__(self, other):
+        return (not self.__eq__(other))
+
+    def __hash__(self):
+        return hash(str(self))
+
     def asPDDL(self):
         return self.rule_formula.asPDDL()
 
@@ -44,14 +58,15 @@ class Rule(object):
         return self.rule_formula
 
     @staticmethod
-    def create_red_on_blue_rule(obj1, obj2, variables=("?x", "?y"), rule_type=None):
-        if rule_type is not None:
-            if rule_type == 1:
-                variables = ("?x", "?y")
-            elif rule_type == 2:
-                variables = ("?y", "?x")
-            else:
-                raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
+    def create_red_on_blue_rule(obj1, obj2, rule_type=None):
+
+        if rule_type == 1:
+            variables = ("?x", "?y")
+        elif rule_type == 2:
+            variables = ("?y", "?x")
+            obj1, obj2 = obj2, obj1
+        else:
+            raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
 
         variables = pddl_functions.make_variable_list(variables)
         obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
@@ -139,9 +154,71 @@ class Rule(object):
 
     @staticmethod
     def generate_red_on_blue_options(red, blue):
-        return[Rule.create_red_on_blue_rule(red, blue),
-              Rule.create_red_on_blue_rule(red, blue, variables=("?y", "?x"))]
+        return[Rule.create_red_on_blue_rule(red, blue, rule_type=1),
+              Rule.create_red_on_blue_rule(red, blue, rule_type=2)]
 
+    def generate_CPD(self):
+        cpd_line_corr0 = []
+        cpd_line_corr1 = []
+        for i in range(2):
+            for j in range(2):
+                for r in range(2):
+                    result = r * (1 - int(self.evaluate_rule(i, j)))
+                    cpd_line_corr1.append(result)
+                    cpd_line_corr0.append(1 - result)
+
+        return [cpd_line_corr0, cpd_line_corr1]
+
+    def evaluate_rule(self, value1, value2):
+        c1_set = set()
+        c2_set = set()
+        if value1 == 1:
+            c1_set.add('o1')
+        if value2 == 1:
+            c2_set.add('o2')
+        v = [(self.c1, c1_set), (self.c2, c2_set),
+             ('on', set([('o1', 'o2')]))]
+        val = Valuation(v)
+        dom = val.domain
+        m = Model(dom, val)
+        g = nltk.sem.Assignment(dom)
+        return m.evaluate(str(self), g)
+
+    def generate_table_cpd(self):
+        cpd_line_corr0 = []
+        cpd_line_corr1 = []
+
+        for r1 in range(2):  # rule 1 or 0
+            for redo1 in range(2):
+                for blueo2 in range(2):
+                    for redo3 in range(2):
+                        for blueo3 in range(2):
+                            if self.rule_type == 1:
+                                result = r1 * int(not (redo1) and blueo2 and redo3)
+                            elif self.rule_type == 2:
+                                result = r1 * int(redo1 and not (blueo2) and blueo3)
+                            cpd_line_corr1.append(result)
+                            cpd_line_corr0.append(1 - result)
+        return [cpd_line_corr0, cpd_line_corr1]
+
+
+
+
+
+
+def generate_CPD(rule, c1, c2):
+    cpd_line_corr0 = []
+    cpd_line_corr1 = []
+
+    cpd = np.zeros((2,2))
+    for i in range(2):
+        for j in range(2):
+            for r in range(2):
+                result = r * (1-int(evaluate_rule(c1, i, c2, j, rule)))
+                cpd_line_corr1.append(result)
+                cpd_line_corr0.append(1-result)
+
+    return [cpd_line_corr0, cpd_line_corr1]
 
 class RuleConstraint(object):
 
@@ -310,4 +387,3 @@ class State(object):
             return len(self.state) > len(other.state)
         else:
             return False
-

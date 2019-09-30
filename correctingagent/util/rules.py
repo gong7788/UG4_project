@@ -2,8 +2,6 @@
 import numpy as np
 import re
 from correctingagent.world.rules import Rule
-import nltk
-from nltk.sem import Valuation, Model
 from functools import reduce
 
 
@@ -81,37 +79,6 @@ def rule_to_pddl(rule):
         return r2.asFormula()
     else:
         raise ValueError('Should not get here')
-
-
-def evaluate_rule(colour1, value1, colour2, value2, rule):
-    c1_set = set()
-    c2_set = set()
-    if value1 == 1:
-        c1_set.add('o1')
-    if value2 == 1:
-        c2_set.add('o2')
-    v = [(colour1, c1_set), (colour2, c2_set),
-        ('on', set([('o1', 'o2')]))]
-
-    val = Valuation(v)
-    dom = val.domain
-    m = Model(dom, val)
-    g = nltk.sem.Assignment(dom)
-    return m.evaluate(rule, g)
-
-def generate_CPD(rule, c1, c2):
-    cpd_line_corr0 = []
-    cpd_line_corr1 = []
-
-    cpd = np.zeros((2,2))
-    for i in range(2):
-        for j in range(2):
-            for r in range(2):
-                result = r * (1-int(evaluate_rule(c1, i, c2, j, rule)))
-                cpd_line_corr1.append(result)
-                cpd_line_corr0.append(1-result)
-
-    return [cpd_line_corr0, cpd_line_corr1]
 
 
 def generate_table_cpd(rule_type):
