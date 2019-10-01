@@ -3,6 +3,12 @@ from pythonpddl.pddl import Predicate, Formula
 import copy
 
 
+class Goal(object):
+
+    def __inti__(self):
+        self.basic_goal = create_default_goal()
+
+
 def create_default_goal():
     var = pddl_functions.make_variable_list(['?x'])
     pred = Predicate('in-tower', var)

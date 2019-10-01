@@ -1,4 +1,5 @@
 import copy
+import time
 
 import correctingagent.world.rules
 from ..pddl import ff
@@ -227,9 +228,7 @@ class CorrectingAgent(Agent):
         self.rule_models = {}
         self.teacher = teacher
         self.priors = Priors(world.objects)
-        # logger.debug('rule beliefs: ' + str(self.rule_beliefs))
-        # logger.debug('rule_models: ' + str(self.rule_models))
-        # logger.debug('colour_models: ' + str(self.colour_models))
+
         self.update_negative=update_negative
         self.objects_used_for_update = set()
         self.update_once = update_once
@@ -250,7 +249,13 @@ class CorrectingAgent(Agent):
     def plan(self):
         observation, results = self.sense()
         planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
-        return planner.plan()
+        step = time.time()
+        plan = planner.plan()
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"planning {delta} time")
+
+        return plan
 
 
     def _print_goal(self):
@@ -479,9 +484,6 @@ class NeuralCorrectingAgent(CorrectingAgent):
         self.H = H
         super().__init__(world, colour_models=colour_models, rule_beliefs=rule_beliefs, domain_file=domain_file, teacher=teacher, threshold=threshold)
 
-
-
-
     def build_model(self, message):
         rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
         # TODO change downstreem to expect Rule class rather than formula
@@ -521,10 +523,8 @@ class NeuralCorrectingAgent(CorrectingAgent):
         return rule_model, rules
 
 
-
-
 class RandomAgent(Agent):
-    def __init__(self, world, colour_models = {}, rule_beliefs = {}, domain_file='blocks-domain.pddl', teacher=None, threshold=0.7):
+    def __init__(self, world, domain_file='blocks-domain.pddl', teacher=None, **kwargs):
         self.name = 'random'
         self.world = world
         self.domain = world.domain
@@ -534,14 +534,8 @@ class RandomAgent(Agent):
         self.goal = goals.create_default_goal()
         self.tmp_goal = None
         self.problem.initialstate = observation.state
-        #self.colour_models = colour_models
-        #self.rule_beliefs = rule_beliefs
-        #self.threshold = threshold
-        #self.tau = 0.6
-        #self.rule_models = {}
-        self.teacher = teacher
-        #self.priors = Priors(world.objects)
 
+        self.teacher = teacher
 
     def new_world(self, world):
         self.world = world
@@ -549,8 +543,6 @@ class RandomAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
         self.problem.initialstate = observation.state
-        #self.priors = Priors(world.objects)
-
 
     def plan(self):
         self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
@@ -573,6 +565,7 @@ class RandomAgent(Agent):
         self.world.back_track()
         self.sense()
 
+
 class Policy(nn.Module):
     def __init__(self):
         super(Policy, self).__init__()
@@ -587,6 +580,7 @@ class Policy(nn.Module):
         action_scores = self.affine2(x)
         return F.softmax(action_scores, dim=1)
 
+
 def get_top(relations):
     stuff = list(filter(lambda x: 'in-tower' in x[1], relations.items()))
     if len(stuff) == 1:
@@ -599,6 +593,7 @@ def get_top(relations):
         if len(stuff) == 1:
             return bottom
 
+
 def get_state(o1, o2, obs):
     try:
         c1 = obs.colours[o1]
@@ -606,6 +601,7 @@ def get_state(o1, o2, obs):
         c1 = np.array([-1, -1, -1])
     c2 = obs.colours[o2]
     return np.concatenate([c1, c2])
+
 
 class RLAgent(Agent):
 
@@ -628,7 +624,6 @@ class RLAgent(Agent):
         available_objects = list(filter(lambda x: (top_object, x) not in self.explored_objects, self.world.objects_not_in_tower()))
         states = np.array([get_state(top_object, o, obs) for o in available_objects])
         return states, top_object, available_objects
-
 
     def select_action(self, state, top_object, available_objects):
 
@@ -728,6 +723,7 @@ def get_colours(obs):
 
 def get_least_likely_object(results, colour_model_name):
     return min([(predictions[colour_model_name], obj) for obj, predictions in results.items()])[0]
+
 
 class NoLanguageAgent(CorrectingAgent):
 

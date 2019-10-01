@@ -11,10 +11,7 @@ def get_violation_type(violation):
 
 
 def get_rule_type(rule):
-    # print(violation)
-    # rule = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
-    # print(rule)
-    #rule = violation.replace('V_(', '')[:-1]
+
     if rule[:3] != 'all':
         raise NotImplemented('Not implemented non put red on blue rule')
     else:

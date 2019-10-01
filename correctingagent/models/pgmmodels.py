@@ -1,3 +1,4 @@
+import time
 
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 from pgmpy.models import FactorGraph
@@ -20,23 +21,43 @@ class SearchInference(object):
         self.norm = 0
 
     def infer(self, evidence):
+        print("starting inference")
+        step = time.time()
+
         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
         if len(variables) == 0:
             return
         factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
+        step_1 = time.time()
+        delta = step_1-step
+        print(f"finding relevant variable {delta} time")
+        step = time.time()
 
         for var, val in evidence.items():
             for factor in factors:
                 if var in factor.scope():
                     factor.reduce([(var, val)])
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"reducing factors in evidence {delta} time")
+        step = time.time()
 
         updated_factors = []
         for factor in factors:
             if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
                 factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
             updated_factors.append(factor)
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"updating factors {delta} time")
+        step = time.time()
 
         phi = reduce(lambda x, y: x * y, updated_factors)
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"reducing factors {delta} time")
+        step = time.time()
+
         variables = phi.scope()
         nonzero = np.nonzero(phi.values)
         assert(len(variables) == len(nonzero))
@@ -46,6 +67,10 @@ class SearchInference(object):
             for j, var in enumerate(variables):
                 d[var] = nonzero[j][i]
             viable.append(d)
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"finding nonzero values {delta} time")
+        step = time.time()
         new_beams = []
         for trace in viable:
             a = []
@@ -53,6 +78,10 @@ class SearchInference(object):
                 a.append(trace[var])
             a = tuple(a)
             new_beams.append((trace, phi.values[a]))
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"finding beams {delta} time")
+        step = time.time()
 
         norm = 0
         out_beams = []
@@ -68,6 +97,9 @@ class SearchInference(object):
                     p = val * new_val
                     out_beams.append((out_beam, p))
                     norm += p
+        step_1 = time.time()
+        delta = step_1 - step
+        print(f"combining beams {delta} time")
 
         out_beams = [(b, p/norm) for b, p in out_beams]
         self.norm = 1
@@ -119,8 +151,8 @@ class PGMModel(object):
 
     def add_cm(self, cm, block):
 
-        red_rgb = 'F({})'.format(block)
-        red_o1 = '{}({})'.format(cm.name, block)
+        red_rgb = f'F({block})'
+        red_o1 = f'{cm.name}({block})'
         self.colours[cm.name] = cm
         self.colour_variables.append(red_o1)
         if 't' in block:
@@ -135,7 +167,6 @@ class PGMModel(object):
 
     def add_factor(self, nodes, factor):
         node_filter = lambda x: filter(lambda y: y not in self.model.nodes(), x)
-        #self.factors.add(factor)
         self.model.add_nodes_from(node_filter(set(nodes + [factor])))
         self.model.add_factors(factor)
 
@@ -187,56 +218,6 @@ class PGMModel(object):
 
         return violations
 
-    def create_negative_model(self, rule, red_cm, blue_cm, args, time):
-        o1, o2 = args[:2]
-
-        red_o1 = self.add_cm(red_cm, o1)
-        blue_o2 = self.add_cm(blue_cm, o2)
-
-        self.add_prior(rule)
-        self.known_rules.add(rule)
-        rule_violation_CPD = rule.generate_CPD()
-
-        correction_table = variable_or_CPD(1)
-
-        Vrule = 'V_{}({})'.format(time, rule)
-        corr = 'corr_{}'.format(time)
-
-        rule_violated = TabularCPD(Vrule, 2, rule_violation_CPD, evidence=[red_o1, blue_o2, rule], evidence_card=[2, 2, 2])
-        rule_violated_factor = rule_violated.to_factor()
-        self.add_factor([Vrule, rule, rule_violated_factor], rule_violated_factor)
-
-        correction = TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
-        correction_factor = correction.to_factor()
-        self.add_factor([corr, correction_factor], correction_factor)
-
-        return [Vrule]
-
-    def create_table_neg_model(self, rule, red_cm, blue_cm, args, time):
-        o1, o2, o3 = args[:3]
-        blue_o1 = self.add_cm(blue_cm, o1)
-        red_o3 = self.add_cm(red_cm, o3)
-
-        self.add_prior(rule)
-
-        self.known_rules.add(rule)
-
-        rule_cpd = generate_neg_table_cpd()
-        correction_table = variable_or_CPD(1)
-
-        Vrule = 'V_{}({})'.format(time, rule)
-        corr = 'corr_{}'.format(time)
-
-        rule_evidence = [rule, blue_o1, red_o3]
-        rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])
-        self.add_factor(rule_evidence + [Vrule], rule_violated.to_factor())
-
-        correction =  TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
-        self.add_factor([Vrule, corr], correction.to_factor())
-
-        #self.inference = VariableElimination(self.model)
-        return [Vrule]
-
     def add_violation_factor(self, rule, time, colours, table_correction=False):
         """ Adds a factor representing when the rule is violated
 
@@ -268,7 +249,7 @@ class PGMModel(object):
         :param time:
         :return:
         """
-        corr = 'corr_{}'.format(time)
+        corr = f'corr_{time}'
         correction_table = variable_or_CPD(len(violations))
         correction = TabularCPD(corr, 2, correction_table, evidence=violations, evidence_card=[2]*len(violations))
         correction_factor = correction.to_factor()
@@ -287,8 +268,8 @@ class PGMModel(object):
         self.known_rules.add(r1)
         self.known_rules.add(r2)
 
-        violated_r1 = self.add_violation_factor(r1, time, colour_models)
-        violated_r2 = self.add_violation_factor(r2, time, colour_models)
+        violated_r1 = self.add_violation_factor(r1, time, colour_models, table_correction=table_correction)
+        violated_r2 = self.add_violation_factor(r2, time, colour_models, table_correction=table_correction)
         corr = self.add_correction_factor([violated_r1, violated_r2], time)
 
         return violated_r1, violated_r2
@@ -351,3 +332,53 @@ class PGMModel(object):
         q = self.search_inference.query(self.colour_variables)
 
         return q
+
+    def create_negative_model(self, rule, red_cm, blue_cm, args, time):
+        o1, o2 = args[:2]
+
+        red_o1 = self.add_cm(red_cm, o1)
+        blue_o2 = self.add_cm(blue_cm, o2)
+
+        self.add_prior(rule)
+        self.known_rules.add(rule)
+        rule_violation_CPD = rule.generate_CPD()
+
+        correction_table = variable_or_CPD(1)
+
+        Vrule = 'V_{}({})'.format(time, rule)
+        corr = 'corr_{}'.format(time)
+
+        rule_violated = TabularCPD(Vrule, 2, rule_violation_CPD, evidence=[red_o1, blue_o2, rule], evidence_card=[2, 2, 2])
+        rule_violated_factor = rule_violated.to_factor()
+        self.add_factor([Vrule, rule, rule_violated_factor], rule_violated_factor)
+
+        correction = TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
+        correction_factor = correction.to_factor()
+        self.add_factor([corr, correction_factor], correction_factor)
+
+        return [Vrule]
+
+    def create_table_neg_model(self, rule, red_cm, blue_cm, args, time):
+        o1, o2, o3 = args[:3]
+        blue_o1 = self.add_cm(blue_cm, o1)
+        red_o3 = self.add_cm(red_cm, o3)
+
+        self.add_prior(rule)
+
+        self.known_rules.add(rule)
+
+        rule_cpd = generate_neg_table_cpd()
+        correction_table = variable_or_CPD(1)
+
+        Vrule = 'V_{}({})'.format(time, rule)
+        corr = 'corr_{}'.format(time)
+
+        rule_evidence = [rule, blue_o1, red_o3]
+        rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])
+        self.add_factor(rule_evidence + [Vrule], rule_violated.to_factor())
+
+        correction =  TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
+        self.add_factor([Vrule, corr], correction.to_factor())
+
+        #self.inference = VariableElimination(self.model)
+        return [Vrule]

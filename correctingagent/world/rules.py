@@ -188,11 +188,12 @@ class Rule(object):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
 
-        for r1 in range(2):  # rule 1 or 0
-            for redo1 in range(2):
-                for blueo2 in range(2):
-                    for redo3 in range(2):
-                        for blueo3 in range(2):
+
+        for redo1 in range(2):
+            for blueo2 in range(2):
+                for redo3 in range(2):
+                    for blueo3 in range(2):
+                        for r1 in range(2): # rule 1 or 0
                             if self.rule_type == 1:
                                 result = r1 * int(not (redo1) and blueo2 and redo3)
                             elif self.rule_type == 2:

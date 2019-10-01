@@ -48,7 +48,7 @@ class Planner(object):
         # print(colour_choices)
         self.search_dir = os.path.join(data_location, 'tmp/search_problem')
         n = len(os.listdir(self.search_dir))
-        self.search_file = os.path.join(self.search_dir, '{}.pddl'.format(n))
+        self.search_file = os.path.join(self.search_dir, f'{n}.pddl')
 
     def _pop(self):
         return heapq.heappop(self.state_queue)
