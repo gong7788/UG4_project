@@ -2,7 +2,7 @@
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 from pgmpy.models import FactorGraph
 from pgmpy.factors.continuous import ContinuousFactor
-from ..util.rules import *
+from correctingagent.models.CPD_generation import *
 
 
 def check_beam_holds(beam, worlds):

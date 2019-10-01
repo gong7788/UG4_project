@@ -5,18 +5,10 @@ from correctingagent.world.rules import Rule
 from functools import reduce
 
 
-
-# def test_rule_type():
-#     violation = 'V(all x.({}(x) -> exists y. ({}(y) & on(x,y))))'.format('red', 'blue')
-#     violation2 = 'V(all y.({}(y) -> exists x. ({}(x) & on(x,y))))'.format('blue', 'red')
-#
-#     assert(get_rule_type(violation) == ('red', 'blue', 'r1'))
-#     assert(get_rule_type(violation2) == ('red', 'blue', 'r2'))
-
-
 def get_violation_type(violation):
     rule = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
     return get_rule_type(rule)
+
 
 def get_rule_type(rule):
     # print(violation)
@@ -40,6 +32,7 @@ def get_rule_type(rule):
         else:
             raise ValueError('something went wrong')
 
+
 def split_rule(rule):
     bits = rule.split('.(')
     red = bits[1].split('->')[0].strip()
@@ -49,12 +42,15 @@ def split_rule(rule):
     on = on.replace('))', '').strip()
     return [red, blue, on]
 
+
 def get_predicate_name(predicate):
     return predicate.split('(')[0]
+
 
 def get_predicate_args(predicate):
     args = predicate.split('(')[1].replace(')', '')
     return [arg.strip() for arg in args.split(',')]
+
 
 def get_predicate(predicate):
     pred = predicate.split('(')[0]
@@ -81,24 +77,6 @@ def rule_to_pddl(rule):
         raise ValueError('Should not get here')
 
 
-def generate_table_cpd(rule_type):
-    cpd_line_corr0 = []
-    cpd_line_corr1 = []
-
-    for r1 in range(2): # rule 1 or 0
-        for redo1 in range(2):
-            for blueo2 in range(2):
-                for redo3 in range(2):
-                    for blueo3 in range(2):
-                        if rule_type == 1:
-                            result = r1 * int(not(redo1) and blueo2 and redo3)
-                        elif rule_type == 2:
-                            result = r1 * int(redo1 and not(blueo2) and blueo3)
-                        cpd_line_corr1.append(result)
-                        cpd_line_corr0.append(1-result)
-    return [cpd_line_corr0, cpd_line_corr1]
-
-
 def generate_neg_table_cpd():
     cpd_line_corr0 = []
     cpd_line_corr1 = []
@@ -111,15 +89,6 @@ def generate_neg_table_cpd():
 
     return [cpd_line_corr0, cpd_line_corr1]
 
-def or_CPD():
-    cpd_line1 = []
-    cpd_line0 = []
-    cpd = np.zeros((2,2))
-    for i in range(2):
-        for j in range(2):
-            cpd_line1.append(int(i or j))
-            cpd_line0.append(1-int(i or j))
-    return [cpd_line0, cpd_line1]
 
 def binary_flip(n):
     out = []
@@ -138,6 +107,7 @@ def binary_flip(n):
     helper(n-1, [1])
     return out
 
+
 def variable_or_CPD(n):
     if n == 0:
         return []
@@ -151,6 +121,7 @@ def variable_or_CPD(n):
         CPD[0][i] = 1-correction
     return CPD
 
+
 def generate_flips(variables, cardinalities=None, evidence={}, output=[]):
     variables = list(variables)
     if cardinalities is None:
@@ -162,7 +133,6 @@ def generate_flips(variables, cardinalities=None, evidence={}, output=[]):
             new_evidence = evidence.copy()
             new_evidence[variables[0]] = i
             generate_flips(variables[1:], cardinalities=cardinalities[1:], evidence=new_evidence, output=output)
-
 
 
 def equals_CPD(seta, setb, carda=None, cardb=None):

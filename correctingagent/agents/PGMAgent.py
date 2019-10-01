@@ -7,7 +7,7 @@ from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 from .teacher import get_rules, get_relevant_colours
-from ..util.rules import *
+from correctingagent.models.CPD_generation import *
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
