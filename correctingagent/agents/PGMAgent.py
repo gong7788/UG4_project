@@ -86,7 +86,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.pgm_model = PGMModel()
         self.time = 0
         self.last_correction = -1
-        self.marks = set()
+        self.marks = defaultdict(list)
         self.previous_corrections = []
         self.previous_args = {}
 
@@ -104,8 +104,8 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def no_correction(self, action, args):
         self.time += 1
-        if args[0] in self.marks or args[1] in self.marks:
-            self.pgm_model.add_no_correction(args, self.time)
+        if args[0] in self.marks.keys() or args[1] in self.marks.keys():
+            self.pgm_model.add_no_correction(args, self.time, set(self.marks[args[0]] + self.marks[args[1]]))
             data = self.get_colour_data(args)
             corr = f'corr_{self.time}'
             data[corr] = 0
@@ -123,13 +123,6 @@ class PGMCorrectingAgent(CorrectingAgent):
         corr = f'corr_{self.time}'
 
         data[corr] = 1
-
-        # red = '{}({})'.format(message.o1[0], args[0])
-
-        # if message.T == 'table':
-        #     redo3 = '{}({})'.format(message.o1[0], message.o3)
-        #     blueo3 = '{}({})'.format(message.o2[0], message.o3)
-        #     # self.marks.add(message.o3)
 
         if 't' in args[1] and message.o2 is not None:
             blue = f'{message.o2[0]}({args[1]})'
@@ -181,7 +174,7 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         elif message.T in ['neg', 'table.neg']:
 
-            data =  self.get_relevant_data(args, message)
+            data = self.get_relevant_data(args, message)
             violations = self.build_neg_model(message, args)
 
         # elif 'partial' in message.T:
@@ -246,19 +239,20 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         most_likely_violation = max(q, key=q.get)
         c1, c2, rule_type = get_violation_type(most_likely_violation)
+        rules = Rule.generate_red_on_blue_options([c1], [c2])
 
         if rule_type == 'r1':
             if message.T == 'tower':
-                self.marks.add(args[0])
+                self.marks[args[0]] += rules
             elif message.T == 'table':
-                self.marks.add(args[1])
-                self.marks.add(message.o3)
+                self.marks[args[1]] += rules
+                self.marks[message.o3] += rules
         elif rule_type == 'r2':
             if message.T == 'tower':
-                self.marks.add(args[1])
+                self.marks[args[1]] += rules
             elif message.T == 'table':
-                self.marks.add(args[0])
-                self.marks.add(message.o3)
+                self.marks[args[0]] += rules
+                self.marks[message.o3] += rules
 
         self.update_cms()
         self.update_goal()
@@ -334,12 +328,12 @@ class PGMCorrectingAgent(CorrectingAgent):
     def get_colour_data(self, args):
         observation = self.world.sense()
         colour_data = observation.colours
-        data = {'F({})'.format(arg): colour_data[arg] for arg in args if 't' not in arg}
+        data = {f'F({arg})': colour_data[arg] for arg in args if 't' not in arg}
         return data
 
     def new_world(self, world):
 
-        self.marks = set()
+        self.marks = defaultdict(list)
         self.time = 0
         self.last_correction = -1
 

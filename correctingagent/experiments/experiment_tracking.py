@@ -67,6 +67,12 @@ def get_experiments(big_id):
     return experiments.iloc[experiment_ids]
 
 
+def get_rfs(big_experiment_id):
+    experiments_df = read_experiments()
+    experiments = get_experiments(big_experiment_id)
+    for experiment in experiments.index:
+        yield get_results_file(experiments_df, experiment)
+
 def load_big_experiments(list_of_experiments):
     """plot the cumulative reward for a number of experiments listed on the same axis"""
     if isinstance(list_of_experiments, pd.core.frame.DataFrame):

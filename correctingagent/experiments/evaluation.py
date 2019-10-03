@@ -23,52 +23,6 @@ sns.set_context("paper")
 c = get_config()
 results_location = c['results_location']
 
-# def plot_cumsum(results_file, discount=False, save_loc='test.png'):
-#     df = to_df(results_file, discount=discount)
-#     plt.figure()
-#     df['cumsum'].plot()
-#     plt.savefig(save_loc)
-
-
-# def df_experiment(dataset, threshold=0.7, discount=True, file_modifiers=''):
-#     locations = get_config()
-#     files = os.listdir(results_location)
-#     results_files = filter(lambda x: dataset in x and str(threshold) in x and (file_modifiers in x or 'random' in x), files)
-#     results = {}
-#     for f in results_files:
-#         name = f.split('_')[0]
-#         rewards, cum_rewards = read_file('{}/{}'.format(locations['results_location'], f))
-#         results[name] = rewards
-#     df = pd.DataFrame(data=results)
-#     if discount:
-#         for column in df.columns:
-#             df[column] += 10
-#             df['cumsum_{}'.format(column)] = df[column].cumsum()
-#     return df
-
-
-# def plot_df(df, experiment, file_modifiers=''):
-#     locations = get_config()
-#     columns = filter(lambda x: 'cumsum' in x, df.columns)
-#     plt.figure()
-#     for column in columns:
-#         name = column.split('_')[1]
-#         if name == 'random':
-#             name = 'naive agent'
-#         elif name == 'correcting':
-#             name = 'lingustic agent'
-#         df[column].plot(label=name)
-#     plt.tick_params(axis='both', which='major', labelsize=11)
-#     plt.tick_params(axis='both', which='minor', labelsize=9)
-#     plt.xlabel('scenario #', fontsize=13)
-#     plt.ylabel('cumulative reward', fontsize=13)
-#     plt.title('Cumulative reward for the {} dataset'.format(experiment), fontsize=16)
-#     plt.legend(loc='lower left', prop={'size': 10})
-#     plt.savefig('{}/plots/{}'.format(locations['results_location'], experiment + file_modifiers + '.png'))
-#     plt.show()
-
-
-
 
 def get_agent_name(result_file):
     name = result_file.name
@@ -208,6 +162,7 @@ def extract_data(line):
     data = int(line.split(':')[1])
     return data
 
+
 class ResultsFile(object):
     def __init__(self, config=None, name=None):
         if name is not None:
@@ -215,7 +170,8 @@ class ResultsFile(object):
             self.name = name
             self.dir_ = os.path.split(name)[0]
             self.nr = int(os.path.split(name)[1].strip('experiment').strip('.out'))
-            self.test_name = os.path.join(self.dir_, 'test{}.out'.format(self.nr))
+            self.test_name = os.path.join(self.dir_, f'test{self.nr}.out')
+
         elif config is not None:
             suite = config['problem_name']
             agent = config['agent']
@@ -272,7 +228,7 @@ class ResultsFile(object):
         save_dir = os.path.join(results_location, 'agents/results', rel_path)
         os.makedirs(save_dir, exist_ok=True)
 
-        file_name = 'agent{}.pickle'.format(self.nr)
+        file_name = f'agent{self.nr}.pickle'
         save_location = os.path.join(save_dir, file_name)
         agent_type = type(agent)
         goal = agent.goal
@@ -300,7 +256,7 @@ class ResultsFile(object):
     def load_agent(self):
         rel_path = os.path.relpath(self.dir_, results_location)
         save_dir = os.path.join(results_location, 'agents/results', rel_path)
-        file_name = 'agent{}.pickle'.format(self.nr)
+        file_name = f'agent{self.nr}.pickle'
         save_location = os.path.join(save_dir, file_name)
         try:
             with open(save_location, 'rb') as f:

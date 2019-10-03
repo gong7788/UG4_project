@@ -183,14 +183,14 @@ class PGMModel(object):
             rule_prior = DiscreteFactor([rule], [2], [1-rule_prior_value, rule_prior_value])
             self.add_factor([rule], rule_prior)
 
-    def add_no_correction(self, args, time):
-        if not self.known_rules:
+    def add_no_correction(self, args, time, rules):
+        if not rules:
             return
         o1, o2 = args
 
         violations = []
 
-        for rule in self.known_rules:
+        for rule in rules:
             red = rule.c1
             blue = rule.c2
             colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2], table_correction=False)
@@ -303,7 +303,7 @@ class PGMModel(object):
             overlapping_vars = remains.intersection(set(self.search_inference.beam[0][0].keys()))
 
         if overlapping_vars:
-            self.search_inference.clamp({o:observable[o] for o in overlapping_vars})
+            self.search_inference.clamp({o: observable[o] for o in overlapping_vars})
         self.observed.update(observable)
         self.infer()
 

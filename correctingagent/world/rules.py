@@ -203,24 +203,6 @@ class Rule(object):
         return [cpd_line_corr0, cpd_line_corr1]
 
 
-
-
-
-
-def generate_CPD(rule, c1, c2):
-    cpd_line_corr0 = []
-    cpd_line_corr1 = []
-
-    cpd = np.zeros((2,2))
-    for i in range(2):
-        for j in range(2):
-            for r in range(2):
-                result = r * (1-int(evaluate_rule(c1, i, c2, j, rule)))
-                cpd_line_corr1.append(result)
-                cpd_line_corr0.append(1-result)
-
-    return [cpd_line_corr0, cpd_line_corr1]
-
 class RuleConstraint(object):
 
     def __init__(self, rule_type, c1, c2):

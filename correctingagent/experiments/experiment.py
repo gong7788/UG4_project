@@ -137,7 +137,7 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
         agent = agent(w, teacher=teacher, threshold=threshold)
 
     results_file.write('Results for {}\n'.format(problem_name))
-    print(num_problems)
+
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file='blocks-domain.pddl')
         if vis:

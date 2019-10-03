@@ -34,18 +34,7 @@ dialogue = logging.getLogger('dialogue')
 #logger.setLevel(logging.INFO)
 
 
-
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
-
-
-def queuer(q, domain, problem):
-    try:
-        q.put(ff.run(domain, problem))
-    except ff.NoPlanError:
-        q.put('ERROR')
-
-
-
 
 
 class Priors(object):
@@ -57,7 +46,6 @@ class Priors(object):
             self.priors = {o: defaultdict(float) for o in objects}
             for o, c in known_colours:
                 self.priors[o][c] = 1.0
-
 
     def get_priors(self, message, args):
         o1 = self.priors[args[0]][message.o1[0]]
@@ -77,13 +65,12 @@ class Priors(object):
             for colour, value in dict_.items():
                 self.priors[obj][colour] = value
 
-
     def to_dict(self):
         for o, d in self.priors.items():
             self.priors[o] = dict(d)
 
-class Agent(object):
 
+class Agent(object):
 
     def plan(self):
         raise NotImplementedError()
@@ -91,6 +78,7 @@ class Agent(object):
     def act(self, action, args):
         self.world.update(action, args)
         self.sense()
+
 
 def read_sentence(sentence, use_dmrs=True):
     sentence = sentence.lower().strip('no,')
@@ -120,7 +108,6 @@ def pickle_agent(agent, f):
         datas = (cm.data, cm.weights, cm.data_neg, cm.weights_neg)
         cms[colour] = datas
 
-
     if isinstance(agent, NoLanguageAgent):
         pass
     else:
@@ -139,6 +126,7 @@ def pickle_agent(agent, f):
     agent.build_model = None
 
     pickle.dump(output, f)
+
 
 def load_agent(f):
 
@@ -173,7 +161,9 @@ def colour_tuple_to_dict(colour_tuple):
         out[obj].append(c)
     return dict(out)
 
+
 main_colours = list(colour_dict.keys())
+
 
 class Tracker(object):
 
@@ -250,7 +240,9 @@ class CorrectingAgent(Agent):
         observation, results = self.sense()
         planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
         step = time.time()
+
         plan = planner.plan()
+
         step_1 = time.time()
         delta = step_1 - step
         print(f"planning {delta} time")
@@ -464,8 +456,6 @@ class CorrectingAgent(Agent):
         results = dict(results)
         self.state = correctingagent.world.rules.State(observation, results, threshold)
         self.problem.initialstate = self.state.to_pddl()
-
-
 
         true_colours = get_colours(self.world.sense(obscure=False))
         self.tracker.store_colour_accuracy(results, true_colours, threshold, self.goal)
