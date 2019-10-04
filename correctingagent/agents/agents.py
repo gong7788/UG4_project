@@ -204,7 +204,7 @@ class CorrectingAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.goal = goals.create_default_goal()
         self.tmp_goal = None
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
         if colour_models is None:
             self.colour_models = {}
         else:
@@ -232,7 +232,7 @@ class CorrectingAgent(Agent):
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
         self.priors = Priors(world.objects)
         self.objects_used_for_update = set()
 
@@ -465,53 +465,7 @@ class CorrectingAgent(Agent):
     def act(self, action, args):
         self.world.update(action, args)
         self.sense()
-
-
-class NeuralCorrectingAgent(CorrectingAgent):
-
-    def __init__(self, world, colour_models=None, rule_beliefs=None,
-                 domain_file='blocks-domain.pddl', teacher=None, threshold=0.7, H=4, lr=0.1, momentum=0, dampening=0, weight_decay=0, nesterov=False, optimiser='Adam'):
-        self.H = H
-        super().__init__(world, colour_models=colour_models, rule_beliefs=rule_beliefs, domain_file=domain_file, teacher=teacher, threshold=threshold)
-
-    def build_model(self, message):
-        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
-        # TODO change downstreem to expect Rule class rather than formula
-        rules = [rule.asFormula() for rule in rules]
-        rule_names = tuple(map(lambda x: x.asPDDL(), rules))
-
-        # If this this rule model already exists, keep using the same
-        if (rule_names, message.T) in self.rule_models.keys():
-            # logger.debug('reusing a rule model')
-            return self.rule_models[(rule_names, message.T)], rules
-
-        # If a table correction exists then use the same rule beliefs for tower correction or vis versa
-        try:
-            equivalent_rule_model = list(filter(lambda x: x[0] == rule_names, self.rule_models.keys()))[0]
-            rule_belief = self.rule_models[equivalent_rule_model].rule_belief
-        except IndexError:
-            rule_belief = None
-
-        c1 = message.o1[0]
-        c2 = message.o2[0]
-        try:
-            colour_model1 = self.colour_models[c1]
-        except KeyError:
-            colour_model1 = prob_model.NeuralColourModel(c1, H=self.H)
-            self.colour_models[c1] = colour_model1
-        try:
-            colour_model2 = self.colour_models[c2]
-        except KeyError:
-            colour_model2 = prob_model.NeuralColourModel(c2, H=self.H)
-            self.colour_models[c2] = colour_model2
-
-        if message.T == 'tower':
-            rule_model = prob_model.CorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_belief)
-
-        else:
-            rule_model = prob_model.TableCorrectionModel(rule_names, rules, colour_model1, colour_model2, rule_belief=rule_belief)
-        return rule_model, rules
-
+#
 
 class RandomAgent(Agent):
     def __init__(self, world, domain_file='blocks-domain.pddl', teacher=None, **kwargs):
@@ -523,7 +477,7 @@ class RandomAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.goal = goals.create_default_goal()
         self.tmp_goal = None
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
 
         self.teacher = teacher
 
@@ -532,7 +486,7 @@ class RandomAgent(Agent):
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
 
     def plan(self):
         self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
@@ -544,7 +498,7 @@ class RandomAgent(Agent):
 
     def sense(self):
         observation = self.world.sense()
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
 
         return observation
 
@@ -556,154 +510,6 @@ class RandomAgent(Agent):
         self.sense()
 
 
-class Policy(nn.Module):
-    def __init__(self):
-        super(Policy, self).__init__()
-        self.affine1 = nn.Linear(6, 128)
-        self.affine2 = nn.Linear(128, 1)
-
-        self.saved_log_probs = []
-        self.rewards = []
-
-    def forward(self, x):
-        x = F.relu(self.affine1(x))
-        action_scores = self.affine2(x)
-        return F.softmax(action_scores, dim=1)
-
-
-def get_top(relations):
-    stuff = list(filter(lambda x: 'in-tower' in x[1], relations.items()))
-    if len(stuff) == 1:
-        return stuff[0][0]
-    stuff = dict(stuff)
-    bottom = 't0'
-    while True:
-        on = stuff.pop(bottom)['on']
-        bottom = on.args.args[0].arg_name
-        if len(stuff) == 1:
-            return bottom
-
-
-def get_state(o1, o2, obs):
-    try:
-        c1 = obs.colours[o1]
-    except KeyError:
-        c1 = np.array([-1, -1, -1])
-    c2 = obs.colours[o2]
-    return np.concatenate([c1, c2])
-
-
-class RLAgent(Agent):
-
-    def __init__(self, world, teacher=None):
-        self.name = 'correcting'
-        self.world = world
-        self.teacher = teacher
-        self.policy = Policy()
-        self.optimiser =  torch.optim.Adam(self.policy.parameters(), lr=1e-2)
-        self.eps = np.finfo(np.float32).eps.item()
-        self.explored_objects = set()
-
-    def new_world(self, world):
-        self.world = world
-        self.explored_objects = set()
-
-    def get_all_states(self):
-        obs = self.world.sense()
-        top_object = get_top(obs.relations)
-        available_objects = list(filter(lambda x: (top_object, x) not in self.explored_objects, self.world.objects_not_in_tower()))
-        states = np.array([get_state(top_object, o, obs) for o in available_objects])
-        return states, top_object, available_objects
-
-    def select_action(self, state, top_object, available_objects):
-
-        state= torch.from_numpy(state).float().unsqueeze(0)
-        probs = self.policy(state)
-        m = Categorical(probs.squeeze())
-        action = m.sample()
-        self.policy.saved_log_probs.append(m.log_prob(action))
-        return 'put', [top_object, available_objects[action.item()]] # translate this into put bi bj
-
-    def sense(self, threshold=0.6):
-        observation = self.world.sense()
-        self.problem.initialstate = observation.state
-
-        # for colour, model in self.colour_models.items():
-        #     # these objects include tower locations, which they should not # I don't htink thats true?
-        #     for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
-        #         data = observation.colours[obj]
-        #         p_colour = model.p(1, data)
-        #         if p_colour > threshold:
-        #             colour_formula = pddl_functions.create_formula(colour, [obj])
-        #             self.problem.initialstate.append(colour_formula)
-
-        return observation
-
-    def plan(self):
-        w = copy.deepcopy(self.world)
-        obs = w.sense()
-        while not w.test_success():
-            s = self.get_all_states()
-            top = get_top(obs.relations)
-            a = self.select_action(s)
-
-
-    def get_correction(self, user_input, action, args):
-        visible = {}
-        # since this action is incorrect, ensure it is not done again
-        not_on_xy = pddl_functions.create_formula('on', args, op='not')
-        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
-
-        # get the relevant parts of the message
-        message = read_sentence(user_input, use_dmrs=False)
-
-        # build the rule model
-        rule_model, rules = self.build_model(message)
-
-        # if isinstance(self, CorrectingAgent):
-        #     log_cm(rule_model.c1)
-        #     log_cm(rule_model.c2)
-        #     if message.T.lower() == 'table':
-        #         log_cm(rule_model.c3)
-
-        logger.debug('rule priors' + str(rule_model.rule_prior))
-
-        # gets F(o1), F(o2), and optionally F(o3)
-        data = self.get_data(message, args)
-
-        priors = self.priors.get_priors(message, args)
-        logger.debug('object priors: ' + str(priors))
-        r1, r2 = rule_model.get_message_probs(data, priors=priors)
-        logger.debug('predictions: ' + str((r1, r2)))            # these objects include tower locations, which they should not # I don't htink thats true?
-
-
-
-        # if there is no confidence in the update then ask for help
-        if max(r1, r2) < self.threshold:
-            logger.debug('asking question')
-            question = 'Is the top object {}?'.format(message.o1[0])
-            dialogue.info("R: " + question)
-            answer = self.teacher.answer_question(question, self.world)
-            dialogue.info("T: " +  answer)
-
-            bin_answer = int(answer.lower() == 'yes')
-            visible[message.o1[0]] = bin_answer
-            message_probs = rule_model.get_message_probs(data, visible=copy.copy(visible), priors=priors)
-
-        objs = [args[0], args[1], message.o3]
-        prior_updates = rule_model.updated_object_priors(data, objs, priors, visible=copy.copy(visible))
-
-        # update the goal belief
-        #logger.debug(prior_updates)
-
-        rule_model.update_belief_r(r1, r2)
-        rule_model.update_c(data, priors=self.priors.get_priors(message, args), visible=visible, update_negative=self.update_negative)
-
-        self.priors.update(prior_updates)
-        self.update_goal()
-        self.world.back_track()
-        self.sense()
-        self.rule_models[(rule_model.rule_names, message.T)] = rule_model
 
 def get_colours(obs):
     for obj, value in obs.relations.items():

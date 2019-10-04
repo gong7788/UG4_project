@@ -273,7 +273,8 @@ class State(object):
 
     def __init__(self, obs, colour_choices={}, threshold=0.5):
         self.initialstate = obs.state
-        clear_objs = pddl_functions.get_clear_objs(obs)
+        clear_objs = obs.state.get_clear_objs()
+
         self.objects = list(filter(lambda x: x in clear_objs, colour_choices.keys()))
         self.colour_choices = {o:c for o,c in colour_choices.items() if o in self.objects}
         self.colours = None

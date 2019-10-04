@@ -166,12 +166,9 @@ def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow'])
 
 
 def get_clear_objs(obs):
-    rels = obs.relations
-    out = []
-    for o, val in rels.items():
-        if 'clear' in val:
-            out.append(o)
-    return out
+    state = obs.state
+    return state.get_clear_objects()
+
 
 
 class Predicate(object):
@@ -345,6 +342,11 @@ class PDDLState(object):
             return {o:rgb2hsv(get_colour(colours[o])) for o in objects}
         else:
             return {o:get_colour(colours[o]) for o in objects}
+
+    def obscure_state(self):
+        predicates = [predicate for predicate in self.predicates if predicate.name not in colour_names]
+        return PDDLState(predicates, self.fexpressions)
+
 
 class ColourCount(object):
 
