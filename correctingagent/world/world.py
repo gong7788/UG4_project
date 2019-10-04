@@ -1,3 +1,4 @@
+import copy
 from collections import namedtuple
 from pathlib import Path
 
@@ -15,9 +16,6 @@ import matplotlib.pyplot as plt
 
 
 Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
-
-c = get_config()
-data_dir = Path(c['data_location'])
 
 
 def get_world(problem_name, problem_number, domain_file='blocks-domain.pddl', world_type='PDDL', use_hsv=False):
@@ -51,33 +49,32 @@ class PDDLWorld(World):
             problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
 
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
+        self.state = pddl_functions.PDDLState.from_initialstate(self.problem.initialstate)
         self.domain_file = domain_file
         self.objects = pddl_functions.get_objects(self.problem)
         self.previous_state = None
-        self.state = self.problem.initialstate
+        #self.state = self.problem.initialstate
         self.use_hsv = use_hsv
-        if use_hsv:
-            self.colours = {o: rgb2hsv([[np.array(c)]])[0][0] for o, c in
-                            zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
-        else:
-            self.colours = {o:np.array(c) for o, c in zip(self.objects, block_plotting.get_colours(self.objects, self.state))}
+        self.colours = self.state.get_colours(self.objects, use_hsv=use_hsv)
+
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
         self.reward = 0
 
         self.tmp = data_dir / 'tmp' / 'world'
         n = len(os.listdir(self.tmp))
-        self.tmp_file = os.path.join(self.tmp, '{}.pddl'.format(n))
+        self.tmp_file = os.path.join(self.tmp, f'{n}.pddl')
         with open(self.tmp_file, 'w') as f:
             f.write('this one is mine!')
+
+        self.actions = {action.name: pddl_functions.Action.from_pddl(action) for action in self.domain.actions}
 
     def clean_up(self):
         os.remove(self.tmp_file)
 
     def update(self, action, args):
-        actions = pddl_functions.create_action_dict(self.domain)
-        self.previous_state = self.state
-        self.state = pddl_functions.apply_action(args, actions[action], self.state)
+        self.previous_state = copy.deepcopy(self.state)
+        self.state = self.actions[action].apply_action(self.state, args)
         self.reward += -1
 
     def back_track(self):
@@ -93,12 +90,9 @@ class PDDLWorld(World):
             obscured_state = self.state
         return Observation(self.objects, self.colours, relations,  obscured_state)
 
-    def get_actions(self):
-        return self.domain.actions
-
     def draw(self, debug=False):
 
-        positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
+        positions = block_plotting.place_objects(self.objects, self.state.to_formula(), self.start_positions)
         if debug:
             print(positions)
         objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
@@ -111,9 +105,8 @@ class PDDLWorld(World):
 
     def to_pddl(self):
         problem = self.problem
-        problem.initialstate = self.state
+        problem.initialstate = self.state.to_formula()
         problem_pddl = problem.asPDDL()
-        #problem_file_name = os.path.join(data_dir, 'tmp/world_problem.domain')
         with open(self.tmp_file, 'w') as f:
             f.write(problem_pddl)
         return self.domain_file, self.tmp_file
@@ -139,14 +132,9 @@ class PDDLWorld(World):
         return False
 
     def objects_not_in_tower(self):
-        observation = self.sense()
-        objects = observation.objects
-        rels = observation.relations
-
         out_objects = []
-
-        for o in objects:
-            if 'in-tower' not in rels[o]:
+        for o in self.objects:
+            if not self.state.predicate_holds(pddl_functions.Predicate('in-tower', [o])):
                 out_objects.append(o)
         return out_objects
 

@@ -102,7 +102,7 @@ class Debug(object):
                         self.cm_params[key].insert(0, None)
             df = pd.DataFrame(self.cm_params)
 
-        df.to_pickle(os.path.join(self.dir_, 'cm_params{}.pickle'.format(self.nr)))
+        df.to_pickle(os.path.join(self.dir_, f'cm_params{self.nr}.pickle'))
 
 
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
@@ -125,7 +125,6 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
 
 
 def do_scenario(agent, world_scenario, vis=False, no_correction_update=False):
-
     if vis:
         world_scenario.draw()
     agent.new_world(world_scenario)
@@ -201,14 +200,10 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
 
 def run_experiment(config_name='DEFAULT', debug=False, colour_model_config='DEFAULT', debug_agent=None):
-
     if debug:
         agent_logger.setLevel(logging.DEBUG)
-
     config_dict = get_experiment_config(config_name, colour_model_config)
-
     results_file = ResultsFile(config=config)
-
     return _run_experiment(results_file=results_file, **config_dict)
 
 
