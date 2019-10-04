@@ -15,7 +15,7 @@ from skimage.color import rgb2hsv, hsv2rgb
 import matplotlib.pyplot as plt
 
 
-Observation = namedtuple("Observation", ['objects', 'colours', 'relations', 'state'])
+Observation = namedtuple("Observation", ['objects', 'colours', 'state'])
 
 
 def get_world(problem_name, problem_number, domain_file='blocks-domain.pddl', world_type='PDDL', use_hsv=False):
@@ -74,7 +74,7 @@ class PDDLWorld(World):
 
     def update(self, action, args):
         self.previous_state = copy.deepcopy(self.state)
-        self.state = self.actions[action].apply_action(self.state, args)
+        self.actions[action].apply_action(self.state, args)
         self.reward += -1
 
     def back_track(self):
@@ -83,19 +83,20 @@ class PDDLWorld(World):
         self.reward += -1
 
     def sense(self, obscure=True):
-        relations = block_plotting.get_predicates(self.objects, self.state, obscure=obscure)
+        # relations = block_plotting.get_predicates(self.objects, self.state, obscure=obscure)
         if obscure:
-            obscured_state = pddl_functions.obscure_state(self.state, colour_names)
+            obscured_state = self.state.obscure_state()
         else:
-            obscured_state = self.state
-        return Observation(self.objects, self.colours, relations,  obscured_state)
+            obscured_state = copy.deepcopy(self.state)
+
+        return Observation(self.objects, self.colours, obscured_state)
 
     def draw(self, debug=False):
 
-        positions = block_plotting.place_objects(self.objects, self.state.to_formula(), self.start_positions)
+        positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
         if debug:
             print(positions)
-        objects = pddl_functions.filter_tower_locations(self.objects, get_locations=False)
+        objects = [obj for obj in self.objects if 't' not in obj]
         if debug:
             print(objects)
         if self.use_hsv:
@@ -134,7 +135,7 @@ class PDDLWorld(World):
     def objects_not_in_tower(self):
         out_objects = []
         for o in self.objects:
-            if not self.state.predicate_holds(pddl_functions.Predicate('in-tower', [o])):
+            if not self.state._predicate_holds(pddl_functions.Predicate('in-tower', [o])):
                 out_objects.append(o)
         return out_objects
 

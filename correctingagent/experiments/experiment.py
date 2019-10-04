@@ -3,7 +3,7 @@ from pathlib import Path
 from correctingagent.util.database import BigExperimentDB, ExperimentDB
 from ..world import world
 from ..agents import agents, PGMAgent
-from ..agents.agents import CorrectingAgent, RandomAgent, NeuralCorrectingAgent, PerfectColoursAgent, NoLanguageAgent
+from ..agents.agents import CorrectingAgent, RandomAgent, PerfectColoursAgent, NoLanguageAgent
 from ..agents.teacher import TeacherAgent, ExtendedTeacherAgent
 import os
 import pandas as pd
@@ -34,7 +34,6 @@ db_location = config['db_location']
 def get_agent(config):
     agent_dict = {'agents.CorrectingAgent': CorrectingAgent,
                   'agents.RandomAgent': RandomAgent,
-                  'agents.NeuralCorrectingAgent': NeuralCorrectingAgent,
                   'agents.PerfectColourAgent': PerfectColoursAgent,
                   'agents.NoLanguageAgent': NoLanguageAgent,
                   'PGMAgent': PGMAgent.PGMCorrectingAgent,

@@ -72,11 +72,9 @@ def get_relevant_colours(rule):
 def check_rule_violated(rule, world_):
     c1, c2, impl = get_relevant_colours(rule)
     o1, o2 = get_top_two(world_)
-    state = world_.problem.initialstate
-    f1 = pddl_functions.create_formula(c1, [o1])
-    f2 = pddl_functions.create_formula(c2, [o2])
-    c1_o1 = pddl_functions.predicate_holds(f1.get_predicates(True)[0], state)
-    c2_o2 = pddl_functions.predicate_holds(f2.get_predicates(True)[0], state)
+
+    c1_o1 = world_.state.predicate_holds(c1, [o1])
+    c2_o2 = world_.state.predicate_holds(c2, [o2])
 
     if c1_o1 and c2_o2 and impl == 'not':
         return True
@@ -118,16 +116,13 @@ def check_table_rule_violation(rule, world_, additional_rules=[]):
     additional_bottom_constrained_objects, additional_top_constrained_objects = get_all_relevant_colours(additional_rules, red, blue, constrained_object)
 
 
-    state = world_.problem.initialstate
+    state = world_.state
     # create a PDDL forumal for each object
-    top_object_red = pddl_functions.create_formula(red, [top_object])
-    second_object_blue = pddl_functions.create_formula(blue, [second_object])
-    top_object_blue = pddl_functions.create_formula(blue, [top_object])
 
-    top_object_is_red = pddl_functions.predicate_holds(top_object_red.get_predicates(True)[0], state)
-    second_object_is_blue = pddl_functions.predicate_holds(second_object_blue.get_predicates(True)[0], state)
+    top_object_is_red = state.predicate_holds(red, [top_object])
+    second_object_is_blue = state.predicate_holds(blue, [second_object])
     # this is required for "don't put red blocks on blue blocks"
-    top_object_is_blue = pddl_functions.predicate_holds(top_object_blue.get_predicates(True)[0], state)
+    top_object_is_blue = state.predicate_holds(blue, [top_object])
 
     objects_left_on_table = blocks_on_table(world_)
     number_red_blocks = count_coloured_blocks(red, objects_left_on_table, state)
@@ -165,16 +160,14 @@ def blocks_on_table(world_):
 def count_coloured_blocks(colour, objects, state):
     count = 0
     for o in objects:
-        c_o = pddl_functions.create_formula(colour, [o]).get_predicates(True)[0]
-        if pddl_functions.predicate_holds(c_o, state):
+        if state.predicate_holds(colour, [o]):
             count += 1
     return count
 
 
 def get_block_with_colour(colour, objects, state):
     for o in objects:
-        c_o = pddl_functions.create_formula(colour, [o]).get_predicates(True)[0]
-        if pddl_functions.predicate_holds(c_o, state):
+        if state.predicate_holds(colour, [o]):
             return o
     return
 
@@ -231,8 +224,7 @@ class TeacherAgent(Teacher):
         if "Is the top object" in question:
             colour = question.replace("Is the top object", '').replace("?", '').strip()
             o1, o2 = get_top_two(world_)
-            o1_colour = pddl_functions.create_formula(colour, [o1]).get_predicates(True)[0]
-            o1_is_colour = pddl_functions.predicate_holds(o1_colour, world_.problem.initialstate)
+            o1_is_colour = world_.state.predicate_holds(colour, [o1])
             if o1_is_colour:
                 return "yes"
             else:
@@ -243,7 +235,7 @@ Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
 
 
 def get_colour(obj, state):
-    preds = pddl_functions.get_predicates(obj, state)
+    preds = state.get_predicates(obj)
     colour = [pred.name for pred in preds if pred.name in colour_dict.keys()]
     if 't' in obj:
         return None
@@ -316,13 +308,13 @@ class ExtendedTeacherAgent(TeacherAgent):
                             if correction.c1 in colours or correction.c2 in colours:
 
                                 if correction.c1 == colours[0]:
-                                    current_colour = get_colour(correction.args[0], world_.problem.initialstate)
-                                    prev_colour = get_colour(previous_corr.args[0], world_.problem.initialstate)
+                                    current_colour = get_colour(correction.args[0], world_.state)
+                                    prev_colour = get_colour(previous_corr.args[0], world_.state)
                                     if current_colour != correction.c1 and prev_colour != correction.c1:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
                                 if correction.c2 == colours[1]:
-                                    current_colour = get_colour(correction.args[1], world_.problem.initialstate)
-                                    prev_colour = get_colour(previous_corr.args[1], world_.problem.initialstate)
+                                    current_colour = get_colour(correction.args[1], world_.state)
+                                    prev_colour = get_colour(previous_corr.args[1], world_.state)
                                     if current_colour != correction.c2 and prev_colour != correction.c2:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
                                 break

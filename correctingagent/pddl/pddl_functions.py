@@ -12,10 +12,6 @@ class InvalidActionError(Exception):
     pass
 
 
-def filter_tower_locations(objects, get_locations=True):
-    return list(filter(lambda x: ('t' in x) == get_locations, objects))
-
-
 def make_variable_list(variables):
     """Creates a TypedArgList from a list of strings
 
@@ -24,23 +20,6 @@ def make_variable_list(variables):
     """
     var_list = [pythonpddl.pddl.TypedArg(arg) for arg in variables]
     return pythonpddl.pddl.TypedArgList(var_list)
-
-
-def update_args(args, action):
-    """Helper function that fills in arguments in a function
-
-    takes args as list of strings: ["b1", "b2"]
-    An action put(?ob, ?underob)
-    with precondition (clear ?ob) (clear ?underob)
-    would be updated with put(b1, b2)
-    (clear b1) (clear b2)
-
-    returns the updated action
-    """
-    action = copy.deepcopy(action)
-    for i, arg in enumerate(args):
-        action.parameters.args[i] = pythonpddl.pddl.TypedArg(arg)
-    return action
 
 
 def equivalent(p1, p2):
@@ -58,87 +37,12 @@ def equivalent(p1, p2):
             equal = equal and a1.arg_name == a2.arg_name
         return equal
 
-
-def predicate_holds(predicate, state):
-    """Check if a predicate holds in a particular state"""
-    for f in state:
-        ps = f.get_predicates(True)
-        for p in ps:
-            if equivalent(predicate, p):
-                return True
-    return False
-
-
-def update_predicate(predicate, arg_dict):
-    """Replaces variables inside a predicate with an argument from arg_dict"""
-    new_pred = copy.deepcopy(predicate)
-    for i, arg in enumerate(predicate.args.args):
-        new_pred.args.args[i].arg_name = arg_dict[arg.arg_name]
-    return new_pred
-
-
-def apply_action(arguments, action, state):
-    """update a state by applying action with arguments to the state """
-    action_args = action.parameters.args
-    pred_dict = {param.arg_name:arg for param, arg in zip(action_args, arguments)}
-    #specific_action = update_args(arguments, action)
-    pos_pre = [predicate_holds(update_predicate(p, pred_dict), state) for p in action.get_pre(True)]
-    neg_pre = [not(predicate_holds(update_predicate(p.get_predicates(1)[0], pred_dict), state)) for p in action.get_pre(False)]
-    if not(all(pos_pre) and all(neg_pre)):
-        raise InvalidActionError('preconditions do not hold for action {} and parameters {}'.format(action.name, ' '.join(arguments)) )
-
-    new_state = copy.deepcopy(state)
-    for eff in action.get_eff(1):
-        try:
-            if eff.is_condition:
-                if not(predicate_holds(update_predicate(eff.condition, pred_dict), state)):
-                    continue
-        except AttributeError:
-            pass
-        formula = pythonpddl.pddl.Formula([update_predicate(eff, pred_dict)])
-        new_state.append(formula)
-
-    for eff in action.get_eff(0):
-        try:
-            if eff.is_condition:
-                if not(predicate_holds(update_predicate(eff.condition, pred_dict), state)):
-                    continue
-        except AttributeError:
-            pass
-        new_state = list(filter(lambda x: not(
-            equivalent(
-                update_predicate(eff, pred_dict), x.get_predicates(1)[0])),
-              new_state))
-
-    return new_state
-
-
 def parse(domain, problem):
     """wrapper for the pythonpddl parse function
 
     creates a domain and problem object
      """
     return pythonpddl.pddl.parseDomainAndProblem(domain, problem)
-
-
-def create_action_dict(domain):
-    """Creates a dictionary of available actions from a domain
-
-    returns {action.name: action}
-    """
-    return {action.name: action for action in domain.actions}
-
-
-def get_predicates(object_, state):
-    predicates = []
-    for formula in state:
-        if isinstance(formula, pythonpddl.pddl.FExpression):
-            continue
-        predicate = formula.get_predicates(1)[0]
-        if object_ in [arg.arg_name for arg in predicate.args.args]:
-            predicates.append(predicate)
-    return predicates
-
 
 def create_formula(predicate, variables, op=None):
     """Builds a pythonpddl Formula for one predicate
@@ -155,20 +59,6 @@ def create_formula(predicate, variables, op=None):
 
 def get_objects(problem):
     return [arg.arg_name for arg in problem.objects.args]
-
-
-def obscure_state(state, obscured_predicates=['green', 'blue', 'red', 'yellow']):
-    """removes a set of preicates from a state
-
-    used when observing a domain state but for example colours are unknown
-    """
-    return [p for p in state if p.get_predicates(1)[0].name not in obscured_predicates]
-
-
-def get_clear_objs(obs):
-    state = obs.state
-    return state.get_clear_objects()
-
 
 
 class Predicate(object):
@@ -263,7 +153,7 @@ class Action(object):
 
     def preconditions_hold(self, state, params):
         preconditions = self.update_with_params(params, self.preconditions)
-        return all([state.predicate_holds(predicate) for predicate
+        return all([state._predicate_holds(predicate) for predicate
                     in preconditions])
 
     def apply_action(self, state, params):
@@ -273,7 +163,7 @@ class Action(object):
         effects = self.update_with_params(params, self.effects)
         for effect in effects:
             if isinstance(effect, Conditional):
-                if state.predicate_holds(effect.condition):
+                if state._predicate_holds(effect.condition):
                     state.apply_effect(effect.effect)
             else:
                 state.apply_effect(effect)
@@ -304,8 +194,12 @@ class PDDLState(object):
     def get_clear_objs(self):
         return [pred.args[0] for pred in self.predicates if pred.name == 'clear']
 
-    def predicate_holds(self, predicate):
+    def _predicate_holds(self, predicate):
         return predicate in self.predicates
+
+    def predicate_holds(self, predicate_name, args):
+        predicate = Predicate(predicate_name, args)
+        return self._predicate_holds(predicate)
 
     def apply_effect(self, predicate):
         if isinstance(predicate, Increase):
@@ -363,7 +257,7 @@ class ColourCount(object):
         colour = colour_count.split('-')[0]
         return ColourCount(colour, arg, number.val)
 
-    def to_fexpression(self):
+    def to_formula(self):
         args = make_variable_list([self.tower])
         colour_count_head = pythonpddl.pddl.FHead(f'{self.colour}-count', args)
         count_value = pythonpddl.pddl.ConstantNumber(self.number)
@@ -371,7 +265,7 @@ class ColourCount(object):
         return pythonpddl.pddl.FExpression('=', subexpressions)
 
     def to_pddl(self):
-        return self.to_fexpression().asPDDL()
+        return self.to_formula().asPDDL()
 
     def increment(self, n=1):
         self.number += n
@@ -433,6 +327,7 @@ class Conditional(object):
         if formula.op == 'increase':
             effect = Increase.from_formula(formula)
         else:
+            formula.is_condition = False
             effect = Predicate.from_formula(formula)
         return Conditional(condition, effect)
 
@@ -451,14 +346,3 @@ class Conditional(object):
     def __repr__(self):
         return self.__str__()
 
-if __name__ == "__main__":
-    domain, problem = pythonpddl.pddl.parseDomainAndProblem(
-    '../FF-v2.3/wumpus-a.domain', '../FF-v2.3/wumpus-a-1.domain')
-    print("Before action:")
-    for predicate in problem.initialstate:
-        print(predicate.asPDDL())
-    a1 = domain.actions[0]
-    new_state = apply_action(('agent', 's-1-1', 's-2-1'), a1, problem.initialstate)
-    print("After action:")
-    for predicate in new_state:
-        print(predicate.asPDDL())

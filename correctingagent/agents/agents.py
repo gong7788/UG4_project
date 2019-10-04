@@ -441,11 +441,12 @@ class CorrectingAgent(Agent):
 
     def sense(self, threshold=0.5):
         observation = self.world.sense()
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.as_pddl()
         results = defaultdict(dict)
         for colour, model in self.colour_models.items():
             # these objects include tower locations, which they should not # I don't htink thats true?
-            for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
+
+            for obj in [obj for obj in observation.objects if 't' not in obj]:
                 data = observation.colours[obj]
                 p_colour = model.p(1, data)
                 # if p_colour > threshold:
@@ -510,15 +511,11 @@ class RandomAgent(Agent):
         self.sense()
 
 
-
 def get_colours(obs):
     for obj, value in obs.relations.items():
         for c in value:
             if c in colour_names:
                 yield (obj, c)
-
-def get_least_likely_object(results, colour_model_name):
-    return min([(predictions[colour_model_name], obj) for obj, predictions in results.items()])[0]
 
 
 class NoLanguageAgent(CorrectingAgent):
@@ -582,7 +579,7 @@ class NoLanguageAgent(CorrectingAgent):
 
         c1 = message.o1[0]
         c2 = message.o2[0]
-        c3 = '{}/{}'.format(c1, c2)
+
         o1 = args[0]
         o2 = args[1]
         o3 = message.o3
@@ -719,22 +716,14 @@ class PerfectColoursAgent(CorrectingAgent):
         observation = world.sense(obscure=False)
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state
+        self.problem.initialstate = observation.state.to_pddl()
 
         known_colours = get_colours(observation)
 
         self.priors = Priors(world.objects, known_colours=known_colours)
 
-
     def sense(self, threshold=0.6):
         observation = self.world.sense(obscure=False)
-        self.problem.initialstate = observation.state
-        #
-        # for colour, model in self.colour_models.items():
-        #     for obj in pddl_functions.filter_tower_locations(observation.objects, get_locations=False):
-        #         data = observation.colours[obj]
-        #         p_colour = model.p(1, data)
-        #         if p_colour > threshold:
-        #             colour_formula = pddl_functions.create_formula(colour, [obj])
-        #             self.problem.initialstate.append(colour_formula)
+        self.problem.initialstate = observation.state.to_pddl()
+
         return observation, {}
