@@ -106,7 +106,7 @@ def get_mean(big_id):
     return mean
 
 
-def plot_big_experiments(list_of_experiments, labels, title=''):
+def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', **kwargs):
     for experiment, label, marker in zip(list_of_experiments, labels,
                                          ['--', '-', '-.', ':']):  #::['_', 'x', '+', '|']):
         cumsum = get_mean(experiment)
@@ -116,6 +116,7 @@ def plot_big_experiments(list_of_experiments, labels, title=''):
 
     plt.legend(fontsize=12)
     plt.title(title, fontsize=14)
+    plt.savefig(fname, **kwargs)
     plt.show()
 
 

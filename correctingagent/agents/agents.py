@@ -238,7 +238,8 @@ class CorrectingAgent(Agent):
 
     def plan(self):
         observation, results = self.sense()
-        planner = search.Planner(results, observation, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
+        planner = search.Planner(results, observation, self.goal, self.tmp_goal,
+                                 self.problem, domain_file=self.domain_file, use_metric_ff=self.world.use_metric_ff)
         step = time.time()
 
         plan = planner.plan()
@@ -248,7 +249,6 @@ class CorrectingAgent(Agent):
         print(f"planning {delta} time")
 
         return plan
-
 
     def _print_goal(self):
         print(self.goal.asPDDL())

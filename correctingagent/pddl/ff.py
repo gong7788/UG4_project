@@ -3,8 +3,9 @@ import time
 from ..util.util import get_config
 
 #ff_location = #'ff/ff' #'/afs/inf.ed.ac.uk/user/s12/s1202144/Desktop/phd/FF-v2.3/ff'
-config = get_config()
-ff_location = config['ff_location']
+# config = get_config()
+# ff_location = config['ff_location']
+# metric_ff_location = config['metric_ff_location']
 
 class NoPlanError(Exception):
     pass
@@ -21,7 +22,12 @@ class IDontKnowWhatIsGoingOnError(Exception):
 class ImpossibleGoalError(Exception):
     pass
 
-def ff(domain, problem):
+def ff(domain, problem, use_metric_ff=False):
+    config = get_config()
+    if use_metric_ff:
+        ff_location = config['metric_ff_location']
+    else:
+        ff_location = config['ff_location']
     process = subprocess.Popen([ff_location,
     '-o', domain,
     '-f', problem],
@@ -90,8 +96,8 @@ def get_action(action_string):
     arguments = action_parts[1:]
     return action, arguments
 
-def run(domain, problem):
-    result = ff(domain, problem)
+def run(domain, problem, use_metric_ff=False):
+    result = ff(domain, problem, use_metric_ff=use_metric_ff)
     return get_actions(result)
 
 if __name__ == '__main__':

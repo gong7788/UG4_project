@@ -166,9 +166,9 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
     directory = Path(directory)
 
     os.makedirs(directory, exist_ok=True)
-    dataset = []
 
-    while len(dataset) < N:
+    scenarios = []
+    while len(scenarios) < N:
         if use_random_colours:
             cc = generate_biased_colour_counts(rules)
             colours = generate_random_colour_from_colour_count(cc)
@@ -183,13 +183,15 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             f.write(problem)
         w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
         if not w.test_failure():
-            file_name = directory / f"problem{len(dataset)+1}.pddl"
-            json_name = directory / f"colours{len(dataset)+1}.json"
+            file_name = directory / f"problem{len(scenarios)+1}.pddl"
+            json_name = directory / f"colours{len(scenarios)+1}.json"
             os.rename('../data/tmp/generation.pddl', file_name)
             if use_random_colours:
                 with open(json_name, 'w') as f:
                     json.dump(colour_object_dict, f)
-            dataset.append(file_name)
+            scenarios.append(file_name)
+
+
 
 
 def rules_consistent(rules):
@@ -211,10 +213,13 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
     rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
     while not rules_consistent(rules):
         rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
-    for i in range(N_datasets):
-        dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, i))
+    num_datasets = len(os.listdir(top_path))
+    while num_datasets < N_datasets:
+
+        dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, num_datasets))
         os.makedirs(dataset_path, exist_ok=True)
 
         generate_biased_dataset(N_data, rules, dataset_path, colour_dict=colour_dict,
                                 use_random_colours=use_random_colours)
+        num_datasets = len(os.listdir(top_path))
 

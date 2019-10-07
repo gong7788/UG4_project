@@ -26,22 +26,6 @@ def read_sentence(sentence, use_dmrs=False):
         sentence = sentence.replace('you', '').strip()
         sentence = sentence.replace('a ', '')
 
-    # elif "that is" in sentence:
-    #
-    #     sentence = sentence.replace('that is', '').strip()
-    #     if 'still' in sentence or 'either' in sentence:
-    #         sentence = sentence.replace('still', '')
-    #         sentence = sentence.replace('either', '').strip()
-    #         T = 'still.'
-    #     else:
-    #         T = ''
-    #     if 'not' in sentence:
-    #         T = T + 'partial.neg'
-    #         sentence = sentence.replace('not', '').strip()
-    #     else:
-    #         T = T + 'partial'
-    #     return Message(None, sentence, None, T, None)
-
     elif "that is not" in sentence:
          sentence = sentence.replace('that is not', '').strip()
          sentence = sentence.replace('again', '').strip()

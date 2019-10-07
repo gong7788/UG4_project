@@ -1,6 +1,7 @@
 import os
 import heapq
 import copy
+from pathlib import Path
 
 from correctingagent.world.rules import Rule, ConstraintCollection, State
 from correctingagent.world import goals
@@ -35,18 +36,21 @@ class ActiveLearningTest(object):
 
 class Planner(object):
 
-    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl'):
+    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl', use_metric_ff=False):
+        c = get_config()
+        data_location = Path(c['data_location'])
+        self.use_metric_ff = use_metric_ff
         self.current_state = State(obs, colour_choices)
         rules = Rule.get_rules(goal)
         self.constraints = ConstraintCollection.from_rules(rules)
         self.searched_states = {tuple(self.current_state.state)}
-        self.domain_file = os.path.join(data_location, 'domain', domain_file)
+        self.domain_file = data_location / 'domain' / domain_file
         self.goal = goal
         self.tmp_goal = tmp_goal
         self.problem = problem
         self.state_queue = []
         # print(colour_choices)
-        self.search_dir = os.path.join(data_location, 'tmp/search_problem')
+        self.search_dir = data_location / 'tmp' / 'search_problem'
         n = len(os.listdir(self.search_dir))
         self.search_file = os.path.join(self.search_dir, f'{n}.pddl')
 
@@ -56,25 +60,20 @@ class Planner(object):
     def _push(self, state):
         heapq.heappush(self.state_queue, (state.score, state))
 
-
     def evaluate_current_state(self, default_plan=False):
         if default_plan:
             self.current_state.state = []
             self.current_state.colour_counts = {c: 0 for c in self.current_state.colour_counts.keys()}
         success, increase, decrease = self.constraints.evaluate(self.current_state)
-        #print(self.current_state.state)
-        #print(success)
+
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
             self.problem.initialstate = self.current_state.to_pddl()
-            #search_dir = os.path.join(data_location, 'search_problem')
-            #n = len(os.listdir(search_dir))
-            #tmp_problem = os.path.join(search_dir, '{}.pddl'.format(n))
-            #print(self.domain_file)
+
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
-                plan = ff.run(self.domain_file, self.search_file)
+                plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
                 # print(e)
@@ -159,7 +158,7 @@ class NoLanguagePlanner(Planner):
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
-                plan = ff.run(self.domain_file, self.search_file)
+                plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
             except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):
 
                 test.failed = True

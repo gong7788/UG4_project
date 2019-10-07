@@ -40,6 +40,9 @@ class World(object):
 class PDDLWorld(World):
 
     def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+
+        self.use_metric_ff = "updated" in domain_file
+
         config = get_config()
         data_dir = Path(config['data_location'])
         self.data_dir = data_dir
@@ -112,10 +115,14 @@ class PDDLWorld(World):
             f.write(problem_pddl)
         return self.domain_file, self.tmp_file
 
-    def test_success(self):
+    def find_plan(self):
         domain, problem = self.to_pddl()
+        return ff.run(domain, problem, use_metric_ff=self.use_metric_ff)
+
+    def test_success(self):
         try:
-            ff.run(domain, problem)
+            plan = self.find_plan()
+            return plan == []
         except Solved:
             return True
         except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
@@ -123,9 +130,8 @@ class PDDLWorld(World):
         return False
 
     def test_failure(self):
-        domain, problem = self.to_pddl()
         try:
-            ff.run(domain, problem)
+            self.find_plan()
         except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
             return True
         except Solved:

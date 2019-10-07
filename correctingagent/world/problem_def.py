@@ -19,10 +19,14 @@ class BlocksWorldProblem(Problem):
         else:
             objects = BlocksWorldProblem.create_objects(n, m)
 
+        if isinstance(rules[0], Ruledef):
+            rules = [generate_rule(rule) for rule in rules]
+
         initialstate = BlocksWorldProblem.generate_default_position(objects)
         initialstate = BlocksWorldProblem.add_colours(initialstate, objects, colours)
         goal = goals.create_default_goal()
-        goal = goals.update_goal(goal, rules)
+        for rule in rules:
+            goal = goals.update_goal(goal, rule)
         super(BlocksWorldProblem, self).__init__(name, domainname, objects, initialstate, goal, metric)
 
     @staticmethod
