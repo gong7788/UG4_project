@@ -80,3 +80,14 @@ def test_world3():
         w.update(action, args)
 
     assert(w.test_success())
+
+
+def test_failure():
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=1)
+
+    w.update('put', ['b0', 't0', 'tower0'])
+    w.update('put', ['b5', 'b0', 'tower0'])
+
+    assert(w.test_failure())
+

@@ -19,18 +19,6 @@ def not_correction(obj1, obj2):
 def table_not_correction(obj1, obj2, obj3):
     return f"No, now you cannot put {obj3} in the tower because you cannot put {obj1} blocks on {obj2} blocks"
 
-
-def get_top_two(world_):
-    """ Returns the top two objects of the tower (assumes 1 tower)"""
-    relations = world_.sense().relations
-    for obj in relations.keys():
-        if 'clear' in relations[obj] and 'in-tower' in relations[obj]:
-            top_object = obj
-    top_objects_on_relation = relations[top_object]['on']
-    second_object = top_objects_on_relation.args.args[1].arg_name
-    return top_object, second_object
-
-
 def get_rules(goal):
     """Returns the individual rules which make up the goal"""
     for f in goal.subformulas:
@@ -71,7 +59,7 @@ def get_relevant_colours(rule):
 
 def check_rule_violated(rule, world_):
     c1, c2, impl = get_relevant_colours(rule)
-    o1, o2 = get_top_two(world_)
+    o1, o2 = world_.state.get_top_two()
 
     c1_o1 = world_.state.predicate_holds(c1, [o1])
     c2_o2 = world_.state.predicate_holds(c2, [o2])
@@ -111,7 +99,7 @@ def check_table_rule_violation(rule, world_, additional_rules=[]):
     # constrained_object represents which of the two objects is on the left of the implication
     # eg. red, blue, red = red(x) -> blue(y) on(x,y)
     red, blue, constrained_object = get_relevant_colours(rule)
-    top_object, second_object = get_top_two(world_)
+    top_object, second_object = world_.state.get_top_two()
 
     additional_bottom_constrained_objects, additional_top_constrained_objects = get_all_relevant_colours(additional_rules, red, blue, constrained_object)
 
@@ -124,7 +112,7 @@ def check_table_rule_violation(rule, world_, additional_rules=[]):
     # this is required for "don't put red blocks on blue blocks"
     top_object_is_blue = state.predicate_holds(blue, [top_object])
 
-    objects_left_on_table = blocks_on_table(world_)
+    objects_left_on_table = world_.state.get_objects_on_table()
     number_red_blocks = count_coloured_blocks(red, objects_left_on_table, state)
     number_blue_blocks = count_coloured_blocks(blue, objects_left_on_table, state)
     number_additional_bottom_objects = sum(
@@ -190,7 +178,6 @@ class HumanTeacher(Teacher):
         return input(question)
 
 
-
 class TeacherAgent(Teacher):
 
     def reset(self):
@@ -223,7 +210,7 @@ class TeacherAgent(Teacher):
     def answer_question(self, question, world_):
         if "Is the top object" in question:
             colour = question.replace("Is the top object", '').replace("?", '').strip()
-            o1, o2 = get_top_two(world_)
+            o1, o2 = world_.state.get_top_two()
             o1_is_colour = world_.state.predicate_holds(colour, [o1])
             if o1_is_colour:
                 return "yes"
@@ -255,19 +242,19 @@ class ExtendedTeacherAgent(TeacherAgent):
         self.rules_corrected = set()
         self.dialogue_history = []
 
-    def correction(self, w):
-        failure = w.test_failure()
+    def correction(self, wrld, return_possible_corrections=False):
+        failure = wrld.test_failure()
         print('failure?', failure)
         if not failure:
             return ""
 
         possible_corrections = []
-        rules = list(get_rules(w.problem.goal))
+        rules = list(get_rules(wrld.problem.goal))
         for r in rules:
-            if check_rule_violated(r, w):
+            if check_rule_violated(r, wrld):
                 #print(r.asPDDL())
                 c1, c2, impl = get_relevant_colours(r)
-                o1, o2 = get_top_two(w)
+                o1, o2 = wrld.state.get_top_two()
                 if impl == 'not':
                     corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
                     possible_corrections.append(corr)
@@ -276,10 +263,10 @@ class ExtendedTeacherAgent(TeacherAgent):
                     possible_corrections.append(corr)
 
         for r in rules:
-            o3 = check_table_rule_violation(r, w, rules)
+            o3 = check_table_rule_violation(r, wrld, rules)
             if o3:
                 c1, c2, impl = get_relevant_colours(r)
-                o1, o2 = get_top_two(w)
+                o1, o2 = wrld.state.get_top_two()
                 if impl == 'not':
                     corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
                     possible_corrections.append(corr)
@@ -287,34 +274,36 @@ class ExtendedTeacherAgent(TeacherAgent):
                     corr = Correction(r, c1, c2, [o1, o2, o3], table_correction(c1, c2, o3))
                     possible_corrections.append(corr)
 
-        possible_corrections = self.generate_possible_corrections(possible_corrections, w)
-        return self.select_correction(possible_corrections)
+        possible_corrections = self.generate_possible_corrections(possible_corrections, wrld)
+        selection = self.select_correction(possible_corrections)
+        if return_possible_corrections:
+            return selection, possible_corrections
+        else:
+            return selection
 
-    def generate_possible_corrections(self, violations, world_):
-
+    def generate_possible_corrections(self, violations, wrld):
+        print(self.dialogue_history)
         possible_sentences = []
         # if self.previous_correction is not None:
         for correction in violations:
+            if len(self.dialogue_history) > 0:
 
-
-
-
-            if self.previous_correction is not None and self.previous_correction.rule == correction.rule:
+            # if self.previous_correction is not None and self.previous_correction.rule == correction.rule:
 
                 if "now you cannot put" not in correction.sentence:
                     for previous_corr in self.dialogue_history[::-1]:
-                        if 'now you cannot put' not in  previous_corr.sentence and 'same reason' not in previous_corr.sentence:
+                        if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence:
                             colours = [previous_corr.c1, previous_corr.c2]
                             if correction.c1 in colours or correction.c2 in colours:
 
                                 if correction.c1 == colours[0]:
-                                    current_colour = get_colour(correction.args[0], world_.state)
-                                    prev_colour = get_colour(previous_corr.args[0], world_.state)
+                                    current_colour = get_colour(correction.args[0], wrld.state)
+                                    prev_colour = get_colour(previous_corr.args[0], wrld.state)
                                     if current_colour != correction.c1 and prev_colour != correction.c1:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
                                 if correction.c2 == colours[1]:
-                                    current_colour = get_colour(correction.args[1], world_.state)
-                                    prev_colour = get_colour(previous_corr.args[1], world_.state)
+                                    current_colour = get_colour(correction.args[1], wrld.state)
+                                    prev_colour = get_colour(previous_corr.args[1], wrld.state)
                                     if current_colour != correction.c2 and prev_colour != correction.c2:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
                                 break
@@ -327,51 +316,8 @@ class ExtendedTeacherAgent(TeacherAgent):
                      possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))
 
             possible_sentences.append((correction.sentence, correction))
-            # if self.previous_correction is not None and self.previous_correction.rule == correction.rule and 'now you cannot put' not in self.previous_correction.sentence and 'now you cannot put' not in correction.sentence:
-            #     if 'blocks on ' in self.previous_correction.sentence:
-            #         possible_sentences.append(("no, that is wrong for the same reason", self.previous_correction))
-            #     o1, o2 = get_top_two(world_)
-            #     preds_o1 = pddl_functions.get_predicates(o1, world_.problem.initialstate)
-            #     preds_o2 = pddl_functions.get_predicates(o2, world_.problem.initialstate)
-            #     c1 = [pred.name for pred in preds_o1 if pred.name in colour_dict.keys()]
-            #     c2 = [pred.name for pred in preds_o2 if pred.name in colour_dict.keys()]
-            #
-            #     o3, o4  = self.previous_correction.args[:2]
-            #     preds_o3 = pddl_functions.get_predicates(o3, world_.problem.initialstate)
-            #     preds_o4 = pddl_functions.get_predicates(o4, world_.problem.initialstate)
-            #     c3 = [pred.name for pred in preds_o3 if pred.name in colour_dict.keys()]
-            #     c4 = [pred.name for pred in preds_o4 if pred.name in colour_dict.keys()]
-            #     if 't' not in o2 and 't' not in o3:
-            #         c1 = c1[0]
-            #         c2 = c2[0]
-            #         c3 = c3[0]
-            #         c4 = c4[0]
-            #
-            #         if c1 != correction.c1 and c3 != self.previous_correction.c1:
-            #             possible_sentences.append(('no, that is not {} either'.format(correction.c1), correction))
-            #         elif c2 != correction.c2 and c4 != self.previous_correction.c2:
-            #             possible_sentences.append(('no, that is not {} either'.format(correction.c2), correction))
-            #
-            # if correction.rule in self.rules_corrected and 'now you cannot put' not in correction.sentence:
-            #     possible_sentences.append(('no', correction))
-            #
-            #     o1, o2 = get_top_two(world_)
-            #     preds_o1 = pddl_functions.get_predicates(o1, world_.problem.initialstate)
-            #     preds_o2 = pddl_functions.get_predicates(o2, world_.problem.initialstate)
-            #     c1 = [pred.name for pred in preds_o1 if pred.name in colour_dict.keys()]
-            #     c2 = [pred.name for pred in preds_o2 if pred.name in colour_dict.keys()]
-            #     if 't' not in o2:
-            #         c1 = c1[0]
-            #         c2 = c2[0]
-            #         possible_sentences.append(('no, you put a {} block on a {} block'.format(c1, c2), correction))
-            #
-            #         if c1 != correction.c1:
-            #             possible_sentences.append(('no, that is not {}'.format(correction.c1), correction))
-            #         elif c2 != correction.c2:
-            #             possible_sentences.append(('no, that is not {}'.format(correction.c2), correction))
 
         return possible_sentences
-
 
     def select_correction(self, possible_sentences):
         # possible_sentences = []

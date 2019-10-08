@@ -12,20 +12,26 @@ class Database(object):
         config = get_config()
         db_location = Path(config['db_location'])
         self.db_location = db_location / 'experiments.db'
-        self.engine = sqlalchemy.create_engine('sqlite:///' + self.db_location)
+        self.engine = sqlalchemy.create_engine('sqlite:///' + str(self.db_location))
 
     def update_entry(self, experiment_id, **kwargs):
         df = self.get_df()
-        for arg, val in kwargs:
+        for arg, val in kwargs.items():
             df.at[experiment_id, arg] = val
         self.save_df(df)
 
     def save_df(self, df):
-        raise NotImplementedError("Must implement save df for this sub class")
+        df.to_sql(self.db_name, con=self.engine, if_exists='replace')
 
-    def get_df(self):
-        raise NotImplementedError("Must implement get df for this sub class")
+    def get_df(self, show_only_done=False):
+        df = pd.read_sql(self.db_name, index_col='index', con=self.engine)
+        if show_only_done:
+            df = df[df.status == 'done']
+        return df
 
+    def get_entry(self, id):
+        df = self.get_df()
+        return df.loc[id]
 
 class BigExperimentDB(Database):
 
@@ -33,9 +39,7 @@ class BigExperimentDB(Database):
         super(BigExperimentDB, self).__init__()
         self.experiment_db = ExperimentDB()
         self.join_db = JoinDB()
-
-    def get_df(self):
-        return pd.read_sql('big', index_col='index', con=self.engine)
+        self.db_name = 'big'
 
     def add_experiment(self, experiment_name, status='running'):
         df = self.get_df()
@@ -44,14 +48,13 @@ class BigExperimentDB(Database):
         self.save_df(df)
         return big_id
 
-    def save_df(self, df):
-        df.to_sql('big', con=self.engine, if_exists='replace')
 
 
 class ExperimentDB(Database):
 
-    def get_df(self):
-        return pd.read_sql('experiments', index_col='index', con=self.engine)
+    def __init__(self):
+        super(ExperimentDB, self).__init__()
+        self.db_name = 'experiments'
 
     def add_experiment(self, experiment_name, colour_model_config, status='running'):
         df = self.get_df()
@@ -61,20 +64,12 @@ class ExperimentDB(Database):
         self.save_df(df)
         return experiment_id
 
-    def update_entry(self, experiment_id, **kwargs):
-        df = self.get_df()
-        for arg, val in kwargs:
-            df.at[experiment_id, arg] = val
-        self.save_df(df)
-
-    def save_df(self, df):
-        df.to_sql('experiments', con=self.engine, if_exists='replace')
-
 
 class JoinDB(Database):
 
-    def get_df(self):
-        return pd.read_sql('rels', index_col='index', con=self.engine)
+    def __init__(self):
+        super(JoinDB, self).__init__()
+        self.db_name = 'rels'
 
     def add_experiment(self, big_id, experiment_id):
         df = self.get_df()
@@ -82,6 +77,3 @@ class JoinDB(Database):
         rel_id = df.index[-1]
         self.save_df(df)
         return rel_id
-
-    def save_df(self, df):
-        df.to_sql('rels', con=self.engine, if_exists='replace')

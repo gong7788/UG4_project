@@ -52,13 +52,13 @@ class PDDLWorld(World):
             problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
 
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
-        self.state = pddl_functions.PDDLState.from_initialstate(self.problem.initialstate)
+        self.state = pddl_functions.PDDLState.from_problem(self.problem)
         self.domain_file = domain_file
         self.objects = pddl_functions.get_objects(self.problem)
         self.previous_state = None
         #self.state = self.problem.initialstate
         self.use_hsv = use_hsv
-        self.colours = self.state.get_colours(self.objects, use_hsv=use_hsv)
+        self.colours = self.state.get_colours(use_hsv=use_hsv)
 
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)

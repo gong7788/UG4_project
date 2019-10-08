@@ -170,15 +170,21 @@ class Action(object):
 
 
 class PDDLState(object):
-    def __init__(self, predicates, fexpressions):
+    def __init__(self, predicates, fexpressions, objects, towers):
         self.predicates = predicates
         self.fexpressions = fexpressions
+        self.objects = objects
+        self.towers = towers
 
     def to_formula(self):
         return [predicate.to_formula() for predicate in self.predicates + self.fexpressions]
 
     @staticmethod
-    def from_initialstate(state):
+    def from_problem(problem):
+        state = problem.initialstate
+        all_objects = get_objects(problem)
+        objects = [obj for obj in all_objects if 't' not in obj]
+        towers = [obj for obj in all_objects if 't' in obj and 'tower' not in obj]
         predicates = []
         fexpressions = []
         for predicate in state:
@@ -186,7 +192,7 @@ class PDDLState(object):
                 predicates.append(Predicate.from_formula(predicate))
             elif isinstance(predicate, pythonpddl.pddl.FExpression):
                 fexpressions.append(ColourCount.from_fexpression(predicate))
-        return PDDLState(predicates, fexpressions)
+        return PDDLState(predicates, fexpressions, objects, towers)
 
     def get_predicates(self, arg):
         return [pred for pred in self.predicates if arg in pred.args]
@@ -196,6 +202,9 @@ class PDDLState(object):
 
     def _predicate_holds(self, predicate):
         return predicate in self.predicates
+
+    def get_objects_on_table(self):
+        return [obj for obj in self.objects if self.predicate_holds('on-table', [obj])]
 
     def predicate_holds(self, predicate_name, args):
         predicate = Predicate(predicate_name, args)
@@ -218,8 +227,8 @@ class PDDLState(object):
             if fluent.colour == colour and fluent.tower == tower:
                 return fluent.number
 
-    def get_colours(self, objects, use_hsv=False):
-        objects = [object for object in objects if 'g' not in object and 't' not in object]
+    def get_colours(self, use_hsv=False):
+        objects = [object for object in self.objects if 'g' not in object and 't' not in object]
 
         colours = {}
         for obj in objects:
@@ -239,8 +248,23 @@ class PDDLState(object):
 
     def obscure_state(self):
         predicates = [predicate for predicate in self.predicates if predicate.name not in colour_names]
-        return PDDLState(predicates, self.fexpressions)
+        return PDDLState(predicates, self.fexpressions, self.objects, self.towers)
 
+    def get_top_two(self, tower=None):
+        for obj in self.objects:
+            predicates = self.get_predicates(obj)
+            predicate_names = [predicate.name for predicate in predicates]
+            if 'clear' in predicate_names and 'on' in predicate_names:
+                on = [predicate for predicate in predicates if predicate.name == 'on'][0]
+                if tower is None:
+                    top, second = on.args
+                    return top, second
+                else:
+                    in_tower = [predicate for predicate in predicates if predicate.name == 'in-tower'][0]
+                    _, args_tower = in_tower.args
+                    top, second = on.args
+                    if tower == args_tower:
+                        return top, second
 
 class ColourCount(object):
 

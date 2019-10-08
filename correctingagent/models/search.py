@@ -68,7 +68,7 @@ class Planner(object):
 
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
-            self.problem.initialstate = self.current_state.to_pddl()
+            self.problem.initialstate = self.current_state.to_formula()
 
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
@@ -153,7 +153,7 @@ class NoLanguagePlanner(Planner):
             test_goal = goals.update_goal(tmp_goal, test.test_formula)
 
             self.problem.goal = test_goal
-            self.problem.initialstate = self.current_state.to_pddl()
+            self.problem.initialstate = self.current_state.to_formula()
             # print(test_goal.asPDDL())
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())

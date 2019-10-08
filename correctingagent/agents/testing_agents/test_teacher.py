@@ -1,0 +1,121 @@
+import pytest
+from correctingagent.agents.teacher import *
+from correctingagent.world import world
+
+
+def test_tower_correction():
+    w = world.PDDLWorld(problem_directory='testing', problem_number=1)
+    teacher = TeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b6', 'b9'])  # pink
+    w.update('put', ['b4', 'b6'])  # purple
+
+    assert(teacher.correction(w) == "no, put blue blocks on pink blocks")
+
+def test_table_correction():
+    w = world.PDDLWorld(problem_directory='testing', problem_number=1)
+    teacher = TeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b7', 'b9'])  # blue
+
+    assert(teacher.correction(w).lower() == 'no, now you cannot put b1 in the tower because you must put blue blocks on pink blocks')
+
+
+def test_table_correction_extended():
+    w = world.PDDLWorld(problem_directory='testing', problem_number=1)
+    teacher = ExtendedTeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b7', 'b9'])  # blue
+
+    assert(teacher.correction(w).lower() == 'no, now you cannot put b1 in the tower because you must put blue blocks on pink blocks')
+
+    w.back_track()  # remove blue
+    w.update('put', ['b3', 'b9'])  # blue
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output.lower() for language_output, correction_object in possible_corrections]
+
+    assert('no, now you cannot put b1 in the tower because you must put blue blocks on pink blocks' in possible_corrections)
+    assert('no, that is wrong for the same reason' in possible_corrections)
+    assert(len(possible_corrections) == 2)
+
+def test_tower_correction_extended():
+    w = world.PDDLWorld(problem_directory='testing', problem_number=1)
+    teacher = ExtendedTeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b6', 'b9'])  # pink
+    w.update('put', ['b4', 'b6'])  # purple
+
+    assert(teacher.correction(w) == "no, put blue blocks on pink blocks")
+
+    w.back_track()  # remove purple
+    w.update('put', ['b5', 'b6'])  # pink
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output for language_output, correction_object in possible_corrections]
+    assert("no, put blue blocks on pink blocks" in possible_corrections)
+    assert("no, that is wrong for the same reason" in possible_corrections)
+    assert("no, that is not blue again" in possible_corrections)
+    assert(len(possible_corrections) == 3)
+
+
+def test_tower_correction_extended2():
+    w = world.PDDLWorld(problem_directory='testing', problem_number=2)
+    teacher = ExtendedTeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b6', 'b9'])  # pink
+    w.update('put', ['b4', 'b6'])  # purple
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output.lower() for language_output, correction_object in possible_corrections]
+    assert("no, put blue blocks on pink blocks" in possible_corrections)
+    assert("no, now you cannot put b2 in the tower because you must put purple blocks on red blocks" in possible_corrections)
+    assert(len(possible_corrections) == 2)
+
+    w = world.PDDLWorld(problem_directory='testing', problem_number=2)
+    teacher = ExtendedTeacherAgent()
+
+    w.update('put', ['b8', 't0'])  # pink
+    w.update('put', ['b9', 'b8'])  # blue
+    w.update('put', ['b6', 'b9'])  # pink
+    w.update('put', ['b5', 'b6'])  # pink
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output.lower() for language_output, correction_object in possible_corrections]
+    assert ("no, put blue blocks on pink blocks" in possible_corrections)
+    assert(len(possible_corrections) == 1)
+    #
+    w.back_track()  # remove purple
+    w.update('put', ['b7', 'b6'])  # blue
+    w.update('put', ['b4', 'b7'])  # purple
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output.lower() for language_output, correction_object in possible_corrections]
+    assert("no, now you cannot put b2 in the tower because you must put purple blocks on red blocks" in possible_corrections)
+    assert(len(possible_corrections) == 1)
+
+    w.back_track()
+    w.update('put', ['b5', 'b7'])  # pink
+    w.update('put', ['b2', 'b5'])
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [language_output.lower() for language_output, correction_object in possible_corrections]
+    assert ("no, put blue blocks on pink blocks" in possible_corrections)
+    assert ("no, that is not blue again" in possible_corrections)
+    assert (len(possible_corrections) == 2)
+    #
+    # correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    # possible_corrections = [language_output for language_output, correction_object in possible_corrections]
+    # assert("no, put blue blocks on pink blocks" in possible_corrections)
+    # assert("no, that is wrong for the same reason" in possible_corrections)
+    # assert("no, that is not blue again" in possible_corrections)
+    # assert(len(possible_corrections) == 3)

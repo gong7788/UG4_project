@@ -79,8 +79,6 @@ class Debug(object):
 
     def update_cm_params(self, agent):
         for cm in agent.colour_models.values():
-            if isinstance(cm, prob_model.NeuralColourModel):
-                return
             mean = cm.mu0
             std_dev = cm.sigma0
             self.cm_params[(cm.name, 'mu')].append(mean)
@@ -106,10 +104,7 @@ class Debug(object):
 
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                  threshold, update_negative, update_once, debug_agent):
-    if agent in [agents.NeuralCorrectingAgent]:
-        colour_model_config = get_neural_config(colour_model_config_name)
-        agent = agent(w, teacher=teacher, **colour_model_config)
-    elif agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
+    if agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
                 colour_model_config_name = 'DEFAULT'

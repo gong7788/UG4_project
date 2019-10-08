@@ -204,7 +204,7 @@ class CorrectingAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.goal = goals.create_default_goal()
         self.tmp_goal = None
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
         if colour_models is None:
             self.colour_models = {}
         else:
@@ -232,7 +232,7 @@ class CorrectingAgent(Agent):
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
         self.priors = Priors(world.objects)
         self.objects_used_for_update = set()
 
@@ -456,7 +456,7 @@ class CorrectingAgent(Agent):
                 results[obj][colour] = p_colour
         results = dict(results)
         self.state = correctingagent.world.rules.State(observation, results, threshold)
-        self.problem.initialstate = self.state.to_pddl()
+        self.problem.initialstate = self.state.to_formula()
 
         true_colours = get_colours(self.world.sense(obscure=False))
         self.tracker.store_colour_accuracy(results, true_colours, threshold, self.goal)
@@ -478,7 +478,7 @@ class RandomAgent(Agent):
         self.problem = copy.deepcopy(world.problem)
         self.goal = goals.create_default_goal()
         self.tmp_goal = None
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
 
         self.teacher = teacher
 
@@ -487,7 +487,7 @@ class RandomAgent(Agent):
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
 
     def plan(self):
         self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
@@ -499,7 +499,7 @@ class RandomAgent(Agent):
 
     def sense(self):
         observation = self.world.sense()
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
 
         return observation
 
@@ -716,7 +716,7 @@ class PerfectColoursAgent(CorrectingAgent):
         observation = world.sense(obscure=False)
         self.problem = copy.deepcopy(world.problem)
         self.tmp_goal = None
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
 
         known_colours = get_colours(observation)
 
@@ -724,6 +724,6 @@ class PerfectColoursAgent(CorrectingAgent):
 
     def sense(self, threshold=0.6):
         observation = self.world.sense(obscure=False)
-        self.problem.initialstate = observation.state.to_pddl()
+        self.problem.initialstate = observation.state.to_formula()
 
         return observation, {}
