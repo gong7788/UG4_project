@@ -35,7 +35,7 @@ def generate_dataset(N, rules, directory, colour_dict=colour_dict):
         colours = sample_colours(10, colour_dict=colour_dict)
         with open('tmp/generation.pddl', 'w') as f:
             problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules)
-            f.write(problem.to_pddl())
+            f.write(problem.asPDDL())
 
         w = world.PDDLWorld('blocks-domain.pddl', 'tmp/generation.pddl')
         if not w.test_failure():
@@ -179,7 +179,7 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             colours = generate_from_colour_count(rules, cc)
 
         with open('../data/tmp/generation.pddl', 'w') as f:
-            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).to_pddl()
+            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).asPDDL()
             f.write(problem)
         w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
         if not w.test_failure():

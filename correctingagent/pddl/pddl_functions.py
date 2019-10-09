@@ -85,17 +85,17 @@ class Predicate(object):
         op = 'not' if self.valency is True else None
         return Predicate(self.name, self.args, op)
 
-    def to_pddl(self):
+    def asPDDL(self):
         return self.to_formula().asPDDL()
 
     def __str__(self):
-        return self.to_pddl()
+        return self.asPDDL()
 
     def __repr__(self):
         return self.__str__()
 
     def __eq__(self, other):
-        return self.to_pddl() == other.to_pddl()
+        return self.asPDDL() == other.asPDDL()
 
     def __ne__(self, other):
         return not(self.__eq__(other))
@@ -125,11 +125,11 @@ class Action(object):
         effects = [effect.to_formula() for effect in self.effects]
         return pythonpddl.pddl.Action(self.name, params, precond, effects)
 
-    def to_pddl(self):
+    def asPDDL(self):
         return self.to_formula().asPDDL()
 
     def __str__(self):
-        return self.to_pddl()
+        return self.asPDDL()
 
     def __repr__(self):
         return self.__str__()
@@ -210,8 +210,6 @@ class PDDLState(object):
         predicate = Predicate(predicate_name, args)
         return self._predicate_holds(predicate)
 
-
-
     def apply_effect(self, predicate):
         if isinstance(predicate, Increase):
             for fluent in self.fexpressions:
@@ -272,6 +270,22 @@ class PDDLState(object):
                     if tower == args_tower:
                         return top, second
 
+    def count_coloured_blocks(self, colour):
+        objects = self.get_objects_on_table()
+        count = 0
+        for o in objects:
+            if self.predicate_holds(colour, [o]):
+                count += 1
+        return count
+
+    def get_block_with_colour(self, colour):
+        objects = self.get_objects_on_table()
+        for o in objects:
+            if self.predicate_holds(colour, [o]):
+                return o
+        return
+
+
 class ColourCount(object):
 
     def __init__(self, colour, tower, number):
@@ -294,7 +308,7 @@ class ColourCount(object):
         subexpressions = [colour_count_head, count_value]
         return pythonpddl.pddl.FExpression('=', subexpressions)
 
-    def to_pddl(self):
+    def asPDDL(self):
         return self.to_formula().asPDDL()
 
     def increment(self, n=1):
@@ -304,7 +318,7 @@ class ColourCount(object):
         self.number -= n
 
     def __str__(self):
-        return self.to_pddl()
+        return self.asPDDL()
 
     def __repr__(self):
         return self.__str__()
@@ -335,11 +349,11 @@ class Increase(object):
     def compare_colour_count(self, other):
         return self.colour == other.colour and self.tower == other.tower
 
-    def to_pddl(self):
+    def asPDDL(self):
         return self.to_formula().asPDDL()
 
     def __str__(self):
-        return self.to_pddl()
+        return self.asPDDL()
 
     def __repr__(self):
         return self.__str__()
@@ -367,11 +381,11 @@ class Conditional(object):
         formula.condition = self.condition.to_formula()
         return formula
 
-    def to_pddl(self):
-        return self.to_formula().to_pddl()
+    def asPDDL(self):
+        return self.to_formula().asPDDL()
 
     def __str__(self):
-        return self.to_pddl()
+        return self.asPDDL()
 
     def __repr__(self):
         return self.__str__()

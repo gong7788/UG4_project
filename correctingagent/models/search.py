@@ -49,7 +49,7 @@ class Planner(object):
         self.tmp_goal = tmp_goal
         self.problem = problem
         self.state_queue = []
-        # print(colour_choices)
+
         self.search_dir = data_location / 'tmp' / 'search_problem'
         n = len(os.listdir(self.search_dir))
         self.search_file = os.path.join(self.search_dir, f'{n}.pddl')
@@ -68,10 +68,10 @@ class Planner(object):
 
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
-            self.problem.initialstate = self.current_state.to_pddl()
+            self.problem.initialstate = self.current_state.asPDDL()
 
             with open(self.search_file, 'w') as f:
-                f.write(self.problem.to_pddl())
+                f.write(self.problem.asPDDL())
             try:
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
                 return plan
@@ -153,10 +153,10 @@ class NoLanguagePlanner(Planner):
             test_goal = goals.update_goal(tmp_goal, test.test_formula)
 
             self.problem.goal = test_goal
-            self.problem.initialstate = self.current_state.to_pddl()
+            self.problem.initialstate = self.current_state.asPDDL()
             # print(test_goal.asPDDL())
             with open(self.search_file, 'w') as f:
-                f.write(self.problem.to_pddl())
+                f.write(self.problem.asPDDL())
             try:
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
             except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):

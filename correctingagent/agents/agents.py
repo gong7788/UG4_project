@@ -251,7 +251,7 @@ class CorrectingAgent(Agent):
         return plan
 
     def _print_goal(self):
-        print(self.goal.to_pddl())
+        print(self.goal.asPDDL())
 
     def get_correction(self, user_input, action, args, test=False):
         visible = {}
@@ -332,7 +332,7 @@ class CorrectingAgent(Agent):
             self.rule_models[(rule_model.rule_names, message.T)] = rule_model
             self.priors.update(prior_updates)
         self.update_goal()
-        logger.debug(self.goal.to_pddl())
+        logger.debug(self.goal.asPDDL())
         self.world.back_track()
         #self.sense()
 
@@ -375,7 +375,7 @@ class CorrectingAgent(Agent):
 
         #TODO change downstreem to expect Rule class rather than formula
         rules = [rule.to_formula() for rule in rules]
-        rule_names = tuple(map(lambda x: x.to_pddl(), rules))
+        rule_names = tuple(map(lambda x: x.asPDDL(), rules))
 
         # If this this rule model already exists, keep using the same
         if (rule_names, message.T) in self.rule_models.keys():
@@ -457,7 +457,7 @@ class CorrectingAgent(Agent):
                 results[obj][colour] = p_colour
         results = dict(results)
         self.state = correctingagent.world.rules.State(observation, results, threshold)
-        self.problem.initialstate = self.state.to_pddl()
+        self.problem.initialstate = self.state.asPDDL()
 
         true_colours = [(obj, self.world.state.get_colour_name(obj)) for obj in self.world.state.objects]
         #rue_colours = get_colours(self.world.sense(obscure=False))
@@ -494,7 +494,7 @@ class RandomAgent(Agent):
     def plan(self):
         self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
         with open('tmp/problem.pddl', 'w') as f:
-            f.write(self.problem.to_pddl())
+            f.write(self.problem.asPDDL())
         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         return plan
 
@@ -573,7 +573,7 @@ class NoLanguageAgent(CorrectingAgent):
         try:
             return planner.plan()
         except ValueError as e:
-            print(self.goal.to_pddl())
+            print(self.goal.asPDDL())
             raise e
 
     def get_data(self, message, args):

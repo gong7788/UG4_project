@@ -47,7 +47,7 @@ class Rule(object):
     def __hash__(self):
         return hash(str(self))
 
-    def to_pddl(self):
+    def asPDDL(self):
         return self.to_formula().asPDDL()
 
     def to_formula(self):
@@ -185,7 +185,58 @@ class RedOnBlueRule(Rule):
                             cpd_line_corr0.append(1 - result)
         return [cpd_line_corr0, cpd_line_corr1]
 
+    def check_tower_violation(self, state):
 
+        o1, o2 = state.get_top_two()
+
+        c1_o1 = state.predicate_holds(self.c1, [o1])
+        c2_o2 = state.predicate_holds(self.c2, [o2])
+
+        if c1_o1 and not c2_o2 and self.rule_type == 1:
+            return True
+        elif not c1_o1 and c2_o2 and self.rule_type == 2:
+            return True
+        else:
+            return False
+
+    def get_all_relevant_colours(self, rules):
+        """
+
+        :param rules:
+        :return:
+        """
+
+        additional_red_constraints = []
+        additional_blue_constraints = []
+        for rule in rules:
+
+            if self.c1 == rule.c1 and self.rule_type == 2 and rule.rule_type == 2:
+                additional_red_constraints.append(rule.c2)
+            if self.c2 == rule.c2 and self.rule_type == 1 and rule.rule_type == 1:
+                additional_blue_constraints.append(rule.c1)
+        return additional_red_constraints, additional_blue_constraints
+
+    def check_table_violation(self, state, additional_rules=[]):
+        top_object, second_object = state.get_top_two()
+        additional_bottom_constrained_objects, additional_top_constrained_objects = self.get_all_relevant_colours(additional_rules)
+
+        top_object_is_red = state.predicate_holds(self.c1, [top_object])
+        second_object_is_blue = state.predicate_holds(self.c2, [second_object])
+
+        number_red_blocks = state.count_coloured_blocks(self.c1)
+        number_blue_blocks = state.count_coloured_blocks(self.c2)
+
+        number_additional_bottom_objects = sum([state.count_coloured_blocks(colour) for colour in additional_bottom_constrained_objects])
+        number_additional_top_objects = sum([state.count_coloured_blocks(colour) for colour in additional_top_constrained_objects])
+
+        # put red(x) -> blue(y) on(x,y) is table violated only in this case:
+        if not top_object_is_red and second_object_is_blue and self.rule_type == 1:
+            if (number_red_blocks + number_additional_top_objects) > number_blue_blocks:
+                return state.get_block_with_colour(self.c1)
+        if top_object_is_red and not second_object_is_blue and self.rule_type == 2:
+            if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
+                return state.get_block_with_colour(self.c2)
+        return False
 #
 # class Rule(object):
 #
@@ -227,7 +278,7 @@ class RedOnBlueRule(Rule):
 #     def __hash__(self):
 #         return hash(str(self))
 #
-#     def to_pddl(self):
+#     def asPDDL(self):
 #         return self.rule_formula.asPDDL()
 #
 #     def to_formula(self):
@@ -317,9 +368,9 @@ class RedOnBlueRule(Rule):
 #     def get_rule_type(formula):
 #         if formula.op == 'not':
 #             return 3
-#         elif formula.variables.to_pddl() == '?x':
+#         elif formula.variables.asPDDL() == '?x':
 #             return 1
-#         elif formula.variables.to_pddl() == '?y':
+#         elif formula.variables.asPDDL() == '?y':
 #             return 2
 #         else:
 #             raise ValueError('Unknown Rule Type')
@@ -523,7 +574,7 @@ class State(object):
                 print(obj, colour)
                 raise e
 
-    def to_pddl(self):
+    def asPDDL(self):
         pddl_state = copy.copy(self.initialstate.to_formula())
         for o, c in self.state:
             colour_formula = pddl_functions.create_formula(c, [o])

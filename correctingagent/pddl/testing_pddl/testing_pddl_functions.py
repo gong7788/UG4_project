@@ -16,7 +16,7 @@ def test_fexpressions1():
 
     cc = pddl_functions.ColourCount('blue', 't0', 1)
 
-    assert(f_exp.asPDDL() == cc.to_pddl())
+    assert(f_exp.asPDDL() == cc.asPDDL())
 
 
 def test_fexpressions2():
@@ -27,7 +27,7 @@ def test_fexpressions2():
 
     cc = pddl_functions.ColourCount.from_fexpression(f_exp)
 
-    assert(f_exp.asPDDL() == cc.to_pddl())
+    assert(f_exp.asPDDL() == cc.asPDDL())
 
 
 def test_fexpressions3():
@@ -39,7 +39,7 @@ def test_fexpressions3():
     cc = pddl_functions.ColourCount('blue', 't0', 1)
     cc.number = 2
 
-    assert(f_exp.asPDDL() == cc.to_pddl())
+    assert(f_exp.asPDDL() == cc.asPDDL())
 
 
 def test_fexpressions4():
@@ -52,7 +52,7 @@ def test_fexpressions4():
     cc.increment()
     cc.increment()
 
-    assert(f_exp.asPDDL() == cc.to_pddl())
+    assert(f_exp.asPDDL() == cc.asPDDL())
 
 
 def test_fexpressions5():
@@ -66,7 +66,7 @@ def test_fexpressions5():
         cc.decrement()
         cc.increment()
 
-        assert (f_exp.asPDDL() == cc.to_pddl())
+        assert (f_exp.asPDDL() == cc.asPDDL())
 
 def test_fexpressions5():
     f_exp = pddl.FExpression('=',
@@ -78,7 +78,7 @@ def test_fexpressions5():
     cc.increment(2)
     cc.decrement()
 
-    assert (f_exp.asPDDL() == cc.to_pddl())
+    assert (f_exp.asPDDL() == cc.asPDDL())
 
 def test_predicate1():
     assert(str(pddl_functions.Predicate('on', ['o1', 'o2'])) == "(on o1 o2)")

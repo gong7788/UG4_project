@@ -1,3 +1,4 @@
+from correctingagent.world.rules import Rule
 from ..pddl import pddl_functions
 from collections import namedtuple
 import random
@@ -22,142 +23,8 @@ def table_not_correction(obj1, obj2, obj3):
 def get_rules(goal):
     """Returns the individual rules which make up the goal"""
     for f in goal.subformulas:
-        if "in-tower" not in f.to_pddl():
+        if "in-tower" not in f.asPDDL():
             yield f
-
-def get_name(formula):
-    """Returns the name of the predicate, e.g. red for red(x) or on for on(x,y)"""
-    return formula.get_predicates(True)[0].name
-
-
-def get_args(formula):
-    """Returns the arguments of a formula. e.g. [x] for red(x) or [x, y] for on(x,y)"""
-    return list(map(lambda x: x.arg_name, formula.get_predicates(True)[0].args.args))
-
-
-def get_relevant_colours(rule):
-    """returns the colours that make up a rule plus which of the colours is on the left of the implication"""
-    if rule.op == 'not':
-        raise NotImplementedError("This code is not stable...")
-        exists = neg_rule.subformulas[0]
-        and_ = exists.subformulas[0]
-        c1, c2, on = and_.subformulas
-        return get_name(c1), get_name(c2), 'not'
-    else:
-
-        or_ = rule.subformulas[0]
-        r1, r2 = or_.subformulas
-        colour1 = (r1.subformulas[0])
-        colour2 = (list(filter(lambda x: get_name(x) != 'on', r2.subformulas[0].subformulas))[0])
-        on = list(filter(lambda x: get_name(x) == 'on', r2.subformulas[0].subformulas))[0]
-        o1, o2 = on.get_predicates(True)[0].args.args
-
-        c1 = list(filter(lambda x: get_args(x)[0] == o1.arg_name, [colour1, colour2]))[0]
-        c2 = list(filter(lambda x: get_args(x)[0] == o2.arg_name, [colour1, colour2]))[0]
-        return get_name(c1), get_name(c2), get_name(colour1) # on(c1, c2) colour1 -> colour2
-
-
-def check_rule_violated(rule, world_):
-    c1, c2, impl = get_relevant_colours(rule)
-    o1, o2 = world_.state.get_top_two()
-
-    c1_o1 = world_.state.predicate_holds(c1, [o1])
-    c2_o2 = world_.state.predicate_holds(c2, [o2])
-
-    if c1_o1 and c2_o2 and impl == 'not':
-        return True
-    elif c1_o1 and not c2_o2 and c1 == impl:
-        return True
-    elif not c1_o1 and c2_o2 and c2 == impl:
-        return True
-    else:
-        return False
-
-
-def get_all_relevant_colours(rules, red, blue, constrained_object):
-    """
-
-    :param rules:
-    :param red:
-    :param blue:
-    :param constrained_object:
-    :return:
-    """
-    additional_red_constraints = []
-    additional_blue_constraints = []
-    for rule in rules:
-        green, yellow, other_constrained_object = get_relevant_colours(rule)
-        if red == green and constrained_object != other_constrained_object:
-            additional_red_constraints.append(yellow)
-        if blue == yellow and constrained_object != other_constrained_object:
-            additional_blue_constraints.append(green)
-    return additional_red_constraints, additional_blue_constraints
-
-
-def check_table_rule_violation(rule, world_, additional_rules=[]):
-
-    # constrained_object represents which of the two objects is on the left of the implication
-    # eg. red, blue, red = red(x) -> blue(y) on(x,y)
-    red, blue, constrained_object = get_relevant_colours(rule)
-    top_object, second_object = world_.state.get_top_two()
-
-    additional_bottom_constrained_objects, additional_top_constrained_objects = get_all_relevant_colours(additional_rules, red, blue, constrained_object)
-
-
-    state = world_.state
-    # create a PDDL forumal for each object
-
-    top_object_is_red = state.predicate_holds(red, [top_object])
-    second_object_is_blue = state.predicate_holds(blue, [second_object])
-    # this is required for "don't put red blocks on blue blocks"
-    top_object_is_blue = state.predicate_holds(blue, [top_object])
-
-    objects_left_on_table = world_.state.get_objects_on_table()
-    number_red_blocks = count_coloured_blocks(red, objects_left_on_table, state)
-    number_blue_blocks = count_coloured_blocks(blue, objects_left_on_table, state)
-    number_additional_bottom_objects = sum(
-        [count_coloured_blocks(colour, objects_left_on_table, state) for colour in additional_bottom_constrained_objects])
-    number_additional_top_objects = sum(
-        [count_coloured_blocks(colour, objects_left_on_table, state) for colour in additional_top_constrained_objects]
-    )
-
-    # If we're dealing with a "don't put red blocks on blue blocks" rule
-    # Then we are dealing with a violation if all the remaining blocks are either red or blue
-    if constrained_object == 'not' and (number_red_blocks + number_blue_blocks) == len(objects_left_on_table) and top_object_is_blue:
-        return get_block_with_colour(red, objects_left_on_table, state)
-
-    # put red(x) -> blue(y) on(x,y) is table violated only in this case:
-    if not top_object_is_red and second_object_is_blue and red == constrained_object:
-        if (number_red_blocks+number_additional_top_objects) > number_blue_blocks:
-            return get_block_with_colour(red, objects_left_on_table, state)
-    if top_object_is_red and not second_object_is_blue and blue == constrained_object:
-        if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
-            return get_block_with_colour(blue, objects_left_on_table, state)
-    return False
-
-
-def blocks_on_table(world_):
-    r = world_.sense().relations
-    objs = []
-    for o in r.keys():
-        if 'on-table' in r[o] and 'clear' in r[o]:
-            objs.append(o)
-    return objs
-
-
-def count_coloured_blocks(colour, objects, state):
-    count = 0
-    for o in objects:
-        if state.predicate_holds(colour, [o]):
-            count += 1
-    return count
-
-
-def get_block_with_colour(colour, objects, state):
-    for o in objects:
-        if state.predicate_holds(colour, [o]):
-            return o
-    return
 
 
 class Teacher(object):
@@ -193,17 +60,20 @@ class TeacherAgent(Teacher):
         # b-> a b -a
         rules = list(get_rules(w.problem.goal))
         for r in rules:
-            rule_violated = check_rule_violated(r, w)
+            rule = Rule.from_formula(r)
+            rule_violated = rule.check_tower_violation(w.state)
 
             if rule_violated:
 
-                c1, c2, _ = get_relevant_colours(r)
+                c1, c2 = rule.c1, rule.c2
+
                 return tower_correction(c1, c2)
         for r in rules:
-            o3 = check_table_rule_violation(r, w, rules)
+            rule = Rule.from_formula(r)
+            o3 = rule.check_table_violation(w.state, [Rule.from_formula(_r) for _r in rules])
 
             if o3:
-                c1, c2, _ = get_relevant_colours(r)
+                c1, c2 = rule.c1, rule.c2
 
                 return table_correction(c1, c2, o3)
 
@@ -219,6 +89,10 @@ class TeacherAgent(Teacher):
 
 
 Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
+
+
+class BaseRule(object):
+    pass
 
 
 class ExtendedTeacherAgent(TeacherAgent):
@@ -242,27 +116,29 @@ class ExtendedTeacherAgent(TeacherAgent):
         possible_corrections = []
         rules = list(get_rules(wrld.problem.goal))
         for r in rules:
-            if check_rule_violated(r, wrld):
-                c1, c2, impl = get_relevant_colours(r)
+            rule = Rule.from_formula(r)
+            if rule.check_tower_violation(wrld.state):
+                # c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = wrld.state.get_top_two()
-                if impl == 'not':
-                    corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
-                    possible_corrections.append(corr)
-                else:
-                    corr = Correction(r, c1, c2, [o1, o2], tower_correction(c1, c2))
-                    possible_corrections.append(corr)
+                # if impl == 'not':
+                #     corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
+                #     possible_corrections.append(corr)
+                # else:
+                corr = Correction(r, rule.c1, rule.c2, [o1, o2], tower_correction(rule.c1, rule.c2))
+                possible_corrections.append(corr)
 
         for r in rules:
-            o3 = check_table_rule_violation(r, wrld, rules)
+            rule = Rule.from_formula(r)
+            o3 = rule.check_table_violation(wrld.state, [Rule.from_formula(_r) for _r in rules])
             if o3:
-                c1, c2, impl = get_relevant_colours(r)
+                #c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = wrld.state.get_top_two()
-                if impl == 'not':
-                    corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
-                    possible_corrections.append(corr)
-                else:
-                    corr = Correction(r, c1, c2, [o1, o2, o3], table_correction(c1, c2, o3))
-                    possible_corrections.append(corr)
+                # if impl == 'not':
+                #     corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
+                #     possible_corrections.append(corr)
+                # else:
+                corr = Correction(r, rule.c1, rule.c2, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
+                possible_corrections.append(corr)
 
         possible_corrections = self.generate_possible_corrections(possible_corrections, wrld)
         selection = self.select_correction(possible_corrections)

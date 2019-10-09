@@ -7,8 +7,6 @@ from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
-from correctingagent.world.rules import Rule
-from .teacher import get_rules, get_relevant_colours
 from correctingagent.models.CPD_generation import *
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
@@ -345,9 +343,9 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
 
             rules = get_rules(self.problem.goal)
             for rule in rules:
-                c1, c2, impl = get_relevant_colours(rule)
-                if impl == "not":
-                    raise NotImplementedError('I have not implemented this baseline for "not" rules')
+                r = Rule.from_formula(rule)
+                c1 = r.c1
+                c2 = r.c2
 
                 red_cm = self.add_cm(c1)
                 blue_cm = self.add_cm(c2)

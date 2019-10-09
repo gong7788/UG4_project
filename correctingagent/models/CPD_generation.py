@@ -56,7 +56,7 @@ def get_predicate(predicate):
     return pred, args
 
 
-def rule_to_pddl(rule):
+def rule_asPDDL(rule):
     rule_split = split_rule(rule)
     red, o1 = get_predicate(rule_split[0])
     blue, o2 = get_predicate(rule_split[1])

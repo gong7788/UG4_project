@@ -107,16 +107,16 @@ class PDDLWorld(World):
         else:
             block_plotting.plot_blocks(positions, [self.colours[o] for o in objects])
 
-    def to_pddl(self):
+    def asPDDL(self):
         problem = self.problem
         problem.initialstate = self.state.to_formula()
-        problem_pddl = problem.to_pddl()
+        problem_pddl = problem.asPDDL()
         with open(self.tmp_file, 'w') as f:
             f.write(problem_pddl)
         return self.domain_file, self.tmp_file
 
     def find_plan(self):
-        domain, problem = self.to_pddl()
+        domain, problem = self.asPDDL()
         return ff.run(domain, problem, use_metric_ff=self.use_metric_ff)
 
     def test_success(self):
