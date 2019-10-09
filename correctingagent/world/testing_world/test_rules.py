@@ -8,7 +8,7 @@ def test_from_formula():
 
     goal = w.problem.goal
     r1 = goal.subformulas[-1]
-    rule = BaseRule.from_formula(r1)
+    rule = Rule.from_formula(r1)
     assert(isinstance(rule, RedOnBlueRule))
     assert(rule.c1 == 'blue')
     assert(rule.c2 == 'pink')

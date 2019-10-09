@@ -11,22 +11,22 @@ from correctingagent.pddl import pddl_functions
 from correctingagent.world import goals
 
 
-class BaseRule(object):
+class Rule(object):
 
     def __init__(self):
         pass
 
     @staticmethod
     def from_formula(formula):
-        rule_type = BaseRule.get_rule_type(formula)
+        rule_type = Rule.get_rule_type(formula)
         if rule_type == 1:
-            c1, c2 = BaseRule.get_rule_colours(formula)
+            c1, c2 = Rule.get_rule_colours(formula)
             return RedOnBlueRule(c1, c2, rule_type)
         elif rule_type == 2:
-            c2, c1 = BaseRule.get_rule_colours(formula)
+            c2, c1 = Rule.get_rule_colours(formula)
             return RedOnBlueRule(c1, c2, rule_type)
         elif rule_type == 3:
-            c1, c2 = BaseRule.get_rule_colours_existential(formula)
+            c1, c2 = Rule.get_rule_colours_existential(formula)
             raise NotImplementedError("Have not implemented not red on blue rules")
 
     def __repr__(self):
@@ -36,7 +36,7 @@ class BaseRule(object):
         return self.name
 
     def __eq__(self, other):
-        if isinstance(other, BaseRule):
+        if isinstance(other, Rule):
             return (str(self) == str(other))
         else:
             return False
@@ -88,14 +88,14 @@ class BaseRule(object):
 
     @staticmethod
     def get_rules(goal):
-        return [BaseRule(subformula) for subformula in goal.subformulas[1:]]
+        return [Rule(subformula) for subformula in goal.subformulas[1:]]
 
     @staticmethod
     def generate_red_on_blue_options(c1, c2):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
 
-class RedOnBlueRule(BaseRule):
+class RedOnBlueRule(Rule):
 
     def __init__(self, c1, c2, rule_type):
         self.c1 = c1
