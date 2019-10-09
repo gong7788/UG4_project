@@ -55,5 +55,5 @@ def test_table_correction():
     w.update('put', ['b9', 'b8'])  # blue
     w.update('put', ['b7', 'b9'])  # blue
 
-    assert(rule.check_table_violation(w.state) == 'b1')
+    assert(rule.check_table_violation(w.state) is True)
     assert (rule2.check_table_violation(w.state) is False)

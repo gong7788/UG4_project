@@ -24,7 +24,7 @@ def get_rules(goal):
     """Returns the individual rules which make up the goal"""
     for f in goal.subformulas:
         if "in-tower" not in f.asPDDL():
-            yield f
+            yield Rule.from_formula(f)
 
 
 class Teacher(object):
@@ -58,9 +58,9 @@ class TeacherAgent(Teacher):
         #Reasons for failure:
         # a->b, a -b
         # b-> a b -a
-        rules = list(get_rules(w.problem.goal))
-        for r in rules:
-            rule = Rule.from_formula(r)
+        rules = Rule.get_rules(w.problem.goal)
+        for rule in rules:
+
             rule_violated = rule.check_tower_violation(w.state)
 
             if rule_violated:
@@ -68,11 +68,15 @@ class TeacherAgent(Teacher):
                 c1, c2 = rule.c1, rule.c2
 
                 return tower_correction(c1, c2)
-        for r in rules:
-            rule = Rule.from_formula(r)
-            o3 = rule.check_table_violation(w.state, [Rule.from_formula(_r) for _r in rules])
+        for rule in rules:
 
-            if o3:
+
+
+            if rule.check_table_violation(w.state, rules):
+                if rule.rule_type == 1:
+                    o3 = w.state.get_block_with_colour(rule.c1)
+                else:
+                    o3 = w.state.get_block_with_colour(rule.c2)
                 c1, c2 = rule.c1, rule.c2
 
                 return table_correction(c1, c2, o3)
@@ -114,9 +118,9 @@ class ExtendedTeacherAgent(TeacherAgent):
             return ""
 
         possible_corrections = []
-        rules = list(get_rules(wrld.problem.goal))
-        for r in rules:
-            rule = Rule.from_formula(r)
+        rules = Rule.get_rules(wrld.problem.goal)
+        for rule in rules:
+
             if rule.check_tower_violation(wrld.state):
                 # c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = wrld.state.get_top_two()
@@ -124,20 +128,22 @@ class ExtendedTeacherAgent(TeacherAgent):
                 #     corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
                 #     possible_corrections.append(corr)
                 # else:
-                corr = Correction(r, rule.c1, rule.c2, [o1, o2], tower_correction(rule.c1, rule.c2))
+                corr = Correction(rule, rule.c1, rule.c2, [o1, o2], tower_correction(rule.c1, rule.c2))
                 possible_corrections.append(corr)
 
-        for r in rules:
-            rule = Rule.from_formula(r)
-            o3 = rule.check_table_violation(wrld.state, [Rule.from_formula(_r) for _r in rules])
-            if o3:
+        for rule in rules:
+            if rule.check_table_violation(wrld.state, rules):
+                if rule.rule_type == 1:
+                    o3 = wrld.state.get_block_with_colour(rule.c1)
+                else:
+                    o3 = wrld.state.get_block_with_colour(rule.c2)
                 #c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = wrld.state.get_top_two()
                 # if impl == 'not':
                 #     corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
                 #     possible_corrections.append(corr)
                 # else:
-                corr = Correction(r, rule.c1, rule.c2, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
+                corr = Correction(rule, rule.c1, rule.c2, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
                 possible_corrections.append(corr)
 
         possible_corrections = self.generate_possible_corrections(possible_corrections, wrld)

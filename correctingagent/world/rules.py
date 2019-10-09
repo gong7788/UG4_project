@@ -88,7 +88,7 @@ class Rule(object):
 
     @staticmethod
     def get_rules(goal):
-        return [Rule(subformula) for subformula in goal.subformulas[1:]]
+        return [Rule.from_formula(subformula) for subformula in goal.subformulas[1:]]
 
     @staticmethod
     def generate_red_on_blue_options(c1, c2):
@@ -232,10 +232,10 @@ class RedOnBlueRule(Rule):
         # put red(x) -> blue(y) on(x,y) is table violated only in this case:
         if not top_object_is_red and second_object_is_blue and self.rule_type == 1:
             if (number_red_blocks + number_additional_top_objects) > number_blue_blocks:
-                return state.get_block_with_colour(self.c1)
+                return True
         if top_object_is_red and not second_object_is_blue and self.rule_type == 2:
             if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
-                return state.get_block_with_colour(self.c2)
+                return True
         return False
 #
 # class Rule(object):
