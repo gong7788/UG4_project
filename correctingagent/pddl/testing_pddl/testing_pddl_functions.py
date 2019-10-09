@@ -244,3 +244,18 @@ def test_objects_on_table():
     objs_on_table = state.get_objects_on_table()
     assert(objs_on_table == state.objects)
 
+def test_get_colour():
+
+    config = get_config()
+    data_dir = Path(config['data_location'])
+    domain_file = 'blocks-domain-updated.pddl'
+    domain_file = data_dir / 'domain' / domain_file
+    problem_directory = 'testing'
+    problem_number = 1
+    problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+    domain, problem = pddl_functions.parse(domain_file, problem_file)
+
+    state = pddl_functions.PDDLState.from_problem(problem)
+
+    assert(state.get_colour_name('b0') == 'blue')
+    assert(state.get_colour_name('b8') == 'pink')

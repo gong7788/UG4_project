@@ -68,7 +68,7 @@ class Planner(object):
 
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
-            self.problem.initialstate = self.current_state.to_formula()
+            self.problem.initialstate = self.current_state.to_pddl()
 
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
@@ -87,10 +87,10 @@ class Planner(object):
                     score, self.current_state = self._pop()
                     return False
                 except IndexError:
-                    self.generate_candidates(self.current_state, increase, decrease)
+                    self.generate_candidates(increase, decrease)
 
         else:
-            self.generate_candidates(self.current_state, increase, decrease)
+            self.generate_candidates(increase, decrease)
 
         try:
             score, self.current_state = self._pop()
@@ -121,7 +121,7 @@ class Planner(object):
             self.searched_states.add(tuple(new_state.state))
             self._push(new_state)
 
-    def generate_candidates(self, state, increase, decrease):
+    def generate_candidates(self, increase, decrease):
         if not increase and not decrease:
             for colour in self.current_state.colours:
                 # flip the best candidate of each colour
@@ -153,7 +153,7 @@ class NoLanguagePlanner(Planner):
             test_goal = goals.update_goal(tmp_goal, test.test_formula)
 
             self.problem.goal = test_goal
-            self.problem.initialstate = self.current_state.to_formula()
+            self.problem.initialstate = self.current_state.to_pddl()
             # print(test_goal.asPDDL())
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())

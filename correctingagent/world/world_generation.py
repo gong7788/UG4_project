@@ -192,16 +192,17 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             scenarios.append(file_name)
 
 
-
-
 def rules_consistent(rules):
-    first = [rule.first_obj for rule in rules if rule.constrained_obj == 'first']
-    second = [rule.second_obj for rule in rules if rule.constrained_obj == 'second']
-    for colour in first:
-        if first.count(colour) > 1:
+    constrained_colours = [rule.first_obj for rule in rules if rule.constrained_obj == 'first']
+    constrained_colours += [rule.second_obj for rule in rules if rule.constrained_obj == 'second']
+
+    other_colours = [rule.second_obj for rule in rules if rule.constrained_obj == 'first']
+    other_colours += [rule.first_obj for rule in rules if rule.constrained_obj == 'second']
+    for colour in constrained_colours:
+        if constrained_colours.count(colour) > 1:
             return False
-    for colour in second:
-        if first.count(colour) > 1:
+    for colour in other_colours:
+        if colour in constrained_colours:
             return False
     return True
 

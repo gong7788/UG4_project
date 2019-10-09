@@ -348,7 +348,7 @@ class State(object):
                 raise e
 
     def to_pddl(self):
-        pddl_state = copy.copy(self.initialstate)
+        pddl_state = copy.copy(self.initialstate.to_formula())
         for o, c in self.state:
             colour_formula = pddl_functions.create_formula(c, [o])
             pddl_state.append(colour_formula)

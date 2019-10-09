@@ -210,6 +210,8 @@ class PDDLState(object):
         predicate = Predicate(predicate_name, args)
         return self._predicate_holds(predicate)
 
+
+
     def apply_effect(self, predicate):
         if isinstance(predicate, Increase):
             for fluent in self.fexpressions:
@@ -226,6 +228,10 @@ class PDDLState(object):
         for fluent in self.fexpressions:
             if fluent.colour == colour and fluent.tower == tower:
                 return fluent.number
+
+    def get_colour_name(self, obj):
+        predicates = self.get_predicates(obj)
+        return [predicate.name for predicate in predicates if predicate.name in colour_dict.keys()][0]
 
     def get_colours(self, use_hsv=False):
         objects = [object for object in self.objects if 'g' not in object and 't' not in object]

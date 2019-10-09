@@ -221,15 +221,6 @@ class TeacherAgent(Teacher):
 Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
 
 
-def get_colour(obj, state):
-    preds = state.get_predicates(obj)
-    colour = [pred.name for pred in preds if pred.name in colour_dict.keys()]
-    if 't' in obj:
-        return None
-    else:
-        return colour[0]
-
-
 class ExtendedTeacherAgent(TeacherAgent):
 
     def __init__(self):
@@ -252,7 +243,6 @@ class ExtendedTeacherAgent(TeacherAgent):
         rules = list(get_rules(wrld.problem.goal))
         for r in rules:
             if check_rule_violated(r, wrld):
-                #print(r.asPDDL())
                 c1, c2, impl = get_relevant_colours(r)
                 o1, o2 = wrld.state.get_top_two()
                 if impl == 'not':
@@ -282,13 +272,10 @@ class ExtendedTeacherAgent(TeacherAgent):
             return selection
 
     def generate_possible_corrections(self, violations, wrld):
-        print(self.dialogue_history)
+
         possible_sentences = []
-        # if self.previous_correction is not None:
         for correction in violations:
             if len(self.dialogue_history) > 0:
-
-            # if self.previous_correction is not None and self.previous_correction.rule == correction.rule:
 
                 if "now you cannot put" not in correction.sentence:
                     for previous_corr in self.dialogue_history[::-1]:
@@ -297,13 +284,13 @@ class ExtendedTeacherAgent(TeacherAgent):
                             if correction.c1 in colours or correction.c2 in colours:
 
                                 if correction.c1 == colours[0]:
-                                    current_colour = get_colour(correction.args[0], wrld.state)
-                                    prev_colour = get_colour(previous_corr.args[0], wrld.state)
+                                    current_colour = wrld.state.get_colour_name(correction.args[0])
+                                    prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
                                     if current_colour != correction.c1 and prev_colour != correction.c1:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
                                 if correction.c2 == colours[1]:
-                                    current_colour = get_colour(correction.args[1], wrld.state)
-                                    prev_colour = get_colour(previous_corr.args[1], wrld.state)
+                                    current_colour = wrld.state.get_colour_name(correction.args[1])
+                                    prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
                                     if current_colour != correction.c2 and prev_colour != correction.c2:
                                         possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
                                 break

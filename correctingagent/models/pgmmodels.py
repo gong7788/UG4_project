@@ -21,42 +21,42 @@ class SearchInference(object):
         self.norm = 0
 
     def infer(self, evidence):
-        print("starting inference")
-        step = time.time()
+        # print("starting inference")
+        # step = time.time()
 
         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
         if len(variables) == 0:
             return
         factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
-        step_1 = time.time()
-        delta = step_1-step
-        print(f"finding relevant variable {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1-step
+        # print(f"finding relevant variable {delta} time")
+        # step = time.time()
 
         for var, val in evidence.items():
             for factor in factors:
                 if var in factor.scope():
                     factor.reduce([(var, val)])
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"reducing factors in evidence {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"reducing factors in evidence {delta} time")
+        # step = time.time()
 
         updated_factors = []
         for factor in factors:
             if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
                 factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
             updated_factors.append(factor)
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"updating factors {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"updating factors {delta} time")
+        # step = time.time()
 
         phi = reduce(lambda x, y: x * y, updated_factors)
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"reducing factors {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"reducing factors {delta} time")
+        # step = time.time()
 
         variables = phi.scope()
         nonzero = np.nonzero(phi.values)
@@ -67,10 +67,10 @@ class SearchInference(object):
             for j, var in enumerate(variables):
                 d[var] = nonzero[j][i]
             viable.append(d)
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"finding nonzero values {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"finding nonzero values {delta} time")
+        # step = time.time()
         new_beams = []
         for trace in viable:
             a = []
@@ -78,10 +78,10 @@ class SearchInference(object):
                 a.append(trace[var])
             a = tuple(a)
             new_beams.append((trace, phi.values[a]))
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"finding beams {delta} time")
-        step = time.time()
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"finding beams {delta} time")
+        # step = time.time()
 
         norm = 0
         out_beams = []
@@ -97,9 +97,9 @@ class SearchInference(object):
                     p = val * new_val
                     out_beams.append((out_beam, p))
                     norm += p
-        step_1 = time.time()
-        delta = step_1 - step
-        print(f"combining beams {delta} time")
+        # step_1 = time.time()
+        # delta = step_1 - step
+        # print(f"combining beams {delta} time")
 
         out_beams = [(b, p/norm) for b, p in out_beams]
         self.norm = 1

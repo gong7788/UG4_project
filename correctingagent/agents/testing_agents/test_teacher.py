@@ -44,6 +44,7 @@ def test_table_correction_extended():
     assert('no, that is wrong for the same reason' in possible_corrections)
     assert(len(possible_corrections) == 2)
 
+
 def test_tower_correction_extended():
     w = world.PDDLWorld(problem_directory='testing', problem_number=1)
     teacher = ExtendedTeacherAgent()
@@ -112,10 +113,13 @@ def test_tower_correction_extended2():
     assert ("no, put blue blocks on pink blocks" in possible_corrections)
     assert ("no, that is not blue again" in possible_corrections)
     assert (len(possible_corrections) == 2)
-    #
-    # correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
-    # possible_corrections = [language_output for language_output, correction_object in possible_corrections]
-    # assert("no, put blue blocks on pink blocks" in possible_corrections)
-    # assert("no, that is wrong for the same reason" in possible_corrections)
-    # assert("no, that is not blue again" in possible_corrections)
-    # assert(len(possible_corrections) == 3)
+
+def test_failure():
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=1)
+
+    w.update('put', ['b0', 't0', 'tower0'])
+    w.update('put', ['b5', 'b0', 'tower0'])
+
+    assert(w.test_failure())
+

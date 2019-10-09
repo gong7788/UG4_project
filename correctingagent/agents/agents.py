@@ -441,7 +441,7 @@ class CorrectingAgent(Agent):
 
     def sense(self, threshold=0.5):
         observation = self.world.sense()
-        self.problem.initialstate = observation.state.as_pddl()
+        self.problem.initialstate = observation.state.to_formula()
         results = defaultdict(dict)
         for colour, model in self.colour_models.items():
             # these objects include tower locations, which they should not # I don't htink thats true?
@@ -456,9 +456,10 @@ class CorrectingAgent(Agent):
                 results[obj][colour] = p_colour
         results = dict(results)
         self.state = correctingagent.world.rules.State(observation, results, threshold)
-        self.problem.initialstate = self.state.to_formula()
+        self.problem.initialstate = self.state.to_pddl()
 
-        true_colours = get_colours(self.world.sense(obscure=False))
+        true_colours = [(obj, self.world.state.get_colour_name(obj)) for obj in self.world.state.objects]
+        #rue_colours = get_colours(self.world.sense(obscure=False))
         self.tracker.store_colour_accuracy(results, true_colours, threshold, self.goal)
 
         return observation, results
