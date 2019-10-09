@@ -251,7 +251,7 @@ class CorrectingAgent(Agent):
         return plan
 
     def _print_goal(self):
-        print(self.goal.asPDDL())
+        print(self.goal.to_pddl())
 
     def get_correction(self, user_input, action, args, test=False):
         visible = {}
@@ -332,7 +332,7 @@ class CorrectingAgent(Agent):
             self.rule_models[(rule_model.rule_names, message.T)] = rule_model
             self.priors.update(prior_updates)
         self.update_goal()
-        logger.debug(self.goal.asPDDL())
+        logger.debug(self.goal.to_pddl())
         self.world.back_track()
         #self.sense()
 
@@ -371,10 +371,11 @@ class CorrectingAgent(Agent):
         return data_dict
 
     def build_model(self, message):
-        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
+        rules = correctingagent.world.rules.BaseRule.generate_red_on_blue_options(message.o1, message.o2)
+
         #TODO change downstreem to expect Rule class rather than formula
-        rules = [rule.asFormula() for rule in rules]
-        rule_names = tuple(map(lambda x: x.asPDDL(), rules))
+        rules = [rule.to_formula() for rule in rules]
+        rule_names = tuple(map(lambda x: x.to_pddl(), rules))
 
         # If this this rule model already exists, keep using the same
         if (rule_names, message.T) in self.rule_models.keys():
@@ -493,7 +494,7 @@ class RandomAgent(Agent):
     def plan(self):
         self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
         with open('tmp/problem.pddl', 'w') as f:
-            f.write(self.problem.asPDDL())
+            f.write(self.problem.to_pddl())
         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
         return plan
 
@@ -572,7 +573,7 @@ class NoLanguageAgent(CorrectingAgent):
         try:
             return planner.plan()
         except ValueError as e:
-            print(self.goal.asPDDL())
+            print(self.goal.to_pddl())
             raise e
 
     def get_data(self, message, args):

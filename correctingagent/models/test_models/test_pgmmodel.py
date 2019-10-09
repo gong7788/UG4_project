@@ -7,7 +7,7 @@ from correctingagent.world import rules
 def test_cpd_creation_r1():
     red = 'red'
     blue = 'blue'
-    rule = rules.Rule.create_red_on_blue_rule([red], [blue], rule_type=1)
+    rule = rules.RedOnBlueRule(red, blue, rule_type=1)
     time = 1
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
@@ -25,7 +25,7 @@ def test_cpd_creation_r1():
 def test_cpd_creation_r2():
     red = 'red'
     blue = 'blue'
-    rule = rules.Rule.create_red_on_blue_rule([red], [blue], rule_type=2)
+    rule = rules.RedOnBlueRule(red, blue, rule_type=2)
     time = 1
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
@@ -43,7 +43,7 @@ def test_cpd_creation_r2():
 def test_table_cpd_creation_r1():
     red = 'red'
     blue = 'blue'
-    rule = rules.Rule.create_red_on_blue_rule([red], [blue], rule_type=1)
+    rule = rules.RedOnBlueRule([red], [blue], rule_type=1)
     time = 1
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
@@ -71,7 +71,7 @@ def test_table_cpd_creation_r1():
 def test_table_cpd_creation_r2():
     red = 'red'
     blue = 'blue'
-    rule = rules.Rule.create_red_on_blue_rule([red], [blue], rule_type=2)
+    rule = rules.RedOnBlueRule([red], [blue], rule_type=2)
     time = 1
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'

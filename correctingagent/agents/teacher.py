@@ -22,7 +22,7 @@ def table_not_correction(obj1, obj2, obj3):
 def get_rules(goal):
     """Returns the individual rules which make up the goal"""
     for f in goal.subformulas:
-        if "in-tower" not in f.asPDDL():
+        if "in-tower" not in f.to_pddl():
             yield f
 
 def get_name(formula):
@@ -235,7 +235,7 @@ class ExtendedTeacherAgent(TeacherAgent):
 
     def correction(self, wrld, return_possible_corrections=False):
         failure = wrld.test_failure()
-        print('failure?', failure)
+
         if not failure:
             return ""
 
@@ -307,16 +307,6 @@ class ExtendedTeacherAgent(TeacherAgent):
         return possible_sentences
 
     def select_correction(self, possible_sentences):
-        # possible_sentences = []
-        # if self.previous_correction is not None:
-        #     for correction in possible_corrections[:]:
-        #         possible_sentences.append((correction.sentence, correction))
-        #         if self.previous_correction.rule == correction.rule and 'now you cannot put' not in self.previous_correction.sentence and 'now you cannot put' not in correction.sentence:
-        #             possible_sentences.append(("no, that is wrong for the same reason", self.previous_correction))
-        #         if self.correction.rule in self.rules_corrected and 'now you cannot put' not in correction.sentence:
-        #             possible_sentences.append('no')
-        #
-        #             #if self.previous_correction.args[0] == correction.args[0] and len(correction.args[]):
 
         sentence, correction = random.choice(possible_sentences)
 

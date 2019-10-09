@@ -70,9 +70,8 @@ class BlocksWorldProblem(Problem):
 
 def generate_rule(ruledef):
     #TODO make downstream task use Rule rather than formula
-    return correctingagent.world.rules.Rule.generate_red_on_blue_options(
-            ruledef.first_obj, ruledef.second_obj
-        )[int(ruledef.constrained_obj == 'second')].asFormula()
+    return correctingagent.world.rules.RedOnBlueRule(ruledef.first_obj, ruledef.second_obj,
+                                                     rule_type=(1+int(ruledef.constrained_obj == 'second'))).to_formula()
 
 
 if __name__ == '__main__':

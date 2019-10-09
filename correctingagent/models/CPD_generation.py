@@ -1,7 +1,7 @@
 
 import numpy as np
 import re
-from correctingagent.world.rules import Rule
+from correctingagent.world.rules import BaseRule
 from functools import reduce
 
 
@@ -63,13 +63,13 @@ def rule_to_pddl(rule):
     on, (x, y) = get_predicate(rule_split[2])
 
     if x == o1[0] and y == o2[0]:
-        r1, r2 = Rule.generate_red_on_blue_options([red], [blue])
+        r1, r2 = BaseRule.generate_red_on_blue_options([red], [blue])
         # TODO change downstream to expect Rule rather than Formula
-        return r1.asFormula()
+        return r1.to_formula()
     if x == o2[0] and y == o1[0]:
-        r1, r2 = Rule.generate_red_on_blue_options([blue], [red])
+        r1, r2 = BaseRule.generate_red_on_blue_options([blue], [red])
         # TODO change downstream to expect Rule rather than Formula
-        return r2.asFormula()
+        return r2.to_formula()
     else:
         raise ValueError('Should not get here')
 

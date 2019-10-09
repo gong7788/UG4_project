@@ -11,36 +11,32 @@ from correctingagent.pddl import pddl_functions
 from correctingagent.world import goals
 
 
-class Rule(object):
+class BaseRule(object):
 
-    def __init__(self, rule_formula):
-        self.rule_type = Rule.get_rule_type(rule_formula)
-        if self.rule_type == 1:
-            self.c1, self.c2 = Rule.get_rule_colours(rule_formula)
-        elif self.rule_type == 2:
-            self.c2, self.c1 = Rule.get_rule_colours(rule_formula)
-        elif self.rule_type == 3:
-            self.c1, self.c2 = Rule.get_rule_colours_existential(rule_formula)
-        self.constraint = RuleConstraint(self.rule_type, self.c1, self.c2)
-        self.rule_formula = rule_formula
-        if self.rule_type in [1, 2]:
-            self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
-        else:
-            self.name = 'r_not^({},{})'.format(self.c1, self.c2)
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def from_formula(formula):
+        rule_type = BaseRule.get_rule_type(formula)
+        if rule_type == 1:
+            c1, c2 = BaseRule.get_rule_colours(formula)
+            return RedOnBlueRule(c1, c2, rule_type)
+        elif rule_type == 2:
+            c2, c1 = BaseRule.get_rule_colours(formula)
+            return RedOnBlueRule(c1, c2, rule_type)
+        elif rule_type == 3:
+            c1, c2 = BaseRule.get_rule_colours_existential(formula)
+            raise NotImplementedError("Have not implemented not red on blue rules")
 
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
-        if self.rule_type == 1:
-            return f'all x.({self.c1}(x) -> exists y. ({self.c2}(y) & on(x,y)))'
-        elif self.rule_type == 2:
-            return f'all y.({self.c2}(y) -> exists x. ({self.c1}(x) & on(x,y)))'
-        elif self.rule_type == 3:
-            return f"- exists x. exists y. ({self.c1}(x) and {self.c2}(y) and on(x,y))"
+        return self.name
 
     def __eq__(self, other):
-        if isinstance(other, Rule):
+        if isinstance(other, BaseRule):
             return (str(self) == str(other))
         else:
             return False
@@ -51,69 +47,11 @@ class Rule(object):
     def __hash__(self):
         return hash(str(self))
 
-    def asPDDL(self):
-        return self.rule_formula.asPDDL()
+    def to_pddl(self):
+        return self.to_formula().asPDDL()
 
-    def asFormula(self):
+    def to_formula(self):
         return self.rule_formula
-
-    @staticmethod
-    def create_red_on_blue_rule(obj1, obj2, rule_type=None):
-
-        if rule_type == 1:
-            variables = ("?x", "?y")
-        elif rule_type == 2:
-            variables = ("?y", "?x")
-            obj1, obj2 = obj2, obj1
-        else:
-            raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
-
-        variables = pddl_functions.make_variable_list(variables)
-        obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
-        obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
-        on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
-
-        if len(obj1_preds) > 1:
-            obj1_formula = Formula(obj1_preds, op='and')
-        else:
-            obj1_formula = Formula(obj1_preds)
-
-        if len(obj2_preds) > 1:
-            obj2_formula = Formula(obj2_preds, op='and')
-        else:
-            obj2_formula = Formula(obj2_preds)
-
-        second_part = Formula([obj2_formula, on], op='and')
-        existential = Formula([second_part], op='exists',
-                              variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
-        neg_o1 = Formula([obj1_formula], op='not')
-        subformula = Formula([neg_o1, existential], op='or')
-
-        return Rule(Formula([subformula], op='forall',
-                       variables=pddl_functions.make_variable_list([variables.args[0].arg_name])))
-
-    @staticmethod
-    def create_not_red_on_blue_rule(obj1, obj2, variables=("?x", "?y")):
-        variables = pddl_functions.make_variable_list(variables)
-        obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
-        obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
-        on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
-
-        if len(obj1_preds) > 1:
-            obj1_formula = Formula(obj1_preds, op='and')
-        else:
-            obj1_formula = Formula(obj1_preds)
-
-        if len(obj2_preds) > 1:
-            obj2_formula = Formula(obj2_preds, op='and')
-        else:
-            obj2_formula = Formula(obj2_preds)
-
-        conjunction_part = Formula([obj1_formula, obj2_formula, on], op='and')
-        existential = Formula([conjunction_part], op='exists', variables=variables)
-        neg_formula = Formula([existential], op='not')
-
-        return Rule(neg_formula)
 
     @staticmethod
     def get_rule_colours(formula):
@@ -150,12 +88,58 @@ class Rule(object):
 
     @staticmethod
     def get_rules(goal):
-        return [Rule(subformula) for subformula in goal.subformulas[1:]]
+        return [BaseRule(subformula) for subformula in goal.subformulas[1:]]
 
     @staticmethod
-    def generate_red_on_blue_options(red, blue):
-        return[Rule.create_red_on_blue_rule(red, blue, rule_type=1),
-              Rule.create_red_on_blue_rule(red, blue, rule_type=2)]
+    def generate_red_on_blue_options(c1, c2):
+        return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
+
+
+class RedOnBlueRule(BaseRule):
+
+    def __init__(self, c1, c2, rule_type):
+        self.c1 = c1
+        self.c2 = c2
+        self.rule_type = rule_type
+        if self.rule_type == 1:
+            self.name = f'all x.({self.c1}(x) -> exists y. ({self.c2}(y) & on(x,y)))'
+        elif self.rule_type == 2:
+            self.name = f'all y.({self.c2}(y) -> exists x. ({self.c1}(x) & on(x,y)))'
+        self.constraint = RuleConstraint(rule_type, c1, c2)
+
+    def to_formula(self):
+        if self.rule_type == 1:
+            variables = ("?x", "?y")
+            obj1, obj2 = [self.c1], [self.c2]
+        elif self.rule_type == 2:
+            variables = ("?y", "?x")
+            obj1, obj2 = [self.c2], [self.c1]
+        else:
+            raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {self.rule_type}')
+
+        variables = pddl_functions.make_variable_list(variables)
+        obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
+        obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
+        on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
+
+        if len(obj1_preds) > 1:
+            obj1_formula = Formula(obj1_preds, op='and')
+        else:
+            obj1_formula = Formula(obj1_preds)
+
+        if len(obj2_preds) > 1:
+            obj2_formula = Formula(obj2_preds, op='and')
+        else:
+            obj2_formula = Formula(obj2_preds)
+
+        second_part = Formula([obj2_formula, on], op='and')
+        existential = Formula([second_part], op='exists',
+                              variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
+        neg_o1 = Formula([obj1_formula], op='not')
+        subformula = Formula([neg_o1, existential], op='or')
+
+        return Formula([subformula], op='forall',
+                       variables=pddl_functions.make_variable_list([variables.args[0].arg_name]))
 
     def generate_CPD(self):
         cpd_line_corr0 = []
@@ -188,12 +172,11 @@ class Rule(object):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
 
-
         for redo1 in range(2):
             for blueo2 in range(2):
                 for redo3 in range(2):
                     for blueo3 in range(2):
-                        for r1 in range(2): # rule 1 or 0
+                        for r1 in range(2):  # rule 1 or 0
                             if self.rule_type == 1:
                                 result = r1 * int(not (redo1) and blueo2 and redo3)
                             elif self.rule_type == 2:
@@ -201,6 +184,199 @@ class Rule(object):
                             cpd_line_corr1.append(result)
                             cpd_line_corr0.append(1 - result)
         return [cpd_line_corr0, cpd_line_corr1]
+
+
+#
+# class Rule(object):
+#
+#     def __init__(self, rule_formula):
+#         self.rule_type = Rule.get_rule_type(rule_formula)
+#         if self.rule_type == 1:
+#             self.c1, self.c2 = Rule.get_rule_colours(rule_formula)
+#         elif self.rule_type == 2:
+#             self.c2, self.c1 = Rule.get_rule_colours(rule_formula)
+#         elif self.rule_type == 3:
+#             self.c1, self.c2 = Rule.get_rule_colours_existential(rule_formula)
+#         self.constraint = RuleConstraint(self.rule_type, self.c1, self.c2)
+#         self.rule_formula = rule_formula
+#         if self.rule_type in [1, 2]:
+#             self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
+#         else:
+#             self.name = 'r_not^({},{})'.format(self.c1, self.c2)
+#
+#     def __repr__(self):
+#         return self.__str__()
+#
+#     def __str__(self):
+#         if self.rule_type == 1:
+#             return f'all x.({self.c1}(x) -> exists y. ({self.c2}(y) & on(x,y)))'
+#         elif self.rule_type == 2:
+#             return f'all y.({self.c2}(y) -> exists x. ({self.c1}(x) & on(x,y)))'
+#         elif self.rule_type == 3:
+#             return f"- exists x. exists y. ({self.c1}(x) and {self.c2}(y) and on(x,y))"
+#
+#     def __eq__(self, other):
+#         if isinstance(other, Rule):
+#             return (str(self) == str(other))
+#         else:
+#             return False
+#
+#     def __ne__(self, other):
+#         return (not self.__eq__(other))
+#
+#     def __hash__(self):
+#         return hash(str(self))
+#
+#     def to_pddl(self):
+#         return self.rule_formula.asPDDL()
+#
+#     def to_formula(self):
+#         return self.rule_formula
+#
+#     @staticmethod
+#     def create_red_on_blue_rule(obj1, obj2, rule_type=None):
+#
+#         if rule_type == 1:
+#             variables = ("?x", "?y")
+#         elif rule_type == 2:
+#             variables = ("?y", "?x")
+#             obj1, obj2 = obj2, obj1
+#         else:
+#             raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
+#
+#         variables = pddl_functions.make_variable_list(variables)
+#         obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
+#         obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
+#         on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
+#
+#         if len(obj1_preds) > 1:
+#             obj1_formula = Formula(obj1_preds, op='and')
+#         else:
+#             obj1_formula = Formula(obj1_preds)
+#
+#         if len(obj2_preds) > 1:
+#             obj2_formula = Formula(obj2_preds, op='and')
+#         else:
+#             obj2_formula = Formula(obj2_preds)
+#
+#         second_part = Formula([obj2_formula, on], op='and')
+#         existential = Formula([second_part], op='exists',
+#                               variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
+#         neg_o1 = Formula([obj1_formula], op='not')
+#         subformula = Formula([neg_o1, existential], op='or')
+#
+#         return Rule(Formula([subformula], op='forall',
+#                        variables=pddl_functions.make_variable_list([variables.args[0].arg_name])))
+#
+#     @staticmethod
+#     def create_not_red_on_blue_rule(obj1, obj2, variables=("?x", "?y")):
+#         variables = pddl_functions.make_variable_list(variables)
+#         obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
+#         obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
+#         on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
+#
+#         if len(obj1_preds) > 1:
+#             obj1_formula = Formula(obj1_preds, op='and')
+#         else:
+#             obj1_formula = Formula(obj1_preds)
+#
+#         if len(obj2_preds) > 1:
+#             obj2_formula = Formula(obj2_preds, op='and')
+#         else:
+#             obj2_formula = Formula(obj2_preds)
+#
+#         conjunction_part = Formula([obj1_formula, obj2_formula, on], op='and')
+#         existential = Formula([conjunction_part], op='exists', variables=variables)
+#         neg_formula = Formula([existential], op='not')
+#
+#         return Rule(neg_formula)
+#
+#     @staticmethod
+#     def get_rule_colours(formula):
+#         """This function only works if the formula has 2 colours
+#         (one before and one after the arrow)
+#         To allow for more than one object on either side of the rule more logic must be added"""
+#         c1, right = formula.subformulas[0].subformulas
+#         c1 = c1.get_predicates(False)[0]
+#         c1 = c1.get_predicates(True)[0]
+#         c1 = c1.name
+#         c2 = right.subformulas[0].subformulas[0].get_predicates(True)[0].name
+#         return c1, c2
+#
+#     @staticmethod
+#     def get_rule_colours_existential(formula):
+#         """This function only works if the formula has 2 colours
+#         (one before and one after the arrow)
+#         To allow for more than one object on either side of the rule more logic must be added"""
+#         and_formula = formula.subformulas[0].subformulas[0]
+#         c1 = and_formula.subformulas[0].get_predicates(True)[0].name
+#         c2 = and_formula.subformulas[1].get_predicates(True)[0].name
+#         return c1, c2
+#
+#     @staticmethod
+#     def get_rule_type(formula):
+#         if formula.op == 'not':
+#             return 3
+#         elif formula.variables.to_pddl() == '?x':
+#             return 1
+#         elif formula.variables.to_pddl() == '?y':
+#             return 2
+#         else:
+#             raise ValueError('Unknown Rule Type')
+#
+#     @staticmethod
+#     def get_rules(goal):
+#         return [Rule(subformula) for subformula in goal.subformulas[1:]]
+#
+#     @staticmethod
+#     def generate_red_on_blue_options(red, blue):
+#         return[Rule.create_red_on_blue_rule(red, blue, rule_type=1),
+#               Rule.create_red_on_blue_rule(red, blue, rule_type=2)]
+#
+#     def generate_CPD(self):
+#         cpd_line_corr0 = []
+#         cpd_line_corr1 = []
+#         for i in range(2):
+#             for j in range(2):
+#                 for r in range(2):
+#                     result = r * (1 - int(self.evaluate_rule(i, j)))
+#                     cpd_line_corr1.append(result)
+#                     cpd_line_corr0.append(1 - result)
+#
+#         return [cpd_line_corr0, cpd_line_corr1]
+#
+#     def evaluate_rule(self, value1, value2):
+#         c1_set = set()
+#         c2_set = set()
+#         if value1 == 1:
+#             c1_set.add('o1')
+#         if value2 == 1:
+#             c2_set.add('o2')
+#         v = [(self.c1, c1_set), (self.c2, c2_set),
+#              ('on', set([('o1', 'o2')]))]
+#         val = Valuation(v)
+#         dom = val.domain
+#         m = Model(dom, val)
+#         g = nltk.sem.Assignment(dom)
+#         return m.evaluate(str(self), g)
+#
+#     def generate_table_cpd(self):
+#         cpd_line_corr0 = []
+#         cpd_line_corr1 = []
+#
+#
+#         for redo1 in range(2):
+#             for blueo2 in range(2):
+#                 for redo3 in range(2):
+#                     for blueo3 in range(2):
+#                         for r1 in range(2): # rule 1 or 0
+#                             if self.rule_type == 1:
+#                                 result = r1 * int(not (redo1) and blueo2 and redo3)
+#                             elif self.rule_type == 2:
+#                                 result = r1 * int(redo1 and not (blueo2) and blueo3)
+#                             cpd_line_corr1.append(result)
+#                             cpd_line_corr0.append(1 - result)
+#         return [cpd_line_corr0, cpd_line_corr1]
 
 
 class RuleConstraint(object):

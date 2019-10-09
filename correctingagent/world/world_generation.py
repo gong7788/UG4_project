@@ -35,7 +35,7 @@ def generate_dataset(N, rules, directory, colour_dict=colour_dict):
         colours = sample_colours(10, colour_dict=colour_dict)
         with open('tmp/generation.pddl', 'w') as f:
             problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules)
-            f.write(problem.asPDDL())
+            f.write(problem.to_pddl())
 
         w = world.PDDLWorld('blocks-domain.pddl', 'tmp/generation.pddl')
         if not w.test_failure():
@@ -179,7 +179,7 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             colours = generate_from_colour_count(rules, cc)
 
         with open('../data/tmp/generation.pddl', 'w') as f:
-            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).asPDDL()
+            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).to_pddl()
             f.write(problem)
         w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
         if not w.test_failure():
@@ -214,7 +214,10 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
     rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
     while not rules_consistent(rules):
         rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
-    num_datasets = len(os.listdir(top_path))
+    try:
+        num_datasets = len(os.listdir(top_path))
+    except FileNotFoundError:
+        num_datasets = 0
     while num_datasets < N_datasets:
 
         dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, num_datasets))

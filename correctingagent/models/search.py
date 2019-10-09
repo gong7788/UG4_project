@@ -3,7 +3,7 @@ import heapq
 import copy
 from pathlib import Path
 
-from correctingagent.world.rules import Rule, ConstraintCollection, State
+from correctingagent.world.rules import ConstraintCollection, State, BaseRule
 from correctingagent.world import goals
 from ..pddl import pddl_functions
 from ..pddl.ff import NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError
@@ -18,8 +18,8 @@ data_location = c['data_location']
 class ActiveLearningTest(object):
 
     def __init__(self, rule1, rule2, data, c3_model, c2_obj, w=None):
-        self.rule1 = Rule(rule1)
-        self.rule2 = Rule(rule2)
+        self.rule1 = BaseRule.from_formula(rule1)
+        self.rule2 = BaseRule.from_formula(rule2)
         self.failed = False
         results = {}
 
@@ -41,7 +41,7 @@ class Planner(object):
         data_location = Path(c['data_location'])
         self.use_metric_ff = use_metric_ff
         self.current_state = State(obs, colour_choices)
-        rules = Rule.get_rules(goal)
+        rules = BaseRule.get_rules(goal)
         self.constraints = ConstraintCollection.from_rules(rules)
         self.searched_states = {tuple(self.current_state.state)}
         self.domain_file = data_location / 'domain' / domain_file
@@ -71,7 +71,7 @@ class Planner(object):
             self.problem.initialstate = self.current_state.to_pddl()
 
             with open(self.search_file, 'w') as f:
-                f.write(self.problem.asPDDL())
+                f.write(self.problem.to_pddl())
             try:
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
                 return plan
@@ -156,7 +156,7 @@ class NoLanguagePlanner(Planner):
             self.problem.initialstate = self.current_state.to_pddl()
             # print(test_goal.asPDDL())
             with open(self.search_file, 'w') as f:
-                f.write(self.problem.asPDDL())
+                f.write(self.problem.to_pddl())
             try:
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
             except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):

@@ -368,7 +368,7 @@ class Conditional(object):
         return formula
 
     def to_pddl(self):
-        return self.to_formula().asPDDL()
+        return self.to_formula().to_pddl()
 
     def __str__(self):
         return self.to_pddl()

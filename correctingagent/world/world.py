@@ -110,7 +110,7 @@ class PDDLWorld(World):
     def to_pddl(self):
         problem = self.problem
         problem.initialstate = self.state.to_formula()
-        problem_pddl = problem.asPDDL()
+        problem_pddl = problem.to_pddl()
         with open(self.tmp_file, 'w') as f:
             f.write(problem_pddl)
         return self.domain_file, self.tmp_file

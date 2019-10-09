@@ -6,6 +6,8 @@ from correctingagent.world import goals
 from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
+
+from correctingagent.world.rules import BaseRule
 from .teacher import get_rules, get_relevant_colours
 from correctingagent.models.CPD_generation import *
 
@@ -80,7 +82,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         for rule, p in rule_probs.items():
 
             if p > 0.5:
-                rules.append(rule.asFormula())
+                rules.append(rule.to_formula())
                 if self.debug['show_rules']:
                     print(f'Added rule {rule} to goal')
 
@@ -223,7 +225,7 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         most_likely_violation = max(q, key=q.get)
         c1, c2, rule_type = get_violation_type(most_likely_violation)
-        rules = Rule.generate_red_on_blue_options([c1], [c2])
+        rules = BaseRule.generate_red_on_blue_options([c1], [c2])
 
         if rule_type == 'r1':
             if message.T == 'tower':
@@ -279,14 +281,14 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def build_same_reason(self, message, args, prev_time):
         violations = self.build_pgm_model(message, args)
-        rules = Rule.generate_red_on_blue_options(message.o1, message.o2)
+        rules = BaseRule.generate_red_on_blue_options(message.o1, message.o2)
         previous_violations = [f'V_{prev_time}({str(rule)})' for rule in rules]
         self.pgm_model.add_same_reason(violations, previous_violations)
         return violations
 
     def build_pgm_model(self, message, args):
 
-        rules = Rule.generate_red_on_blue_options(message.o1, message.o2)
+        rules = BaseRule.generate_red_on_blue_options(message.o1, message.o2)
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
@@ -297,17 +299,17 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         return violations
 
-    def build_neg_model(self, message, args):
-        rule = Rule.create_not_red_on_blue_rule(message.o1, message.o2)
-
-        red_cm = self.add_cm(message.o1[0])
-        blue_cm = self.add_cm(message.o2[0])
-
-        if message.T == 'neg':
-            violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args, self.time, table_correction=False)
-        if message.T == 'table.neg':
-            violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args + [message.o3], self.time, table_correction=True)
-        return violations
+    # def build_neg_model(self, message, args):
+    #     rule = Rule.create_not_red_on_blue_rule(message.o1, message.o2)
+    #
+    #     red_cm = self.add_cm(message.o1[0])
+    #     blue_cm = self.add_cm(message.o2[0])
+    #
+    #     if message.T == 'neg':
+    #         violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args, self.time, table_correction=False)
+    #     if message.T == 'table.neg':
+    #         violations = self.pgm_model.extend_model(rule, red_cm, blue_cm, args + [message.o3], self.time, table_correction=True)
+    #     return violations
 
     def get_colour_data(self, args):
         observation = self.world.sense()
@@ -349,7 +351,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
 
                 red_cm = self.add_cm(c1)
                 blue_cm = self.add_cm(c2)
-                rules = Rule.generate_red_on_blue_options(c1, c2)
+                rules = BaseRule.generate_red_on_blue_options(c1, c2)
 
                 self.pgm_model.add_rules(rules, red_cm, blue_cm)
 

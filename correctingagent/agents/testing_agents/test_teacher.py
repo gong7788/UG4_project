@@ -123,3 +123,5 @@ def test_failure():
 
     assert(w.test_failure())
 
+def test_rule_violated():
+    pass
