@@ -199,7 +199,7 @@ class PGMModel(object):
 
             violations.append(Vrule)
 
-        corr = self.add_correction_factor(violations, time)
+        self.add_correction_factor(violations, time)
 
         return violations
 
@@ -214,7 +214,7 @@ class PGMModel(object):
             blue = rule.c2
             violations.append(self.add_table_violation(rule, self.colours[red], self.colours[blue], args, time))
 
-        corr = self.add_correction_factor(violations, time)
+        self.add_correction_factor(violations, time)
 
         return violations
 
@@ -270,7 +270,7 @@ class PGMModel(object):
 
         violated_r1 = self.add_violation_factor(r1, time, colour_models, table_correction=table_correction)
         violated_r2 = self.add_violation_factor(r2, time, colour_models, table_correction=table_correction)
-        corr = self.add_correction_factor([violated_r1, violated_r2], time)
+        self.add_correction_factor([violated_r1, violated_r2], time)
 
         return violated_r1, violated_r2
 
@@ -345,8 +345,8 @@ class PGMModel(object):
 
         correction_table = variable_or_CPD(1)
 
-        Vrule = 'V_{}({})'.format(time, rule)
-        corr = 'corr_{}'.format(time)
+        Vrule = f'V_{time}({rule})'
+        corr = f'corr_{time}'
 
         rule_violated = TabularCPD(Vrule, 2, rule_violation_CPD, evidence=[red_o1, blue_o2, rule], evidence_card=[2, 2, 2])
         rule_violated_factor = rule_violated.to_factor()
@@ -370,8 +370,8 @@ class PGMModel(object):
         rule_cpd = generate_neg_table_cpd()
         correction_table = variable_or_CPD(1)
 
-        Vrule = 'V_{}({})'.format(time, rule)
-        corr = 'corr_{}'.format(time)
+        Vrule = f'V_{time}({rule})'
+        corr = f'corr_{time}'
 
         rule_evidence = [rule, blue_o1, red_o3]
         rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])

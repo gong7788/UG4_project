@@ -4,10 +4,12 @@ from collections import defaultdict
 
 import nltk
 import numpy as np
+import pythonpddl
 from nltk import Valuation, Model
 from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
 from correctingagent.pddl import pddl_functions
+from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState
 from correctingagent.world import goals
 
 
@@ -95,9 +97,69 @@ class Rule(object):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
 
+
+
+class ColourCountRule(Rule):
+
+    def __init__(self, colour_name: str, count: int):
+        self.colour_name = colour_name
+        self.number = count
+        self.name = f"all t. tower(t) -> {colour_name}-count >= {count}"
+
+    @staticmethod
+    def from_formula(formula: Formula):
+        assert(formula.op == 'forall')
+        or_formula = formula.subformulas[0]
+        left, right = or_formula.subformulas
+        colour_counter_name, count = right.subformulas
+        colour_name = colour_counter_name.name.split('-')[0]
+        count = count.val
+        return ColourCountRule(colour_name, count)
+
+    def to_formula(self):
+        args = make_variable_list(['?t'])
+        colour_count_head = pythonpddl.pddl.FHead(f'{self.colour_name}-count', args)
+        count_value = pythonpddl.pddl.ConstantNumber(self.number)
+
+        left = Formula([colour_count_head, count_value], op='<=')
+
+        tower_pred = Predicate("tower", args)
+        tower = Formula([tower_pred])
+        right = Formula([tower], op='not')
+        or_formula = Formula([right, left], op='or')
+        return Formula([or_formula], op='forall', variables=args)
+
+    def check_tower_violation(self, state: PDDLState):
+        for tower in state.towers:
+            tower = tower.replace('t', 'tower')
+            cc = state.get_colour_count(self.colour_name, tower)
+            if cc > self.number:
+                return True
+        return False
+
+    def check_table_violation(self, state: PDDLState, rules: list):
+        for tower in state.towers:
+            tower = tower.replace('t', 'tower')
+            if state.get_colour_count(self.colour_name, tower) == self.number:
+                for rule in rules:
+                    try:
+                        top, _ = state.get_top_two(tower)
+                        if rule.c1 == self.colour_name and state.predicate_holds(rule.c2, [top]):
+                            if rule.rule_type == 2:
+                                return True
+                            else:
+                                first_colour_count = state.count_coloured_blocks(rule.c1)
+                                second_colour_count = state.count_coloured_blocks(rule.c2)
+                                if first_colour_count == second_colour_count + 1:
+                                    return True
+                    except AttributeError:
+                        continue
+        return False
+
+
 class RedOnBlueRule(Rule):
 
-    def __init__(self, c1, c2, rule_type):
+    def __init__(self, c1: str, c2: str, rule_type: int):
         self.c1 = c1
         self.c2 = c2
         self.rule_type = rule_type
@@ -153,7 +215,7 @@ class RedOnBlueRule(Rule):
 
         return [cpd_line_corr0, cpd_line_corr1]
 
-    def evaluate_rule(self, value1, value2):
+    def evaluate_rule(self, value1: int, value2: int):
         c1_set = set()
         c2_set = set()
         if value1 == 1:
@@ -230,10 +292,10 @@ class RedOnBlueRule(Rule):
         number_additional_top_objects = sum([state.count_coloured_blocks(colour) for colour in additional_top_constrained_objects])
 
         # put red(x) -> blue(y) on(x,y) is table violated only in this case:
-        if not top_object_is_red and second_object_is_blue and self.rule_type == 1:
+        if not top_object_is_red and second_object_is_blue and self.rule_type == 1 and number_red_blocks > 0:
             if (number_red_blocks + number_additional_top_objects) > number_blue_blocks:
                 return True
-        if top_object_is_red and not second_object_is_blue and self.rule_type == 2:
+        if top_object_is_red and not second_object_is_blue and self.rule_type == 2 and number_blue_blocks > 0:
             if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
                 return True
         return False

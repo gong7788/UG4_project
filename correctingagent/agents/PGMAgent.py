@@ -286,14 +286,15 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def build_pgm_model(self, message, args):
 
-        rules = Rule.generate_red_on_blue_options(message.o1, message.o2)
+        rules = Rule.generate_red_on_blue_options(message.o1[0], message.o2[0])
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
-        if message.T == 'table':
+        is_table_correction = message.T == 'table'
+        if is_table_correction:
             args += [message.o3]
 
-        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args + [message.o3], self.time, table_correction=(message.T == 'table'))
+        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time, table_correction=is_table_correction)
 
         return violations
 

@@ -1,7 +1,10 @@
 import pytest
 from pgmpy.factors.discrete import TabularCPD
 
+from correctingagent.models.pgmmodels import PGMModel, Rule
+from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.world import rules
+from correctingagent.world.rules import RedOnBlueRule
 
 
 def test_cpd_creation_r1():
@@ -94,3 +97,60 @@ def test_table_cpd_creation_r2():
 
     assert (cpd.p({'red(o1)': 0, 'blue(o2)': 1, 'red(o3)': 0, 'blue(o3)': 0,
                    rule: 1, violated_rule_factor_name: 1}) == 0.0)
+
+
+def test_add_cm():
+    pgm_model = PGMModel()
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    red_b3 = pgm_model.add_cm(red_cm, 'b3')
+    blue_t0 = pgm_model.add_cm(blue_cm, 't0')
+
+    assert(red_b3 == 'red(b3)')
+    assert(blue_t0 == 'blue(t0)')
+
+    pgm_model.observe({'F(b3)':[1,1,1], 'blue(t0)':0})
+    pgm_model.infer()
+
+    query = pgm_model.query(['red(b3)'], [1])
+    assert(query['red(b3)'] == 0.5)
+
+    rule = RedOnBlueRule('red', 'blue', 1)
+
+    pgm_model.add_prior(str(rule))
+
+    assert(pgm_model.get_rule_prior(str(rule)) == 0.01)
+
+
+def test_extend_model():
+    pgm_model = PGMModel()
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+    time = 0
+    red_on_blue_rules = Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, table_correction=False)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    q = pgm_model.query(violations, [1, 1])
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+
+def test_extend_model_table():
+    pgm_model = PGMModel()
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+    time = 0
+    red_on_blue_rules = Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2', 'b4'], time, table_correction=True)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1, 'F(b4)':[0.5, 0.5, 0.5]})
+    q = pgm_model.query(violations, [1, 1])
+    assert((q[violations[0]] - 0.5) < 0.001)
+    assert((q[violations[1]] - 0.5) < 0.001)
