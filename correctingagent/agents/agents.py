@@ -371,7 +371,7 @@ class CorrectingAgent(Agent):
         return data_dict
 
     def build_model(self, message):
-        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1, message.o2)
+        rules = correctingagent.world.rules.Rule.generate_red_on_blue_options(message.o1[0], message.o2[0])
 
         #TODO change downstreem to expect Rule class rather than formula
         rules = [rule.to_formula() for rule in rules]
