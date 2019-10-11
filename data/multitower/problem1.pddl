@@ -31,7 +31,7 @@
 		(red b1)
 		(orange b2)
 		(yellow b3)
-		(red b4)
+		(pink b4)
 		(blue b5)
 		(orange b6)
 		(lightyellow b7)
@@ -64,7 +64,6 @@
 	(:goal (and
 						(forall (?x) (done ?x))
 						(forall (?t) (or (not (tower ?t)) (<= (blue-count ?t) 1)))
-						(forall (?y) (or (not (red ?y)) (exists (?x) (and (blue ?x) (on ?x ?y)))))
 					)
 	)
 )

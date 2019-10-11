@@ -1,4 +1,5 @@
-from correctingagent.world.rules import Rule
+from correctingagent.world import World, PDDLWorld
+from correctingagent.world.rules import Rule, RedOnBlueRule, ColourCountRule
 from ..pddl import pddl_functions
 from collections import namedtuple
 import random
@@ -92,11 +93,53 @@ class TeacherAgent(Teacher):
                 return "no"
 
 
-Correction = namedtuple('Correction', ['rule', 'c1', 'c2', 'args', 'sentence'])
+Correction = namedtuple('Correction', ['rule', 'args', 'sentence'])
 
 
 class BaseRule(object):
     pass
+
+
+def get_tower_correction(rule: Rule, wrld: PDDLWorld):
+    if isinstance(rule, RedOnBlueRule):
+        o1, o2 = wrld.state.get_top_two()
+        return Correction(rule, [o1, o2], tower_correction(rule.c1, rule.c2))
+    elif isinstance(rule, ColourCountRule):
+        correction_str = f"no, do not put more than {rule.number} {rule.colour_name} blocks in a tower"
+        for tower in wrld.state.towers:
+            tower = tower.replace('t', 'tower')
+            if wrld.state.get_colour_count(rule.colour_name, tower) > rule.number:
+                out_tower = tower
+        return Correction(rule, [out_tower], correction_str)
+
+
+def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None):
+    if isinstance(rule, RedOnBlueRule):
+
+        if rule.rule_type == 1:
+            o3 = wrld.state.get_block_with_colour(rule.c1)
+        else:
+            o3 = wrld.state.get_block_with_colour(rule.c2)
+
+        o1, o2 = wrld.state.get_top_two()
+
+        corr = Correction(rule, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
+        return corr
+    elif isinstance(rule, ColourCountRule):
+        for tower in wrld.state.towers:
+            tower = tower.replace('t', 'tower')
+            if wrld.state.get_colour_count(rule.colour_name, tower):
+
+                for rule2 in rules:
+                    if isinstance(rule2, RedOnBlueRule):
+                        top, _ = wrld.state.get_top_two(tower)
+                        if rule2.c1 == rule.colour_name and wrld.state.predicate_holds(rule2.c2, [top]):
+                            correction_str1 = f"no, you cannot put more than {rule.number} {rule.colour_name} blocks in a tower"
+                            correction_str2 = f"you must put {rule2.c1} blocks on {rule2.c2} blocks"
+                            correction_str = correction_str1 + ' and ' + correction_str2
+                            corr = Correction(rule, [tower], correction_str)
+                            return corr
+
 
 
 class ExtendedTeacherAgent(TeacherAgent):
@@ -122,28 +165,16 @@ class ExtendedTeacherAgent(TeacherAgent):
         for rule in rules:
 
             if rule.check_tower_violation(wrld.state):
-                # c1, c2, impl = get_relevant_colours(r)
-                o1, o2 = wrld.state.get_top_two()
-                # if impl == 'not':
-                #     corr = Correction(r, c1, c2, [o1, o2], not_correction(c1, c2))
-                #     possible_corrections.append(corr)
-                # else:
-                corr = Correction(rule, rule.c1, rule.c2, [o1, o2], tower_correction(rule.c1, rule.c2))
+
+                corr = get_tower_correction(rule, wrld)
+
                 possible_corrections.append(corr)
 
         for rule in rules:
             if rule.check_table_violation(wrld.state, rules):
-                if rule.rule_type == 1:
-                    o3 = wrld.state.get_block_with_colour(rule.c1)
-                else:
-                    o3 = wrld.state.get_block_with_colour(rule.c2)
-                #c1, c2, impl = get_relevant_colours(r)
-                o1, o2 = wrld.state.get_top_two()
-                # if impl == 'not':
-                #     corr = Correction(r, c1, c2, [o1, o2], table_not_correction(c1, c2, o3))
-                #     possible_corrections.append(corr)
-                # else:
-                corr = Correction(rule, rule.c1, rule.c2, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
+
+                corr = get_table_correction(rule, wrld, rules)
+
                 possible_corrections.append(corr)
 
         possible_corrections = self.generate_possible_corrections(possible_corrections, wrld)
@@ -153,7 +184,7 @@ class ExtendedTeacherAgent(TeacherAgent):
         else:
             return selection
 
-    def generate_possible_corrections(self, violations, wrld):
+    def generate_possible_corrections(self, violations: list, wrld: PDDLWorld):
 
         possible_sentences = []
         for correction in violations:
@@ -162,23 +193,23 @@ class ExtendedTeacherAgent(TeacherAgent):
                 if "now you cannot put" not in correction.sentence:
                     for previous_corr in self.dialogue_history[::-1]:
                         if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence:
-                            colours = [previous_corr.c1, previous_corr.c2]
-                            if correction.c1 in colours or correction.c2 in colours:
+                            colours = [previous_corr.rule.c1, previous_corr.rule.c2]
+                            if correction.rule.c1 in colours or correction.rule.c2 in colours:
 
-                                if correction.c1 == colours[0]:
+                                if correction.rule.c1 == colours[0]:
                                     current_colour = wrld.state.get_colour_name(correction.args[0])
                                     prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
-                                    if current_colour != correction.c1 and prev_colour != correction.c1:
-                                        possible_sentences.append(('no, that is not {} again'.format(correction.c1), correction))
-                                if correction.c2 == colours[1]:
+                                    if current_colour != correction.rule.c1 and prev_colour != correction.rule.c1:
+                                        possible_sentences.append((f'no, that is not {correction.rule.c1} again', correction))
+                                if correction.rule.c2 == colours[1]:
                                     current_colour = wrld.state.get_colour_name(correction.args[1])
                                     prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
-                                    if current_colour != correction.c2 and prev_colour != correction.c2:
-                                        possible_sentences.append(('no, that is not {} again'.format(correction.c2), correction))
+                                    if current_colour != correction.rule.c2 and prev_colour != correction.rule.c2:
+                                        possible_sentences.append((f'no, that is not {correction.rule.c2} again', correction))
                                 break
                         elif 'now you cannot put' in previous_corr.sentence:
-                            colours = [previous_corr.c1, previous_corr.c2]
-                            if correction.c1 in colours or correction.c2 in colours:
+                            colours = [previous_corr.rule.c1, previous_corr.rule.c2]
+                            if correction.rule.c1 in colours or correction.rule.c2 in colours:
                                 break
 
                 if self.previous_correction.sentence == correction.sentence:
@@ -192,7 +223,7 @@ class ExtendedTeacherAgent(TeacherAgent):
 
         sentence, correction = random.choice(possible_sentences)
 
-        new_correction = Correction(correction.rule, correction.c1, correction.c2, correction.args, sentence)
+        new_correction = Correction(correction.rule, correction.args, sentence)
         self.previous_correction = new_correction
         self.dialogue_history.append(new_correction)
         try:

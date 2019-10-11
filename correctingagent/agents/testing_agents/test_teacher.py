@@ -14,6 +14,7 @@ def test_tower_correction():
 
     assert(teacher.correction(w) == "no, put blue blocks on pink blocks")
 
+
 def test_table_correction():
     w = world.PDDLWorld(problem_directory='testing', problem_number=1)
     teacher = TeacherAgent()
@@ -114,6 +115,7 @@ def test_tower_correction_extended2():
     assert ("no, that is not blue again" in possible_corrections)
     assert (len(possible_corrections) == 2)
 
+
 def test_failure():
     w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
                         problem_directory="multitower", problem_number=1)
@@ -123,5 +125,35 @@ def test_failure():
 
     assert(w.test_failure())
 
+
 def test_rule_violated():
-    pass
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=1)
+
+    w.update('put', ['b0', 't0', 'tower0'])  # blue
+    w.update('put', ['b5', 'b0', 'tower0'])  # blue
+
+    teacher = ExtendedTeacherAgent()
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert('no, do not put more than 1 blue blocks in a tower' in possible_corrections)
+
+
+def test_rule_violated_table():
+
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl', problem_directory='multitower', problem_number=3)
+
+    w.update('put', ['b4', 't0', 'tower0'])  # red
+    w.update('put', ['b0', 'b4', 'tower0'])  # blue
+    w.update('put', ['b1', 'b0', 'tower0'])  # red
+
+    teacher = ExtendedTeacherAgent()
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert ('no, you cannot put more than 1 blue blocks in a tower and you must put blue blocks on red blocks' in possible_corrections)
+
+

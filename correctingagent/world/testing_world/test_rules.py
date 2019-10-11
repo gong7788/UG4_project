@@ -19,10 +19,10 @@ def test_get_all_relevant_colours():
      r1 = RedOnBlueRule('red', 'blue', 2)
      r2 = RedOnBlueRule('red', 'green', 2)
 
-
      abc, atc = r1.get_all_relevant_colours([r2])
      assert(abc == ['green'])
      assert(atc == [])
+
 
 def test_get_all_relevant_colours2():
      r3 = RedOnBlueRule('red', 'green', 1)
@@ -30,6 +30,7 @@ def test_get_all_relevant_colours2():
      abc, atc = r3.get_all_relevant_colours([r4])
      assert(abc == [])
      assert(atc == ['pink'])
+
 
 def test_tower_correction():
     w = world.PDDLWorld(problem_directory='testing', problem_number=1)
@@ -71,6 +72,13 @@ def test_colour_count_parse():
     assert(rule.asPDDL() == r.to_formula().asPDDL())
     assert(rule.asPDDL() == r.asPDDL())
 
+    r = Rule.from_formula(rule)
+    assert(r.colour_name == 'blue')
+    assert(r.number == 1)
+    assert(rule.asPDDL() == r.to_formula().asPDDL())
+    assert(rule.asPDDL() == r.asPDDL())
+
+
 def test_colour_count_violation():
     w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl', problem_directory='multitower', problem_number=1)
 
@@ -83,7 +91,6 @@ def test_colour_count_violation():
     w.back_track()
     w.update('put', ['b5', 't1', 'tower1'])
     assert(rule.check_tower_violation(w.state) is False)
-
 
 
 def test_table_correction_doesnt_overinfer():
@@ -129,5 +136,5 @@ def test_colour_count_table_violation2():
 
     assert(rule.check_table_violation(w.state, [rule2]) is True)
     w.back_track()
-    w.update('put', ['b1', 't1', 'tower1'])
+    w.update('put', ['b1', 't1', 'tower1'])  # red
     assert(rule.check_table_violation(w.state, [rule2]) is False)

@@ -30,6 +30,8 @@ class Rule(object):
         elif rule_type == 3:
             c1, c2 = Rule.get_rule_colours_existential(formula)
             raise NotImplementedError("Have not implemented not red on blue rules")
+        elif rule_type == 4:
+            return ColourCountRule.from_formula(formula)
 
     def __repr__(self):
         return self.__str__()
@@ -85,6 +87,8 @@ class Rule(object):
             return 1
         elif formula.variables.asPDDL() == '?y':
             return 2
+        elif formula.variables.asPDDL() == '?t':
+            return 4
         else:
             raise ValueError('Unknown Rule Type')
 
@@ -97,13 +101,11 @@ class Rule(object):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
 
-
-
 class ColourCountRule(Rule):
 
     def __init__(self, colour_name: str, count: int):
         self.colour_name = colour_name
-        self.number = count
+        self.number = int(count)
         self.name = f"all t. tower(t) -> {colour_name}-count >= {count}"
 
     @staticmethod
@@ -280,7 +282,8 @@ class RedOnBlueRule(Rule):
 
     def check_table_violation(self, state, additional_rules=[]):
         top_object, second_object = state.get_top_two()
-        additional_bottom_constrained_objects, additional_top_constrained_objects = self.get_all_relevant_colours(additional_rules)
+        additional_relevant_rules = [rule for rule in additional_rules if isinstance(rule, RedOnBlueRule)]
+        additional_bottom_constrained_objects, additional_top_constrained_objects = self.get_all_relevant_colours(additional_relevant_rules)
 
         top_object_is_red = state.predicate_holds(self.c1, [top_object])
         second_object_is_blue = state.predicate_holds(self.c2, [second_object])
