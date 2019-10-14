@@ -1,7 +1,6 @@
 
 import numpy as np
 import re
-from correctingagent.world.rules import Rule
 from functools import reduce
 
 
@@ -40,10 +39,6 @@ def split_rule(rule):
     return [red, blue, on]
 
 
-def get_predicate_name(predicate):
-    return predicate.split('(')[0]
-
-
 def get_predicate_args(predicate):
     args = predicate.split('(')[1].replace(')', '')
     return [arg.strip() for arg in args.split(',')]
@@ -54,24 +49,6 @@ def get_predicate(predicate):
     args = predicate.split('(')[1].replace(')', '')
     args = [arg.strip() for arg in args.split(',')]
     return pred, args
-
-
-def rule_asPDDL(rule):
-    rule_split = split_rule(rule)
-    red, o1 = get_predicate(rule_split[0])
-    blue, o2 = get_predicate(rule_split[1])
-    on, (x, y) = get_predicate(rule_split[2])
-
-    if x == o1[0] and y == o2[0]:
-        r1, r2 = Rule.generate_red_on_blue_options([red], [blue])
-        # TODO change downstream to expect Rule rather than Formula
-        return r1.to_formula()
-    if x == o2[0] and y == o1[0]:
-        r1, r2 = Rule.generate_red_on_blue_options([blue], [red])
-        # TODO change downstream to expect Rule rather than Formula
-        return r2.to_formula()
-    else:
-        raise ValueError('Should not get here')
 
 
 def generate_neg_table_cpd():

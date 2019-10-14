@@ -138,3 +138,6 @@ def test_colour_count_table_violation2():
     w.back_track()
     w.update('put', ['b1', 't1', 'tower1'])  # red
     assert(rule.check_table_violation(w.state, [rule2]) is False)
+
+
+

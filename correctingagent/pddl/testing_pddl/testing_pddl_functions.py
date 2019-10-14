@@ -259,3 +259,4 @@ def test_get_colour():
 
     assert(state.get_colour_name('b0') == 'blue')
     assert(state.get_colour_name('b8') == 'pink')
+    assert(state.get_colour_name('t0') is None)

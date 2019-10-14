@@ -9,6 +9,8 @@ from ..util.colour_dict import colour_dict
 def tower_correction(obj1, obj2):
     return f"no, put {obj1} blocks on {obj2} blocks"
 
+def joint_tower_correction(obj1, obj2):
+    return f"you must put {obj1} blocks on {obj2} blocks"
 
 def table_correction(obj1, obj2, obj3):
     return f"No, now you cannot put {obj3} in the tower because you must put {obj1} blocks on {obj2} blocks"
@@ -20,6 +22,9 @@ def not_correction(obj1, obj2):
 
 def table_not_correction(obj1, obj2, obj3):
     return f"No, now you cannot put {obj3} in the tower because you cannot put {obj1} blocks on {obj2} blocks"
+
+def colour_count_correction(colour, number):
+    return f"no, you cannot put more than {number} {colour} blocks in a tower"
 
 def get_rules(goal):
     """Returns the individual rules which make up the goal"""
@@ -105,7 +110,7 @@ def get_tower_correction(rule: Rule, wrld: PDDLWorld):
         o1, o2 = wrld.state.get_top_two()
         return Correction(rule, [o1, o2], tower_correction(rule.c1, rule.c2))
     elif isinstance(rule, ColourCountRule):
-        correction_str = f"no, do not put more than {rule.number} {rule.colour_name} blocks in a tower"
+        correction_str = colour_count_correction(rule.colour_name, rule.number)
         for tower in wrld.state.towers:
             tower = tower.replace('t', 'tower')
             if wrld.state.get_colour_count(rule.colour_name, tower) > rule.number:
@@ -134,8 +139,8 @@ def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None):
                     if isinstance(rule2, RedOnBlueRule):
                         top, _ = wrld.state.get_top_two(tower)
                         if rule2.c1 == rule.colour_name and wrld.state.predicate_holds(rule2.c2, [top]):
-                            correction_str1 = f"no, you cannot put more than {rule.number} {rule.colour_name} blocks in a tower"
-                            correction_str2 = f"you must put {rule2.c1} blocks on {rule2.c2} blocks"
+                            correction_str1 = colour_count_correction(rule.colour_name, rule.number)
+                            correction_str2 = joint_tower_correction(rule2.c1, rule2.c2)
                             correction_str = correction_str1 + ' and ' + correction_str2
                             corr = Correction(rule, [tower], correction_str)
                             return corr

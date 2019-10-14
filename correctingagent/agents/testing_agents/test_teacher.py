@@ -138,7 +138,7 @@ def test_rule_violated():
     correction, possible_corrections = teacher.correction(w, return_possible_corrections=True)
     possible_corrections = [s for s, c in possible_corrections]
 
-    assert('no, do not put more than 1 blue blocks in a tower' in possible_corrections)
+    assert("no, you cannot put more than 1 blue blocks in a tower" in possible_corrections)
 
 
 def test_rule_violated_table():

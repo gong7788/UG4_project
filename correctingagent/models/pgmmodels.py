@@ -1,9 +1,13 @@
-import time
+from functools import reduce
 
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
 from pgmpy.models import FactorGraph
 from pgmpy.factors.continuous import ContinuousFactor
-from correctingagent.models.CPD_generation import *
+import numpy as np
+
+from correctingagent.models.prob_model import KDEColourModel
+from correctingagent.util.CPD_generation import variable_or_CPD, generate_neg_table_cpd, equals_CPD
+from correctingagent.world.rules import ColourCountRule
 
 
 def check_beam_holds(beam, worlds):
@@ -121,9 +125,9 @@ class SearchInference(object):
         self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
 
     def query(self, variables, values=None):
-        if values == None:
+        if values is None:
             values = [1]*len(variables)
-        return {var:self.p(var, val) for var, val in zip(variables, values)}
+        return {var: self.p(var, val) for var, val in zip(variables, values)}
 
 
 class PGMModel(object):
@@ -140,7 +144,6 @@ class PGMModel(object):
         self.model = FactorGraph()
         self.search_inference = SearchInference(self.model)
 
-        #self.factors = set()
         self.observed = {}
         self.colour_variables = []
 
@@ -228,12 +231,12 @@ class PGMModel(object):
         :return: the factor name in the form V_time(rule)
         """
         violated_rule_factor_name = f"V_{time}({rule})"
-        if table_correction:
-            violated_rule_cpd = rule.generate_table_cpd()
-        else:
-            violated_rule_cpd = rule.generate_CPD()
 
         evidence = colours + [rule]
+
+        violated_rule_cpd = rule.generateCPD(table_correction=table_correction, num_blocks_in_tower=len(evidence))
+
+
 
         rule_violated_factor = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd,
                                            evidence=evidence, evidence_card=[2]*len(evidence))
@@ -255,6 +258,15 @@ class PGMModel(object):
         correction_factor = correction.to_factor()
         self.add_factor([corr, correction_factor], correction_factor)
         return corr
+
+    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int):
+
+        colour_variables = []
+        for obj in objects_in_tower:
+            colour_variables.append(self.add_cm(cm, obj))
+        violations = [self.add_violation_factor(rule, time, colour_variables)]
+        self.add_correction_factor(violations, time)
+        return violations
 
     def extend_model(self, rules, red_cm, blue_cm, args, time, table_correction):
 
@@ -380,5 +392,4 @@ class PGMModel(object):
         correction =  TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
         self.add_factor([Vrule, corr], correction.to_factor())
 
-        #self.inference = VariableElimination(self.model)
         return [Vrule]

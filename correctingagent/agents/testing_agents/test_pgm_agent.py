@@ -4,6 +4,7 @@ from skimage.color import hsv2rgb
 
 from correctingagent.agents.PGMAgent import *
 from correctingagent.world import RandomColoursWorld
+from correctingagent.world.rules import ColourCountRule
 
 
 def test_read_sentence():
@@ -114,3 +115,31 @@ def test_update_model():
     assert (array_equal(data["F(b2)"], b2_data))
 
 
+def test_update_model():
+
+    w = RandomColoursWorld(problem_directory='multitower', problem_number=1)
+
+    w.update('put', ['b0', 't1', 'tower1'])
+    w.update('put', ['b2', 'b0', 'tower1'])
+    w.update('put', ['b5', 'b2', 'tower1'])
+
+    agent = PGMCorrectingAgent(w)
+
+    rule = ColourCountRule('blue', 1)
+
+    b0_data = [0.34910434076796404, 0.9939351750475346, 0.9020967700201346]
+    b1_data = [0.8872649368468363, 0.9880529065134138, 0.9322439031222336]
+    b2_data = [0.15738804617607374, 0.9835023958587732, 0.9541478602571746]
+    b5_data = [0.8805041887685969, 0.9819704146691624, 0.9679969438475052]
+
+    violations, data, message = agent.update_model(f"no, you cannot put more than 1 blue blocks in a tower", ['b5', 'b2', 'tower1'])
+
+    assert(f'V_0({rule})' in violations)
+
+    assert(message.T == 'colour count')
+    assert(message.o1 == 'blue')
+    assert(message.o2 == 1)
+
+    assert(array_equal(data["F(b0)"], b0_data))
+    assert(array_equal(data["F(b5)"], b5_data))
+    assert(array_equal((data["F(b2)"]), b2_data))

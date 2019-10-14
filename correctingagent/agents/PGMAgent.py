@@ -1,13 +1,17 @@
 
+
+import numpy as np
 from correctingagent.agents.agents import CorrectingAgent, Tracker
 from correctingagent.experiments.colour_model_evaluation import evaluate_colour_model
 from correctingagent.pddl import pddl_functions
+from correctingagent.util.CPD_generation import get_violation_type, get_predicate
 from correctingagent.world import goals
 from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
-from correctingagent.models.CPD_generation import *
+
+from correctingagent.world.rules import Rule
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
@@ -159,6 +163,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             data = self.get_relevant_data(args, prev_message)
             data[curr_negation] = 0
             data[prev_negation] = 0
+        elif 'colour count' == message.T:
+            raise NotImplementedError()
 
         self.previous_corrections.append((user_input, self.time))
         self.previous_args[self.time] = args
@@ -222,8 +228,6 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.update_cms()
         self.update_goal()
         self.world.back_track()
-        # self.previous_corrections.append((user_input, self.time))
-        # self.previous_args[self.time] = args
 
     def update_cms(self):
         colours = self.pgm_model.get_colour_predictions()
@@ -312,7 +316,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
                      update_negative, update_once, colour_model_type,
                      model_config, tracker)
 
-            rules = get_rules(self.problem.goal)
+            rules = Rule.get_rules(self.problem.goal)
             for rule in rules:
                 r = Rule.from_formula(rule)
                 c1 = r.c1

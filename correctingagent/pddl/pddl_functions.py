@@ -1,6 +1,7 @@
+
 import pythonpddl.pddl
 import copy
-#from pythonpddl.pddl import Predicate, TypedArg, TypedArgList, Formula
+
 import pythonpddl
 from skimage.color import rgb2hsv
 
@@ -229,7 +230,10 @@ class PDDLState(object):
 
     def get_colour_name(self, obj):
         predicates = self.get_predicates(obj)
-        return [predicate.name for predicate in predicates if predicate.name in colour_dict.keys()][0]
+        try:
+            return [predicate.name for predicate in predicates if predicate.name in colour_dict.keys()][0]
+        except IndexError:
+            return None
 
     def get_colours(self, use_hsv=False):
         objects = [object for object in self.objects if 'g' not in object and 't' not in object]

@@ -8,6 +8,7 @@ import pythonpddl
 from nltk import Valuation, Model
 from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
+from correctingagent.util.CPD_generation import binary_flip
 from correctingagent.pddl import pddl_functions
 from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState
 from correctingagent.world import goals
@@ -158,6 +159,16 @@ class ColourCountRule(Rule):
                         continue
         return False
 
+    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, **kwargs):
+        offset = 1 if not table_correction else 0
+        flippings = binary_flip(num_blocks_in_tower)
+        CPD = np.zeros((2, len(flippings)), dtype=np.int32)
+        for i, l in enumerate(flippings):
+            rule_violated = int(sum(l[:-1]) == (self.number + offset)) * l[-1]
+            CPD[1][i] = rule_violated
+            CPD[0][i] = 1 - rule_violated
+        return CPD
+
 
 class RedOnBlueRule(Rule):
 
@@ -205,7 +216,7 @@ class RedOnBlueRule(Rule):
         return Formula([subformula], op='forall',
                        variables=pddl_functions.make_variable_list([variables.args[0].arg_name]))
 
-    def generate_CPD(self):
+    def generate_tower_cpd(self):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
         for i in range(2):
@@ -231,6 +242,12 @@ class RedOnBlueRule(Rule):
         m = Model(dom, val)
         g = nltk.sem.Assignment(dom)
         return m.evaluate(str(self), g)
+
+    def generateCPD(self, table_correction=False, **kwargs):
+        if table_correction:
+            return self.generate_table_cpd()
+        else:
+            return self.generate_tower_cpd()
 
     def generate_table_cpd(self):
         cpd_line_corr0 = []
