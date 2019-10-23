@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from correctingagent.world.rules import ColourCountRule, RedOnBlueRule
 from . import world
 import random
 import os
@@ -211,14 +212,15 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
                          p_primary_colour=0.8, use_random_colours=True):
     data_path = '/home/mappelgren/Desktop/correcting-agent/data'
     top_path = os.path.join(data_path, dataset_name)
-    rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
-    while not rules_consistent(rules):
-        rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
+
     try:
         num_datasets = len(os.listdir(top_path))
     except FileNotFoundError:
         num_datasets = 0
     while num_datasets < N_datasets:
+        rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
+        while not rules_consistent(rules):
+            rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
 
         dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, num_datasets))
         os.makedirs(dataset_path, exist_ok=True)
@@ -227,3 +229,113 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
                                 use_random_colours=use_random_colours)
         num_datasets = len(os.listdir(top_path))
 
+
+def generate_colour_count_scenario(rules, num_tower=2):
+    less_than_constraints = {}
+    bigger_equal_constraint = {}
+    for rule in rules:
+        if isinstance(rule, ColourCountRule):
+            less_than_constraints[rule.colour_name] = rule.number
+        elif isinstance(rule, RedOnBlueRule):
+            if rule.rule_type == 1:
+                bigger_equal_constraint[rule.c2] = rule.c1
+            else:
+                bigger_equal_constraint[rule.c1] = rule.c2
+
+    colour_counts = {colour: 0 for colour in ['red', 'green', 'blue', 'purple', 'orange', 'pink', 'yellow']}
+    for colour, number in less_than_constraints.items():
+        if colour not in bigger_equal_constraint.keys() and colour not in bigger_equal_constraint.values():
+            colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+            while sum(colour_counts.values()) > 10:
+                colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+        elif colour in bigger_equal_constraint.keys() and colour in bigger_equal_constraint.values():
+            colour2 = bigger_equal_constraint[colour]
+            colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+            colour_counts[colour2] = colour_counts[colour]
+            while sum(colour_counts.values()) > 10:
+                colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+                colour_counts[colour2] = colour_counts[colour]
+        elif colour in bigger_equal_constraint.keys():
+            colour2 = bigger_equal_constraint[colour]
+            colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+            colour_counts[colour2] = random.choice(range(colour_counts[colour] + 1))
+            while sum(colour_counts.values()) > 10:
+                colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+                colour_counts[colour2] = random.choice(range(colour_counts[colour] + 1))
+        else:
+            colour2 = [key for key, value in bigger_equal_constraint.items() if value == colour][0]
+            colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+            colour_counts[colour2] = random.choice(range(colour_counts[colour], colour_counts[colour]+3))
+            while sum(colour_counts.values()) > 10:
+                colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
+                colour_counts[colour2] = random.choice(range(colour_counts[colour], 10))
+    while sum(colour_counts.values()) < 10:
+        colour = random.choice(list(colour_counts.keys()))
+        if colour not in less_than_constraints.keys() and colour not in bigger_equal_constraint.keys() and colour not in bigger_equal_constraint.values():
+            colour_counts[colour] += 1
+    return colour_counts
+
+
+def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colours=True):
+    directory = Path(directory)
+
+    os.makedirs(directory, exist_ok=True)
+
+    scenarios = []
+    while len(scenarios) < N:
+        if use_random_colours:
+            cc = generate_colour_count_scenario(rules)
+            colours = generate_random_colour_from_colour_count(cc)
+            colour_object_dict = {f"b{i}": tuple(hsv) for i, (colour, hsv) in enumerate(colours)}
+            colours = [colour for colour, hsv in colours]
+        else:
+            cc = generate_biased_colour_counts(rules)
+            colours = generate_from_colour_count(rules, cc)
+
+        with open('../data/tmp/generation.pddl', 'w') as f:
+            problem = problem_def.ExtendedBlocksWorldProblem.generate_problem(colours, rules, domainname='blocksworld-updated').asPDDL()
+            f.write(problem)
+        w = world.PDDLWorld('blocks-domain-updated.pddl', problem_file='../data/tmp/generation.pddl')
+        if not w.test_failure():
+            file_name = directory / f"problem{len(scenarios)+1}.pddl"
+            json_name = directory / f"colours{len(scenarios)+1}.json"
+            os.rename('../data/tmp/generation.pddl', file_name)
+            if use_random_colours:
+                with open(json_name, 'w') as f:
+                    json.dump(colour_object_dict, f)
+            scenarios.append(file_name)
+
+def generate_colour_count(max_num=4):
+    colour = random.choice(list(colour_dict.keys()))
+    number = random.choice(range(1, max_num+1))
+    return ColourCountRule(colour, number)
+
+def generate_consistent_red_on_blue(rules):
+    rule = random.choice(rules)
+    colour = rule.colour_name
+    colour2 = random.choice(list(colour_dict.keys()))
+    while colour == colour2:
+        colour2 = random.choice(list(colour_dict.keys()))
+    rule_type = random.choice([1,2])
+    return RedOnBlueRule(colour, colour2, rule_type)
+
+
+def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, num_redonblue, dataset_name, colour_dict=colour_dict, use_random_colours=True):
+    data_path = Path('/home/mappelgren/Desktop/correcting-agent/data')
+    top_path = data_path / dataset_name
+    try:
+        num_datasets = len(os.listdir(top_path))
+    except FileNotFoundError:
+        num_datasets = 0
+
+    while num_datasets < N_datasets:
+
+        colour_count = [generate_colour_count(3) for i in range(num_colour_count)]
+        red_on_blue = [generate_consistent_red_on_blue(colour_count) for i in range(num_redonblue)]
+        rules = colour_count + red_on_blue
+
+        dataset_path = top_path / f'{dataset_name}{num_datasets}'
+        os.makedirs(dataset_path, exist_ok=True)
+
+        generate_biased_dataset_w_colour_count(N_data, rules, dataset_path, use_random_colours=use_random_colours)
+        num_datasets = len(os.listdir(top_path))

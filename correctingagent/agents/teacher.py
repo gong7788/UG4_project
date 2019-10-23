@@ -66,26 +66,13 @@ class TeacherAgent(Teacher):
         # b-> a b -a
         rules = Rule.get_rules(w.problem.goal)
         for rule in rules:
-
             rule_violated = rule.check_tower_violation(w.state)
-
             if rule_violated:
+                return get_tower_correction(rule, w).sentence
 
-                c1, c2 = rule.c1, rule.c2
-
-                return tower_correction(c1, c2)
         for rule in rules:
-
-
-
             if rule.check_table_violation(w.state, rules):
-                if rule.rule_type == 1:
-                    o3 = w.state.get_block_with_colour(rule.c1)
-                else:
-                    o3 = w.state.get_block_with_colour(rule.c2)
-                c1, c2 = rule.c1, rule.c2
-
-                return table_correction(c1, c2, o3)
+                return get_table_correction(rule, w, rules).sentence
 
     def answer_question(self, question, world_):
         if "Is the top object" in question:

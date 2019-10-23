@@ -202,7 +202,7 @@ class CorrectingAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goals.create_default_goal()
+        self.goal = goals.create_default_goal(domain_file)
         self.tmp_goal = None
         self.problem.initialstate = observation.state.to_formula()
         if colour_models is None:
@@ -237,6 +237,7 @@ class CorrectingAgent(Agent):
         self.objects_used_for_update = set()
 
     def plan(self):
+        print(self.domain_file, self.world.use_metric_ff)
         observation, results = self.sense()
         planner = search.Planner(results, observation, self.goal, self.tmp_goal,
                                  self.problem, domain_file=self.domain_file, use_metric_ff=self.world.use_metric_ff)
@@ -437,7 +438,7 @@ class CorrectingAgent(Agent):
                 logger.debug(rules)
                 used_models.add(rule_name)
 
-        self.goal = goals.goal_from_list(rules)
+        self.goal = goals.goal_from_list(rules, self.domain_file)
         # print(self.goal.asPDDL())
 
     def sense(self, threshold=0.5):
@@ -478,7 +479,7 @@ class RandomAgent(Agent):
         self.domain_file = domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goals.create_default_goal()
+        self.goal = goals.create_default_goal(domain_file)
         self.tmp_goal = None
         self.problem.initialstate = observation.state.to_formula()
 
@@ -492,7 +493,7 @@ class RandomAgent(Agent):
         self.problem.initialstate = observation.state.to_formula()
 
     def plan(self):
-        self.problem.goal = goals.update_goal(goals.create_default_goal(), self.tmp_goal)
+        self.problem.goal = goals.update_goal(goals.create_default_goal(self.domain_file), self.tmp_goal)
         with open('tmp/problem.pddl', 'w') as f:
             f.write(self.problem.asPDDL())
         plan = ff.run(self.domain_file, 'tmp/problem.pddl')
@@ -707,7 +708,7 @@ class NoLanguageAgent(CorrectingAgent):
             except:
                 self.rules.append(rule)
 
-        self.goal = goals.goal_from_list(self.rules)
+        self.goal = goals.goal_from_list(self.rules, self.domain_file)
         # print(self.goal.asPDDL())
 
 

@@ -282,6 +282,9 @@ class PDDLState(object):
                 count += 1
         return count
 
+    def get_objects_in_tower(self, tower):
+        return [obj for obj in self.objects if self.predicate_holds('in-tower', [obj, tower])]
+
     def get_block_with_colour(self, colour):
         objects = self.get_objects_on_table()
         for o in objects:

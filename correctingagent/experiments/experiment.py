@@ -103,7 +103,7 @@ class Debug(object):
 
 
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
-                 threshold, update_negative, update_once, debug_agent):
+                 threshold, update_negative, update_once, debug_agent, domain_file):
     if agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
@@ -112,13 +112,13 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
         else:
             colour_model_config = {}
         agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
-                      colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent)
+                      colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent, domain_file=domain_file)
     else:
         agent = agent(w, teacher=teacher, threshold=threshold)
     return agent
 
 
-def do_scenario(agent, world_scenario, vis=False, no_correction_update=False):
+def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, break_on_correction=False):
     if vis:
         world_scenario.draw()
     agent.new_world(world_scenario)
@@ -132,6 +132,8 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False):
                 world_scenario.draw()
             correction = agent.teacher.correction(world_scenario)
             if correction:
+                if break_on_correction:
+                    return
                 # logger.info("T: " + correction)
                 print(f"T: {correction}")
                 agent.get_correction(correction, a, args)
@@ -144,7 +146,8 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False):
 
 def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
                     colour_model_type='KDE', no_correction_update=False, debug=False, colour_model_config_name='DEFAULT',
-                    new_teacher=False, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None, **kwargs):
+                    new_teacher=False, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
+                    domain_file='blocks-domain.pddl', **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
@@ -156,7 +159,7 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     if world_type == 'RandomColours':
         num_problems = int(num_problems / 2)
 
-    w = world.get_world(problem_name, 1, world_type=world_type, domain_file='blocks-domain.pddl', use_hsv=use_hsv)
+    w = world.get_world(problem_name, 1, world_type=world_type, domain_file=domain_file, use_hsv=use_hsv)
 
     if new_teacher:
         teacher = ExtendedTeacherAgent()
@@ -164,12 +167,12 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
         teacher = TeacherAgent()
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
-                         threshold, update_negative, update_once, debug_agent)
+                         threshold, update_negative, update_once, debug_agent, domain_file)
 
     results_file.write('Results for {}\n'.format(problem_name))
 
     for i in range(num_problems):
-        w = world.get_world(problem_name, i+1, world_type=world_type, domain_file='blocks-domain.pddl')
+        w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
         do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update)
 
         if debug and not 'Random' in config['agent']:
@@ -219,6 +222,8 @@ def get_experiment_config(config_name, colour_model_config):
         "new_teacher": config.getboolean('new_teacher'),
         "world_type": config['world_type'],
         "use_hsv": colour_model_conf['use_hsv'],
+        "domain_file": config['domain_name'],
+        "use_metric_ff": config.getboolean('use_metric_ff'),
     }
     return config_dict
 

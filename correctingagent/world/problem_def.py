@@ -1,6 +1,8 @@
 import correctingagent.world.rules
 from correctingagent.pddl import pddl_functions
 from collections import namedtuple
+
+from correctingagent.pddl.pddl_functions import PDDLState
 from correctingagent.world import goals
 from pythonpddl.pddl import Problem
 from correctingagent.util.colour_dict import colour_dict
@@ -14,6 +16,7 @@ class BlocksWorldProblem(Problem):
 
     def __init__(self, name='blocks-problem', domainname='blocks-domain', objects=None, n=10, m=1,
                  colours=[], rules=None, metric=None):
+        self.domainname = domainname
         if objects is not None:
             objects = pddl_functions.make_variable_list(objects)
         else:
@@ -21,13 +24,18 @@ class BlocksWorldProblem(Problem):
 
         if isinstance(rules[0], Ruledef):
             rules = [generate_rule(rule) for rule in rules]
+        elif isinstance(rules[0], correctingagent.world.rules.Rule):
+            rules = [rule.to_formula() for rule in rules]
 
-        initialstate = BlocksWorldProblem.generate_default_position(objects)
+        initialstate = self.generate_default_position(objects)
         initialstate = BlocksWorldProblem.add_colours(initialstate, objects, colours)
-        goal = goals.create_default_goal()
+        goal = self.create_default_goal()
         for rule in rules:
             goal = goals.update_goal(goal, rule)
         super(BlocksWorldProblem, self).__init__(name, domainname, objects, initialstate, goal, metric)
+
+    def create_default_goal(self):
+        return goals.create_default_goal(self.domainname)
 
     @staticmethod
     def create_objects(n, m=1):
@@ -36,8 +44,7 @@ class BlocksWorldProblem(Problem):
         obj_names.extend(tower_posns)
         return pddl_functions.make_variable_list(obj_names)
 
-    @staticmethod
-    def generate_default_position(objects):
+    def generate_default_position(self, objects):
         """Generates the base predicates placing all objects on the table"""
         initstate = [pddl_functions.create_formula('arm-empty', [])]
         for o in objects.args:
@@ -68,9 +75,59 @@ class BlocksWorldProblem(Problem):
         return BlocksWorldProblem(name=name, domainname=domainname, n=len(colours), colours=colours, rules=rules)
 
 
+class ExtendedBlocksWorldProblem(BlocksWorldProblem):
+
+    def __init__(self, n=10, m=2, **kwargs):
+        objects = ExtendedBlocksWorldProblem.create_objects(n, m)
+        super(ExtendedBlocksWorldProblem, self).__init__(objects=objects, **kwargs)
+
+    def generate_default_position(self, objects):
+        """Generates the base predicates placing all objects on the table"""
+        towers = []
+        initstate = [pddl_functions.create_formula('arm-empty', [])]
+        for o in objects.args:
+            obj = o.arg_name
+            #create on-table
+            if 't' in obj:
+                initstate.append(pddl_functions.create_formula('done', [obj]))
+                if 'tower' not in obj:
+                    number = obj.replace('t', '')
+                    initstate.append(pddl_functions.create_formula('in-tower', [obj, f'tower{number}']))
+                else:
+                    towers.append(obj)
+            else:
+                initstate.append(pddl_functions.create_formula('on-table', [obj]))
+            #create clear
+            if 'tower' not in obj:
+                initstate.append(pddl_functions.create_formula('clear', [obj]))
+
+        for tower in towers:
+            for colour in ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink']:
+                initstate.append(pddl_functions.ColourCount(colour, tower, 0).to_formula())
+            initstate.append(pddl_functions.create_formula('tower', [tower]))
+        return initstate
+
+    def create_default_goal(self):
+        return goals.create_defualt_goal_new()
+
+    @staticmethod
+    def create_objects(n, m=1):
+        obj_names = [f'b{i}' for i in range(n)]
+        tower_posns = [f't{i}' for i in range(m)]
+        towers = [f'tower{i}' for i in range(m)]
+        obj_names.extend(tower_posns)
+        obj_names.extend(towers)
+        return obj_names
+        #return pddl_functions.make_variable_list(obj_names)
+
+    @staticmethod
+    def generate_problem(colours, rules, name='blocks-problem', domainname='blocksworld', m=2):
+        return ExtendedBlocksWorldProblem(name=name, domainname=domainname, n=len(colours), m=m, colours=colours, rules=rules)
+
+
 def generate_rule(ruledef):
     #TODO make downstream task use Rule rather than formula
-    return correctingagent.world.rules.RedOnBlueRule(ruledef.first_obj, ruledef.second_obj,
+    return correctingagent.world.rules.RedOnBlueRule(ruledef.first_obj[0], ruledef.second_obj[0],
                                                      rule_type=(1+int(ruledef.constrained_obj == 'second'))).to_formula()
 
 

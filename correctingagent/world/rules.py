@@ -1,5 +1,6 @@
 import copy
 import heapq
+import re
 from collections import defaultdict
 
 import nltk
@@ -12,6 +13,28 @@ from correctingagent.util.CPD_generation import binary_flip
 from correctingagent.pddl import pddl_functions
 from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState
 from correctingagent.world import goals
+
+
+def split_rule(rule):
+    bits = rule.split('.(')
+    red = bits[1].split('->')[0].strip()
+    bits2 = bits[1].split(' (')
+    blue, on = bits2[1].split('&')
+    blue = blue.strip()
+    on = on.replace('))', '').strip()
+    return [red, blue, on]
+
+
+def get_predicate_args(predicate):
+    args = predicate.split('(')[1].replace(')', '')
+    return [arg.strip() for arg in args.split(',')]
+
+
+def get_predicate(predicate):
+    pred = predicate.split('(')[0]
+    args = predicate.split('(')[1].replace(')', '')
+    args = [arg.strip() for arg in args.split(',')]
+    return pred, args
 
 
 class Rule(object):
@@ -101,6 +124,40 @@ class Rule(object):
     def generate_red_on_blue_options(c1, c2):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
+    @staticmethod
+    def rule_from_violation(violation):
+        rule_string = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
+
+        if "&&" in rule_string:
+            colour_count_string, red_on_blue_string = rule_string.split("&&")
+            return [Rule.rule_from_violation(f"V_1({colour_count_string.strip()})"),
+                    Rule.rule_from_violation(f"V_1({red_on_blue_string.strip()})")]
+
+        elif rule_string[:3] != 'all':
+            raise NotImplemented('Not implemented non put red on blue rule')
+
+        elif "count" in rule_string:
+            _, right = rule_string.split('->')
+            colour_count, count = rule_string.split('>=')
+            count = int(count.strip())
+            colour_name = colour_count.split('-')[0].strip()
+            # f"all t. tower(t) -> {colour_name}-count >= {count}"
+            return ColourCountRule(colour_name, count)
+
+        else:
+            red, blue, on = split_rule(rule_string)
+            red_colour, o1 = get_predicate(red)
+            blue_colour, o2 = get_predicate(blue)
+            x, y = get_predicate_args(on)
+
+            if o1[0] == x:
+                # return red_colour, blue_colour, rule_type
+                return RedOnBlueRule(red_colour, blue_colour, rule_type=1)
+            elif o2[0] == x:
+                return RedOnBlueRule(blue_colour, red_colour, rule_type=2)
+            else:
+                raise ValueError('something went wrong')
+
 
 class ColourCountRule(Rule):
 
@@ -108,6 +165,7 @@ class ColourCountRule(Rule):
         self.colour_name = colour_name
         self.number = int(count)
         self.name = f"all t. tower(t) -> {colour_name}-count >= {count}"
+        self.constraint = ColourCountRuleConstraint(colour_name, count)
 
     @staticmethod
     def from_formula(formula: Formula):
@@ -159,7 +217,60 @@ class ColourCountRule(Rule):
                         continue
         return False
 
-    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, **kwargs):
+    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, num_blocks_on_table=8, second_rule=None, **kwargs):
+        #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
+        if table_correction is False:
+            return self.generate_tower_cpd(num_blocks_in_tower, table_correction=table_correction)
+        else:
+            # return self.generate_table_cpd(num_blocks_in_tower, num_blocks_on_table, second_rule)
+            return self.generate_table_cpd(num_blocks_in_tower)
+
+    def generate_table_cpd(self, num_blocks_in_tower):
+        flippings = binary_flip(num_blocks_in_tower + 1 + 1)
+        CPD = np.zeros((2, len(flippings)), dtype=np.int32)
+        for i, flip_selection in enumerate(flippings):
+            blocks_in_tower = flip_selection[:num_blocks_in_tower-1]
+            top_block = flip_selection[num_blocks_in_tower-1]
+            other_rule = flip_selection[-2]
+            cc = flip_selection[-1]
+            this_rule_satisfied = sum(blocks_in_tower) == self.number and top_block == 1
+            violation = this_rule_satisfied and other_rule == 1 and cc == 1
+            CPD[1][i] = int(violation)
+            CPD[0][i] = 1 - int(violation)
+        return CPD
+
+
+    # def generate_table_cpd(self, num_blocks_in_tower: int, num_blocks_on_table: int, second_rule):
+    #     """ output order is blocks in tower, blocks on table (red then blue), second rule, this rule
+    #
+    #     :param num_blocks_in_tower: len([blue(o1), blue(o2),...,red(oN)])
+    #     :param num_blocks_on_table: len([red(on+1), ..., red(oN+M])
+    #     :param second_rule: RedOnBlueRule
+    #     :return:
+    #     """
+    #     flippings = binary_flip(num_blocks_in_tower + (2 * num_blocks_on_table) + 1 + 1)
+    #     CPD = np.zeros((2, len(flippings)), dtype=np.int32)
+    #     for i, flip_selection in enumerate(flippings):
+    #
+    #         blocks_in_tower = flip_selection[:num_blocks_in_tower]
+    #         red_blocks_on_table = flip_selection[num_blocks_in_tower:num_blocks_in_tower+num_blocks_on_table]
+    #         blue_blocks_on_table = flip_selection[num_blocks_in_tower+num_blocks_on_table:num_blocks_in_tower+2*num_blocks_on_table]
+    #         other_rule = bool(flip_selection[-2])
+    #         this_rule = bool(flip_selection[-1])
+    #         this_rule_satisfied = sum(blocks_in_tower) == self.number
+    #         red_equals_blue = sum(blue_blocks_on_table) == sum(red_blocks_on_table)
+    #         more_blue_than_red = sum(blue_blocks_on_table) >= sum(red_blocks_on_table)
+    #
+    #         if second_rule.rule_type == 1:
+    #             violated = int(this_rule_satisfied and red_equals_blue and other_rule and this_rule)
+    #         elif second_rule.rule_type == 2:
+    #             violated = int(this_rule_satisfied and more_blue_than_red and other_rule and this_rule)
+    #         CPD[1][i] = violated
+    #         CPD[0][i] = violated
+    #     return CPD
+
+
+    def generate_tower_cpd(self, num_blocks_in_tower, table_correction=False):
         offset = 1 if not table_correction else 0
         flippings = binary_flip(num_blocks_in_tower)
         CPD = np.zeros((2, len(flippings)), dtype=np.int32)
@@ -257,7 +368,7 @@ class RedOnBlueRule(Rule):
             for blueo2 in range(2):
                 for redo3 in range(2):
                     for blueo3 in range(2):
-                        for r1 in range(2):  # rule 1 or 0
+                        for r1 in range(2):
                             if self.rule_type == 1:
                                 result = r1 * int(not (redo1) and blueo2 and redo3)
                             elif self.rule_type == 2:
@@ -319,197 +430,6 @@ class RedOnBlueRule(Rule):
             if (number_blue_blocks + number_additional_bottom_objects) > number_red_blocks:
                 return True
         return False
-#
-# class Rule(object):
-#
-#     def __init__(self, rule_formula):
-#         self.rule_type = Rule.get_rule_type(rule_formula)
-#         if self.rule_type == 1:
-#             self.c1, self.c2 = Rule.get_rule_colours(rule_formula)
-#         elif self.rule_type == 2:
-#             self.c2, self.c1 = Rule.get_rule_colours(rule_formula)
-#         elif self.rule_type == 3:
-#             self.c1, self.c2 = Rule.get_rule_colours_existential(rule_formula)
-#         self.constraint = RuleConstraint(self.rule_type, self.c1, self.c2)
-#         self.rule_formula = rule_formula
-#         if self.rule_type in [1, 2]:
-#             self.name = 'r_{}^({},{})'.format(self.rule_type, self.c1, self.c2)
-#         else:
-#             self.name = 'r_not^({},{})'.format(self.c1, self.c2)
-#
-#     def __repr__(self):
-#         return self.__str__()
-#
-#     def __str__(self):
-#         if self.rule_type == 1:
-#             return f'all x.({self.c1}(x) -> exists y. ({self.c2}(y) & on(x,y)))'
-#         elif self.rule_type == 2:
-#             return f'all y.({self.c2}(y) -> exists x. ({self.c1}(x) & on(x,y)))'
-#         elif self.rule_type == 3:
-#             return f"- exists x. exists y. ({self.c1}(x) and {self.c2}(y) and on(x,y))"
-#
-#     def __eq__(self, other):
-#         if isinstance(other, Rule):
-#             return (str(self) == str(other))
-#         else:
-#             return False
-#
-#     def __ne__(self, other):
-#         return (not self.__eq__(other))
-#
-#     def __hash__(self):
-#         return hash(str(self))
-#
-#     def asPDDL(self):
-#         return self.rule_formula.asPDDL()
-#
-#     def to_formula(self):
-#         return self.rule_formula
-#
-#     @staticmethod
-#     def create_red_on_blue_rule(obj1, obj2, rule_type=None):
-#
-#         if rule_type == 1:
-#             variables = ("?x", "?y")
-#         elif rule_type == 2:
-#             variables = ("?y", "?x")
-#             obj1, obj2 = obj2, obj1
-#         else:
-#             raise ValueError(f'Invalid Rule Type. Expected 1 or 2 got {rule_type}')
-#
-#         variables = pddl_functions.make_variable_list(variables)
-#         obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
-#         obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
-#         on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
-#
-#         if len(obj1_preds) > 1:
-#             obj1_formula = Formula(obj1_preds, op='and')
-#         else:
-#             obj1_formula = Formula(obj1_preds)
-#
-#         if len(obj2_preds) > 1:
-#             obj2_formula = Formula(obj2_preds, op='and')
-#         else:
-#             obj2_formula = Formula(obj2_preds)
-#
-#         second_part = Formula([obj2_formula, on], op='and')
-#         existential = Formula([second_part], op='exists',
-#                               variables=pddl_functions.make_variable_list([variables.args[1].arg_name]))
-#         neg_o1 = Formula([obj1_formula], op='not')
-#         subformula = Formula([neg_o1, existential], op='or')
-#
-#         return Rule(Formula([subformula], op='forall',
-#                        variables=pddl_functions.make_variable_list([variables.args[0].arg_name])))
-#
-#     @staticmethod
-#     def create_not_red_on_blue_rule(obj1, obj2, variables=("?x", "?y")):
-#         variables = pddl_functions.make_variable_list(variables)
-#         obj1_preds = [Predicate(p, TypedArgList([variables.args[0]])) for p in obj1]
-#         obj2_preds = [Predicate(p, TypedArgList([variables.args[1]])) for p in obj2]
-#         on = Predicate('on', pddl_functions.make_variable_list(['?x', '?y']))
-#
-#         if len(obj1_preds) > 1:
-#             obj1_formula = Formula(obj1_preds, op='and')
-#         else:
-#             obj1_formula = Formula(obj1_preds)
-#
-#         if len(obj2_preds) > 1:
-#             obj2_formula = Formula(obj2_preds, op='and')
-#         else:
-#             obj2_formula = Formula(obj2_preds)
-#
-#         conjunction_part = Formula([obj1_formula, obj2_formula, on], op='and')
-#         existential = Formula([conjunction_part], op='exists', variables=variables)
-#         neg_formula = Formula([existential], op='not')
-#
-#         return Rule(neg_formula)
-#
-#     @staticmethod
-#     def get_rule_colours(formula):
-#         """This function only works if the formula has 2 colours
-#         (one before and one after the arrow)
-#         To allow for more than one object on either side of the rule more logic must be added"""
-#         c1, right = formula.subformulas[0].subformulas
-#         c1 = c1.get_predicates(False)[0]
-#         c1 = c1.get_predicates(True)[0]
-#         c1 = c1.name
-#         c2 = right.subformulas[0].subformulas[0].get_predicates(True)[0].name
-#         return c1, c2
-#
-#     @staticmethod
-#     def get_rule_colours_existential(formula):
-#         """This function only works if the formula has 2 colours
-#         (one before and one after the arrow)
-#         To allow for more than one object on either side of the rule more logic must be added"""
-#         and_formula = formula.subformulas[0].subformulas[0]
-#         c1 = and_formula.subformulas[0].get_predicates(True)[0].name
-#         c2 = and_formula.subformulas[1].get_predicates(True)[0].name
-#         return c1, c2
-#
-#     @staticmethod
-#     def get_rule_type(formula):
-#         if formula.op == 'not':
-#             return 3
-#         elif formula.variables.asPDDL() == '?x':
-#             return 1
-#         elif formula.variables.asPDDL() == '?y':
-#             return 2
-#         else:
-#             raise ValueError('Unknown Rule Type')
-#
-#     @staticmethod
-#     def get_rules(goal):
-#         return [Rule(subformula) for subformula in goal.subformulas[1:]]
-#
-#     @staticmethod
-#     def generate_red_on_blue_options(red, blue):
-#         return[Rule.create_red_on_blue_rule(red, blue, rule_type=1),
-#               Rule.create_red_on_blue_rule(red, blue, rule_type=2)]
-#
-#     def generate_CPD(self):
-#         cpd_line_corr0 = []
-#         cpd_line_corr1 = []
-#         for i in range(2):
-#             for j in range(2):
-#                 for r in range(2):
-#                     result = r * (1 - int(self.evaluate_rule(i, j)))
-#                     cpd_line_corr1.append(result)
-#                     cpd_line_corr0.append(1 - result)
-#
-#         return [cpd_line_corr0, cpd_line_corr1]
-#
-#     def evaluate_rule(self, value1, value2):
-#         c1_set = set()
-#         c2_set = set()
-#         if value1 == 1:
-#             c1_set.add('o1')
-#         if value2 == 1:
-#             c2_set.add('o2')
-#         v = [(self.c1, c1_set), (self.c2, c2_set),
-#              ('on', set([('o1', 'o2')]))]
-#         val = Valuation(v)
-#         dom = val.domain
-#         m = Model(dom, val)
-#         g = nltk.sem.Assignment(dom)
-#         return m.evaluate(str(self), g)
-#
-#     def generate_table_cpd(self):
-#         cpd_line_corr0 = []
-#         cpd_line_corr1 = []
-#
-#
-#         for redo1 in range(2):
-#             for blueo2 in range(2):
-#                 for redo3 in range(2):
-#                     for blueo3 in range(2):
-#                         for r1 in range(2): # rule 1 or 0
-#                             if self.rule_type == 1:
-#                                 result = r1 * int(not (redo1) and blueo2 and redo3)
-#                             elif self.rule_type == 2:
-#                                 result = r1 * int(redo1 and not (blueo2) and blueo3)
-#                             cpd_line_corr1.append(result)
-#                             cpd_line_corr0.append(1 - result)
-#         return [cpd_line_corr0, cpd_line_corr1]
 
 
 class RuleConstraint(object):
@@ -534,6 +454,17 @@ class RuleConstraint(object):
             return True
 
 
+class ColourCountRuleConstraint(object):
+
+    def __init__(self, colour, number, num_towers=2):
+        self.name = f"{colour}-count <= {number}"
+        self.colour = colour
+        self.number = number
+        self.num_towers = num_towers
+
+    def evaluate(self, colour_counts):
+        return colour_counts[self.colour] <= (self.number * self.num_towers)
+
 class ConstraintCollection(object):
 
     def __init__(self, constraints):
@@ -548,14 +479,17 @@ class ConstraintCollection(object):
         decrease = set()
         for constraint in self.constraints:
             result = constraint.evaluate(state.colour_counts)
-            if not result:
+            if result is False:
                 pass_all = False
-                if constraint.rule_type == 1:
-                    increase.add(constraint.c2)
-                    decrease.add(constraint.c1)
-                elif constraint.rule_type == 2:
-                    increase.add(constraint.c1)
-                    decrease.add(constraint.c2)
+                if isinstance(constraint, RuleConstraint):
+                    if constraint.rule_type == 1:
+                        increase.add(constraint.c2)
+                        decrease.add(constraint.c1)
+                    elif constraint.rule_type == 2:
+                        increase.add(constraint.c1)
+                        decrease.add(constraint.c2)
+                elif isinstance(constraint, ColourCountRuleConstraint):
+                    decrease.add(constraint.colour)
         return pass_all, increase, decrease
 
 

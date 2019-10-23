@@ -260,3 +260,33 @@ def test_get_colour():
     assert(state.get_colour_name('b0') == 'blue')
     assert(state.get_colour_name('b8') == 'pink')
     assert(state.get_colour_name('t0') is None)
+
+def test_get_objects_in_tower():
+    config = get_config()
+    data_dir = Path(config['data_location'])
+    domain_file = 'blocks-domain-updated.pddl'
+    domain_file = data_dir / 'domain' / domain_file
+    problem_directory = 'multitower'
+    problem_number = 1
+    problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+    domain, problem = pddl_functions.parse(domain_file, problem_file)
+
+    state = pddl_functions.PDDLState.from_problem(problem)
+    action = pddl_functions.Action.from_pddl(domain.actions[0])
+
+    action.apply_action(state, ['b1', 't0', 'tower0'])
+    action.apply_action(state, ['b2', 'b1', 'tower0'])
+    action.apply_action(state, ['b3', 't1', 'tower1'])
+    action.apply_action(state, ['b4', 'b3', 'tower1'])
+
+    objects_in_tower1 = state.get_objects_in_tower('tower0')
+    assert('b1' in objects_in_tower1)
+    assert('b2' in objects_in_tower1)
+    assert('b3' not in objects_in_tower1)
+    objects_in_tower2 = state.get_objects_in_tower('tower1')
+    assert('b3' in objects_in_tower2)
+    assert('b4' in objects_in_tower2)
+    assert('b1' not in objects_in_tower2)
+    assert('b5' not in objects_in_tower2)
+    assert('b6' not in objects_in_tower1)
+    assert('t0' not in objects_in_tower1)

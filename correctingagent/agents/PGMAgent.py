@@ -11,7 +11,7 @@ from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
 
-from correctingagent.world.rules import Rule
+from correctingagent.world.rules import Rule, ColourCountRule, RedOnBlueRule
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
@@ -99,7 +99,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                 if self.debug['show_rules']:
                     print(f'Added rule {rule} to goal')
 
-        self.goal = goals.goal_from_list(rules)
+        self.goal = goals.goal_from_list(rules, self.domain_file)
 
     def no_correction(self, action, args):
         self.time += 1
@@ -137,7 +137,9 @@ class PGMCorrectingAgent(CorrectingAgent):
             prev_message = read_sentence(prev_corr, use_dmrs=False)
             user_input = prev_corr
             violations = self.build_same_reason(prev_message, args, prev_time)
+            data = self.get_relevant_data(args, prev_message)
             message = prev_message
+
         elif message.T in ['tower', 'table']:
 
             data = self.get_relevant_data(args, message)
@@ -164,7 +166,35 @@ class PGMCorrectingAgent(CorrectingAgent):
             data[curr_negation] = 0
             data[prev_negation] = 0
         elif 'colour count' == message.T:
-            raise NotImplementedError()
+            colour_name = message.o1
+            number = message.o2
+            rule = ColourCountRule(colour_name, number)
+            cm = self.add_cm(colour_name)
+            tower_name = args[-1]
+            objects = self.world.state.get_objects_in_tower(tower_name)
+            violations = self.pgm_model.add_colour_count_correction(rule, cm, objects, self.time)
+            data = self.get_colour_data(objects)
+            corr = f"corr_{self.time}"
+            data[corr] = 1
+            top, _ = self.world.state.get_top_two(tower_name)
+            blue_top_obj = f"{colour_name}({top})"
+            data[blue_top_obj] = 1
+        elif 'colour count+tower' == message.T:
+            colour_name = message.o1
+            number = message.o2
+            colour_count = ColourCountRule(colour_name, number)
+            red_cm = self.add_cm(message.o3.o1[0])
+            blue_cm = self.add_cm(message.o3.o2[0])
+            red_on_blue = Rule.generate_red_on_blue_options(message.o3.o1[0], message.o3.o2[0])
+            tower_name = args[-1]
+            top, _ = self.world.state.get_top_two(tower_name)
+            objects = self.world.state.get_objects_in_tower(tower_name)
+
+            violations = self.pgm_model.add_cc_and_rob(colour_count, red_on_blue, red_cm,
+                                                       blue_cm, objects, top, self.time)
+            data = self.get_colour_data(objects)
+            corr = f"corr_{self.time}"
+            data[corr] = 1
 
         self.previous_corrections.append((user_input, self.time))
         self.previous_args[self.time] = args
@@ -177,7 +207,10 @@ class PGMCorrectingAgent(CorrectingAgent):
             question = f'Is the top object {message.o1[0]}?'
             # dialogue.info('R: ' + question)
             print(question)
-            red = f'{message.o1[0]}({args[0]})'
+            if isinstance(message.o1, list):
+                red = f'{message.o1[0]}({args[0]})'
+            else:
+                red = f'{message.o1}({args[0]}'
             answer = self.teacher.answer_question(question, self.world)
             # dialogue.info("T: " + answer)
             print(answer)
@@ -185,28 +218,40 @@ class PGMCorrectingAgent(CorrectingAgent):
             self.pgm_model.observe({red: bin_answer})
 
     def mark_block(self, most_likely_violation, message, args):
+        rule = Rule.rule_from_violation(most_likely_violation)
 
-        c1, c2, rule_type = get_violation_type(most_likely_violation)
-        rules = Rule.generate_red_on_blue_options(c1, c2)
+        if isinstance(rule, list):
+            colour_count, red_on_blue = rule
+            red_on_blue_options = Rule.generate_red_on_blue_options(red_on_blue.c1, red_on_blue.c2)
+            self.marks[args[0]] += red_on_blue_options
 
-        if rule_type == 'r1':
-            if message.T == 'tower':
-                self.marks[args[0]] += rules
-            elif message.T == 'table':
-                self.marks[args[1]] += rules
-                self.marks[message.o3] += rules
-        elif rule_type == 'r2':
-            if message.T == 'tower':
-                self.marks[args[1]] += rules
-            elif message.T == 'table':
-                self.marks[args[0]] += rules
-                self.marks[message.o3] += rules
+        elif isinstance(rule, RedOnBlueRule):
+            rules = Rule.generate_red_on_blue_options(rule.c1, rule.c2)
+            if rule.rule_type == 1:
+                if message.T == 'tower':
+                    self.marks[args[0]] += rules
+                elif message.T == 'table':
+                    self.marks[args[1]] += rules
+                    self.marks[message.o3] += rules
+            elif rule.rule_type == 2:
+                if message.T == 'tower':
+                    self.marks[args[1]] += rules
+                elif message.T == 'table':
+                    self.marks[args[0]] += rules
+                    self.marks[message.o3] += rules
+        elif isinstance(rule, ColourCountRule):
+            rules = [rule]
+            objects_in_tower = self.world.state.get_objects_in_tower(args[-1])
+            for obj in objects_in_tower:
+                self.marks[obj] += rules
+        else:
+            raise NotImplementedError("Invalid or non implemented rule type")
 
     def get_correction(self, user_input, actions, args, test=False):
         self.time += 1
         self.last_correction = self.time
 
-        not_on_xy = pddl_functions.create_formula('on', args, op='not')
+        not_on_xy = pddl_functions.create_formula('on', args[:2], op='not')
         self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
 
         violations, data, message = self.update_model(user_input, args)
@@ -283,7 +328,6 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         return violations
 
-
     def get_colour_data(self, args):
         observation = self.world.sense()
         colour_data = observation.colours
@@ -326,7 +370,7 @@ class ClassicalAdviceBaseline(PGMCorrectingAgent):
                 blue_cm = self.add_cm(c2)
                 rules = Rule.generate_red_on_blue_options(c1, c2)
 
-                self.pgm_model.add_rules(rules, red_cm, blue_cm)
+                #self.pgm_model.add_rules(rules, red_cm, blue_cm)
 
         def do_correction(self, message, args):
             if message.o3 is None:

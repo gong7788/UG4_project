@@ -88,4 +88,5 @@ def get_kde_config(config_name):
     config_dict['norm'] = model_config.getfloat('norm')
     config_dict['use_hsv'] = model_config.getboolean('use_hsv')
     config_dict['num_channels'] = model_config.getint('num_channels')
+
     return config_dict

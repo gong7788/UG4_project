@@ -41,6 +41,7 @@ def test_colour_count_CPD_generation():
     assert(q["blue(b1)"] == 1.0)
     assert(q["blue(b2)"] == 1.0)
 
+
 def test_colour_count_CPD_generation2():
     pgm_model = PGMModel()
     time = 0
@@ -58,6 +59,7 @@ def test_colour_count_CPD_generation2():
     assert (q["blue(b1)"] == 2/3)
     assert (q["blue(b2)"] == 2/3)
     assert (q["blue(b3)"] == 2/3)
+
 
 def test_colour_count_CPD_generation2():
     pgm_model = PGMModel()
@@ -86,29 +88,70 @@ def test_colour_count_CPD_generation2():
     for colour in colours:
         assert(abs(q[colour] - 2/len(objects)) < 0.000001)
 
+
 def test_colour_count_CPD_generation3():
     pgm_model = PGMModel()
     time = 0
-    rule = ColourCountRule('blue', 1)
+    colour_count = ColourCountRule('blue', 1)
+    red_on_blue_options = Rule.generate_red_on_blue_options('blue', 'red')
 
-    cm = KDEColourModel('blue')
+    blue_cm = KDEColourModel('blue')
+    red_cm = KDEColourModel('red')
 
     objects = [f"b{o}" for o in range(10)]
+    objects_in_tower = objects[:5]
+    top_object = objects[4]
 
-    violations = pgm_model.add_colour_count_correction(rule, cm, objects, time)
+    violations = pgm_model.add_cc_and_rob(colour_count, red_on_blue_options, blue_cm, red_cm, objects_in_tower, top_object, time)
 
-    data = {f'corr_{time}':1}
+    data = {f'corr_{time}': 1}
     for obj in objects:
-        data[f'F({obj})'] = [1,1,1]
+        data[f'F({obj})'] = [1, 1, 1]
 
     pgm_model.observe(data)
 
-    colours = [f'blue({obj})' for obj in objects]
+    colours_in_tower = [f'blue({obj})' for obj in objects_in_tower[:-1]] + [f'red({top_object})']
 
-    evidence = colours + violations
+    evidence = colours_in_tower + violations + red_on_blue_options + [colour_count]
     q = pgm_model.query(evidence)
 
-    assert (abs(q[violations[0]] -1.0) < 0.001)
+    assert (abs(q[violations[0]] - 2/3) < 0.001)
+    assert(abs(q[violations[1]] - 2/3) < 0.0001)
 
-    for colour in colours:
-        assert(abs(q[colour] - 2/len(objects)) < 0.000001)
+    assert(abs(q[colour_count] - 1.0) <  0.00001)
+    assert(abs(q[red_on_blue_options[0]] - 2/3) < 0.00001)
+
+    assert(pgm_model.colours['red'] is not None)
+    assert(abs(q[colours_in_tower[-1]] - 1.0) < 0.00001)
+    for colour in colours_in_tower[:-1]:
+        assert(abs(q[colour] - 1/(len(colours_in_tower) - 1) < 0.0001))
+
+
+#
+# def test_joint_colour_count_CPD_generation1():
+#     pgm_model = PGMModel()
+#     time = 0
+#     rule = ColourCountRule('blue', 1)
+#
+#     cm = KDEColourModel('blue')
+#
+#     objects = [f"b{o}" for o in range(10)]
+#
+#     violations = pgm_model.add_colour_count_correction(rule, cm, objects, time)
+#
+#     data = {f'corr_{time}':1}
+#     for obj in objects:
+#         data[f'F({obj})'] = [1,1,1]
+#
+#     pgm_model.observe(data)
+#
+#     colours = [f'blue({obj})' for obj in objects]
+#
+#     evidence = colours + violations
+#     q = pgm_model.query(evidence)
+#
+#     assert (abs(q[violations[0]] -1.0) < 0.001)
+#
+#     for colour in colours:
+#         assert(abs(q[colour] - 2/len(objects)) < 0.000001)
+#

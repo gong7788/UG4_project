@@ -4,6 +4,8 @@ import re
 from functools import reduce
 
 
+
+
 def get_violation_type(violation):
     rule = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
     return get_rule_type(rule)
@@ -13,6 +15,13 @@ def get_rule_type(rule):
 
     if rule[:3] != 'all':
         raise NotImplemented('Not implemented non put red on blue rule')
+    elif "count" in rule:
+        _, right = rule.split('->')
+        colour_count, count = rule.split('>=')
+        count = int(count.strip())
+        colour_name = colour_count.split('-')[0].strip()
+        #f"all t. tower(t) -> {colour_name}-count >= {count}"
+       #return ColourCountRule(colour_name, count)
     else:
         red, blue, on = split_rule(rule)
         red_colour, o1 = get_predicate(red)
@@ -20,11 +29,12 @@ def get_rule_type(rule):
         x, y = get_predicate_args(on)
 
         if o1[0] == x:
-            rule_type = 'r1'
-            return red_colour, blue_colour, rule_type
+            pass
+            # return red_colour, blue_colour, rule_type
+        #    return RedOnBlueRule(red_colour, blue_colour, rule_type=1)
         elif o2[0] == x:
-            rule_type = 'r2'
-            return blue_colour, red_colour, rule_type
+            pass
+         #   return RedOnBlueRule(blue_colour, red_colour, rule_type=2)
         else:
             raise ValueError('something went wrong')
 

@@ -7,7 +7,7 @@ import numpy as np
 
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.util.CPD_generation import variable_or_CPD, generate_neg_table_cpd, equals_CPD
-from correctingagent.world.rules import ColourCountRule
+from correctingagent.world.rules import ColourCountRule, RedOnBlueRule
 
 
 def check_beam_holds(beam, worlds):
@@ -147,10 +147,10 @@ class PGMModel(object):
         self.observed = {}
         self.colour_variables = []
 
-    def add_rules(self, rules, cm1, cm2):
-        self.colours[cm1.name] = cm1
-        self.colours[cm2.name] = cm2
-        self.known_rules = self.known_rules.union(rules)
+    # def add_rules(self, rules, cm1, cm2):
+    #     self.colours[cm1.name] = cm1
+    #     self.colours[cm2.name] = cm2
+    #     self.known_rules = self.known_rules.union(rules)
 
     def add_cm(self, cm, block):
 
@@ -259,8 +259,46 @@ class PGMModel(object):
         self.add_factor([corr, correction_factor], correction_factor)
         return corr
 
-    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int):
+    def add_cc_and_rob(self, colour_count: ColourCountRule, red_on_blue_options: list, red_cm: KDEColourModel,
+                       blue_cm: KDEColourModel, objects_in_tower: list, top_object:str, time:int):
+        objects_in_tower = objects_in_tower.copy()
+        self.known_rules.add(colour_count)
+        red_on_blue1, red_on_blue2 = red_on_blue_options
+        self.known_rules.add(red_on_blue1)
+        self.known_rules.add(red_on_blue2)
 
+        objects_in_tower.remove(top_object)
+        colours_in_tower = [self.add_cm(red_cm, obj) for obj in objects_in_tower] + [self.add_cm(blue_cm, top_object)]
+        violations = self.add_joint_violations(colour_count, red_on_blue_options, time, colours_in_tower)
+        self.add_correction_factor(violations, time)
+        return violations
+
+    def add_joint_violations(self, colour_count: ColourCountRule, red_on_blue_options: list, time: int,
+                             colours_in_tower: list):
+        cpds = [colour_count.generateCPD(num_blocks_in_tower=len(colours_in_tower), table_correction=True)
+                for rule in red_on_blue_options]
+        violated_rule_factor_name1 = f"V_{time}({colour_count} && {red_on_blue_options[0]})"
+        violated_rule_factor_name2 = f"V_{time}({colour_count} && {red_on_blue_options[1]})"
+
+        evidence1 = colours_in_tower + [red_on_blue_options[0], colour_count]
+        evidence2 = colours_in_tower + [red_on_blue_options[1], colour_count]
+
+        cpd1, cpd2 = cpds
+
+        rule_violated_factor1 = TabularCPD(violated_rule_factor_name1, 2, cpd1,
+                                          evidence=evidence1, evidence_card=[2] * len(evidence1))
+        rule_violated_factor1 = rule_violated_factor1.to_factor()
+
+        rule_violated_factor2 = TabularCPD(violated_rule_factor_name2, 2, cpd1,
+                                           evidence=evidence2, evidence_card=[2] * len(evidence2))
+        rule_violated_factor2 = rule_violated_factor2.to_factor()
+
+        self.add_factor([violated_rule_factor_name1, rule_violated_factor1, red_on_blue_options[0], colour_count], rule_violated_factor1)
+        self.add_factor([violated_rule_factor_name2, rule_violated_factor2, red_on_blue_options[1], colour_count], rule_violated_factor2)
+        return [violated_rule_factor_name1, violated_rule_factor_name2]
+
+    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int):
+        self.known_rules.add(rule)
         colour_variables = []
         for obj in objects_in_tower:
             colour_variables.append(self.add_cm(cm, obj))

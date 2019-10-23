@@ -40,7 +40,7 @@ def ff(domain, problem, use_metric_ff=False):
     # stdout=subprocess.PIPE,
     # stderr=subprocess.PIPE)
 
-    for i in range(1000):
+    for i in range(3000):
         code = process.poll()
         if code == 0 or code == 1:
             break
@@ -61,6 +61,9 @@ def ff(domain, problem, use_metric_ff=False):
         raise Solved('The state satifies the goal')
 
     elif "won't get here: non NOT,OR,AND in goal set relevants" in output:
+        raise IDontKnowWhatIsGoingOnError('non Not,Or,And in goal set relevants, what ever that means?!')
+
+    elif "won't get here: non ATOM,OR,AND in goal set relevants" in output:
         raise IDontKnowWhatIsGoingOnError('non Not,Or,And in goal set relevants, what ever that means?!')
 
     elif exitCode:

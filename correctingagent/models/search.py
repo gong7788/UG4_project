@@ -53,6 +53,10 @@ class Planner(object):
         self.search_dir = data_location / 'tmp' / 'search_problem'
         n = len(os.listdir(self.search_dir))
         self.search_file = os.path.join(self.search_dir, f'{n}.pddl')
+        # for formula in self.current_state.asPDDL():
+        #     print(formula.asPDDL())
+        # print(colour_choices)
+
 
     def _pop(self):
         return heapq.heappop(self.state_queue)
@@ -62,6 +66,7 @@ class Planner(object):
 
     def evaluate_current_state(self, default_plan=False):
         if default_plan:
+            print('Doing default plan')
             self.current_state.state = []
             self.current_state.colour_counts = {c: 0 for c in self.current_state.colour_counts.keys()}
         success, increase, decrease = self.constraints.evaluate(self.current_state)
@@ -69,14 +74,19 @@ class Planner(object):
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
             self.problem.initialstate = self.current_state.asPDDL()
+            # for formula in self.current_state.asPDDL():
+            #     print(formula.asPDDL())
 
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())
             try:
+                # print("trying to plan")
+                # print(self.domain_file, self.use_metric_ff)
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
+                # print('Plan successful')
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
-                # print(e)
+                print(e)
                 # for p in self.problem.initialstate:
                 #     print(p.asPDDL())
                 # print(self.problem.goal.asPDDL())
@@ -99,13 +109,15 @@ class Planner(object):
             raise NoPlanError('Search could not find a possible plan')
 
     def plan(self):
+
         # print(self.goal.asPDDL())
-        plan = False
         for i in range(20):
             # print(self.current_state.score, self.current_state.state)
             try:
                 plan = self.evaluate_current_state()
                 if plan:
+                    # for action, args in plan:
+                    #     print(action, args)
                     return plan
             except NoPlanError:
                 break

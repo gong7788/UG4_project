@@ -1,4 +1,4 @@
-(define (domain blocksworld)
+(define (domain blocksworld-updated)
   (:requirements :strips :disjunctive-preconditions
    :negative-preconditions :quantified-preconditions
    :conditional-effects)
