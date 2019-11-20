@@ -2,10 +2,11 @@ import copy
 import time
 
 import correctingagent.world.rules
+from correctingagent.util import util
 from ..pddl import ff
 from ..language import dmrs_functions
 from collections import namedtuple, defaultdict
-from correctingagent.world import goals
+from correctingagent.world import goals, Path
 from ..models import prob_model
 from ..pddl import pddl_functions
 import numpy as np
@@ -17,6 +18,7 @@ from torch.distributions import Categorical
 from ..util.colour_dict import colour_names, colour_dict
 import pickle
 from ..models import search
+from correctingagent.world.rules import ColourCountRule, RedOnBlueRule, NotRedOnBlueRule
 
 
 def log_cm(cm):
@@ -80,27 +82,75 @@ class Agent(object):
         self.sense()
 
 
-def read_sentence(sentence, use_dmrs=True):
-    sentence = sentence.lower().strip('no,')
+# def read_sentence(sentence, use_dmrs=True):
+#     sentence = sentence.lower().strip('no,')
+#     o3 = None
+#     T = 'tower'
+#     if 'tower because you must' in sentence:
+#         T = 'table'
+#         o3 = sentence.split('put')[1].split('in')[0].strip()
+#         sentence = sentence.split('because you must')[1].strip()
+#     if use_dmrs:
+#         rel, o1, o2= dmrs_functions.sent_to_tripple(sentence)
+#         o1 = dmrs_functions.get_adjectives(o1)
+#         o2 = dmrs_functions.get_adjectives(o2)
+#         rel = dmrs_functions.get_pred(rel['predicate'])
+#         return Message(rel, o1, o2, T, o3)
+#     else:
+#         rel = 'on'
+#         o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
+#         o1 = o1.strip().split()[0]
+#         o2 = o2.strip().split()[0]
+#         return Message(rel, [o1], [o2], T, o3)
+def read_sentence(sentence, use_dmrs=False):
+    sentence = sentence.lower()
+    if sentence == 'no':
+        return Message(None, None, None, 'no', None)
+    sentence = sentence.replace('no,', '')
     o3 = None
     T = 'tower'
-    if 'tower because you must' in sentence:
+    if "same reason" in sentence:
+        return Message(None, None, None, 'same reason', None)
+    elif "cannot put more than" in sentence:
+        o3 = None
+        addon = ""
+        if "and" in sentence:
+            sentence, red_on_blue = sentence.split(' and ')
+            red_on_blue = red_on_blue.replace('you must', '').strip()
+            o3 = read_sentence(red_on_blue)
+            addon = "+tower"
+        sentence = sentence.replace('you cannot put more than', '').replace('blocks in a tower', '').strip()
+        number, colour = sentence.split(' ')
+        return Message(None, colour, int(number), "colour count"+addon, o3)
+    elif "you put" in sentence:
+        T = 'evidence'
+        sentence = sentence.replace('you', '').strip()
+        sentence = sentence.replace('a ', '')
+
+    elif "that is not" in sentence:
+         sentence = sentence.replace('that is not', '').strip()
+         sentence = sentence.replace('again', '').strip()
+         return Message(None, sentence, None, 'partial.neg', None)
+
+    elif "don't" in sentence:
+        T = 'neg'
+        sentence = sentence.replace("don't", '').strip()
+
+    if 'tower because you' in sentence:
         T = 'table'
         o3 = sentence.split('put')[1].split('in')[0].strip()
-        sentence = sentence.split('because you must')[1].strip()
-    if use_dmrs:
-        rel, o1, o2= dmrs_functions.sent_to_tripple(sentence)
-        o1 = dmrs_functions.get_adjectives(o1)
-        o2 = dmrs_functions.get_adjectives(o2)
-        rel = dmrs_functions.get_pred(rel['predicate'])
-        return Message(rel, o1, o2, T, o3)
-    else:
-        rel = 'on'
-        o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
-        o1 = o1.strip().split()[0]
-        o2 = o2.strip().split()[0]
-        return Message(rel, [o1], [o2], T, o3)
+        sentence = sentence.split('because you')[1].strip()
+        if 'cannot' in sentence:
+            T = 'table.neg'
+            sentence = sentence.replace('cannot', '').strip()
+        else:
+            sentence = sentence.replace('must', '').strip()
 
+    rel = 'on'
+    o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
+    o1 = o1.strip().split()[0]
+    o2 = o2.strip().split()[0]
+    return Message(rel, [o1], [o2], T, o3)
 
 def pickle_agent(agent, f):
     cms = {}
@@ -195,7 +245,7 @@ class CorrectingAgent(Agent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
-                 model_config={}, tracker=Tracker()):
+                 model_config={}, tracker=Tracker(), **kwargs):
         self.name = 'correcting'
         self.world = world
         self.domain = world.domain
@@ -301,7 +351,11 @@ class CorrectingAgent(Agent):
                 # logger.debug('asking question')
                 question = 'Is the top object {}?'.format(message.o1[0])
                 dialogue.info("R: " + question)
-                answer = self.teacher.answer_question(question, self.world)
+                if len(args) == 2:
+                    tower = None
+                else:
+                    tower = args[-1]
+                answer = self.teacher.answer_question(question, self.world, tower)
                 dialogue.info("T: " +  answer)
 
                 bin_answer = int(answer.lower() == 'yes')
@@ -472,14 +526,14 @@ class CorrectingAgent(Agent):
 #
 
 class RandomAgent(Agent):
-    def __init__(self, world, domain_file='blocks-domain.pddl', teacher=None, **kwargs):
+    def __init__(self, world, teacher=None, **kwargs):
         self.name = 'random'
         self.world = world
         self.domain = world.domain
-        self.domain_file = domain_file
+        self.domain_file = world.domain_file
         observation = world.sense()
         self.problem = copy.deepcopy(world.problem)
-        self.goal = goals.create_default_goal(domain_file)
+        self.goal = goals.create_default_goal(str(self.domain_file))
         self.tmp_goal = None
         self.problem.initialstate = observation.state.to_formula()
 
@@ -493,10 +547,15 @@ class RandomAgent(Agent):
         self.problem.initialstate = observation.state.to_formula()
 
     def plan(self):
-        self.problem.goal = goals.update_goal(goals.create_default_goal(self.domain_file), self.tmp_goal)
-        with open('tmp/problem.pddl', 'w') as f:
+        print(self.domain_file)
+        config = util.get_config()
+        data_dir = Path(config['data_location'])
+        tmp_dir = data_dir / 'tmp' / 'problem.pddl'
+        self.problem.goal = goals.update_goal(goals.create_default_goal(str(self.domain_file)), self.tmp_goal)
+        with open(tmp_dir, 'w') as f:
             f.write(self.problem.asPDDL())
-        plan = ff.run(self.domain_file, 'tmp/problem.pddl')
+        print(f"running planner with {self.domain_file} {tmp_dir}")
+        plan = ff.run(str(self.domain_file), str(tmp_dir), use_metric_ff=("updated" in str(self.domain_file)))
         return plan
 
 
@@ -508,6 +567,7 @@ class RandomAgent(Agent):
 
     def get_correction(self, user_input, action, args, test=False):
         # since this action is incorrect, ensure it is not done again
+        args = args[:2]
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
         self.world.back_track()
@@ -523,25 +583,29 @@ def get_colours(obs):
 
 class NoLanguageAgent(CorrectingAgent):
 
-
-    def __init__(self, *args, domain_file='blocks-domain-colour-unknown.pddl', **kwargs):
+    def __init__(self, world, *args, domain_file='blocks-domain-colour-unknown.pddl', **kwargs):
         self.rules = []
         self.active_tests = []
-        super().__init__(*args, domain_file=domain_file, **kwargs)
+        if 'updated' in str(world.domain_file):
+            domain_file = "blocks-domain-colour-unknown-cc.pddl"
+            self.use_metric_ff = True
+        else:
+            self.use_metric_ff = False
 
+        super().__init__(world, *args, domain_file=domain_file, **kwargs)
+        if 'updated' in str(self.world.domain_file):
+            self.domain_file = "blocks-domain-colour-unknown-cc.pddl"
+            self.use_metric_ff = True
 
     def new_world(self, world):
         self.active_tests = []
         super().new_world(world)
 
     def get_correction(self, user_input, action, args, test=False):
-
-
         # visible = {}
         # since this action is incorrect, ensure it is not done again
-        not_on_xy = pddl_functions.create_formula('on', args, op='not')
+        not_on_xy = pddl_functions.create_formula('on', args[:2], op='not')
         self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
-
 
         if not test:
 
@@ -551,7 +615,7 @@ class NoLanguageAgent(CorrectingAgent):
                     self.active_tests.remove(test)
                 else:
                     continue
-                self.goal = goals.update_goal(self.goal, correct_rule.rule_formula)
+                self.goal = goals.update_goal(self.goal, correct_rule.to_formula())
 
             # get the relevant parts of the message
             message = read_sentence(user_input, use_dmrs=False)
@@ -564,12 +628,11 @@ class NoLanguageAgent(CorrectingAgent):
         self.world.back_track()
         # #self.sense()
 
-
     def plan(self):
 
         observation, results = self.sense()
 
-        planner = search.NoLanguagePlanner(results, observation, self.active_tests, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file)
+        planner = search.NoLanguagePlanner(results, observation, self.active_tests, self.goal, self.tmp_goal, self.problem, domain_file=self.domain_file, use_metric_ff=self.use_metric_ff)
 
         try:
             return planner.plan()
@@ -580,14 +643,15 @@ class NoLanguageAgent(CorrectingAgent):
     def get_data(self, message, args):
         observation = self.world.sense()
 
-        c1 = message.o1[0]
-        c2 = message.o2[0]
-
         o1 = args[0]
         o2 = args[1]
-        o3 = message.o3
 
         colour_data = observation.colours
+
+        if not isinstance(message.o3, str):
+            o3 = None
+        else:
+            o3 = message.o3
 
         try:
             if 't' not in o2:
@@ -600,7 +664,6 @@ class NoLanguageAgent(CorrectingAgent):
             else:
                 return {'o1':colour_data[o1], 'o2':None}
 
-
     def find_matching_cm(self, dp):
         """If a stored colour model uses the same data point as dp then return that cm"""
         if dp is None:
@@ -610,6 +673,10 @@ class NoLanguageAgent(CorrectingAgent):
         for c, cm in self.colour_models.items():
             if dp_prim in cm.data.tolist():
                 # print('found match', dp, cm.data, dp in cm.data)
+                return c, cm
+            elif cm.p(1, dp_prim) > 0.90:
+            #elif all([abs(val1-val2) < 0.01 for val1, val2 in zip(dp_prim, cm.data.tolist()[0])]):
+                cm.update(dp, cm.p(1, dp_prim))
                 return c, cm
         else:
             return None
@@ -624,8 +691,7 @@ class NoLanguageAgent(CorrectingAgent):
                 self.active_tests.remove(test)
             else:
                 continue
-            self.goal = goals.update_goal(self.goal, correct_rule.rule_formula)
-
+            self.goal = goals.update_goal(self.goal, correct_rule.to_formula())
 
     def build_model(self, message, args):
         data = self.get_data(message, args)
@@ -637,7 +703,10 @@ class NoLanguageAgent(CorrectingAgent):
         cm2 = self.find_matching_cm(data['o2'])
 
 
-        n = len(self.colour_models)
+        n = len(self.colour_models) - int('blue' in self.colour_models.keys())
+        if n > 37 and (cm1 is None or cm2 is None):
+            print("too many colour models, stopped learning")
+            return
 
         # If such colour models exist, use those
         # otherwise construct new colour models for any data point for which there was no match
@@ -669,7 +738,7 @@ class NoLanguageAgent(CorrectingAgent):
         if message.T == 'tower':
             if data['o2'] is None:
                 return
-            rule = correctingagent.world.rules.create_not_red_on_blue_rule([c1], [c2])
+            rule = correctingagent.world.rules.NotRedOnBlueRule(c1, c2).to_formula()
 
             self.colour_models.update({c1:c1_model, c2:c2_model})
             self.rule_models['not {} and {}'.format(c1, c2)] = rule
@@ -683,12 +752,14 @@ class NoLanguageAgent(CorrectingAgent):
                 c3 = "C{}".format(n+i)
                 c3_model = prob_model.KDEColourModel(c3, data=np.array([data['o3']]), weights=np.array([1]), **self.model_config)
 
+            rule1 = RedOnBlueRule(c3, c2, 1).to_formula()
+            rule2 = RedOnBlueRule(c1, c3, 2).to_formula()
 
-            rule1 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c2])
-            rule2 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c1], ['?y', '?x'])
+            # rule1 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c2])
+            # rule2 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c1], ['?y', '?x'])
             if data['o2'] is None:
                 self.colour_models.update({c1:c1_model, c3:c3_model})
-                self.rule_models['{}(x) -> {}(y)'.format(c3, c1)] = rule2
+                self.rule_models[rule2] = rule2
             else:
                 self.colour_models.update({c1:c1_model, c2:c2_model, c3:c3_model})
 
@@ -697,6 +768,34 @@ class NoLanguageAgent(CorrectingAgent):
                 self.active_tests.append(test)
 
             return
+        elif message.T == 'colour count':
+            n = 0
+            tower = args[-1]
+
+            try:
+                cm = self.colour_models['blue']
+            except KeyError:
+                cm = prob_model.KDEColourModel('blue', data=np.array([data['o1']]),
+                                        weights=np.array([1]), **self.model_config)
+
+            blocks_in_tower = self.world.state.get_objects_in_tower(tower)
+            for block in blocks_in_tower:
+                datum = self.world.observe_object(block)
+                if cm.p(1, datum) > 0.5:
+                    n = min(3, n+1)
+
+            rule = ColourCountRule('blue', n)
+            self.colour_models.update({'blue':cm})
+            self.rule_models["colour_count"] = rule.to_formula()
+            return
+        elif message.T == 'colour count+tower':
+            if 'blue' in self.colour_models.keys():
+                rule = RedOnBlueRule(c1, 'blue')
+                self.colour_models.update({c1:cm1})
+                self.rule_models[str(rule)] = rule
+                return
+            else:
+                return
 
     def update_goal(self):
         self.unsure = []

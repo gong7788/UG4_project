@@ -40,7 +40,7 @@ def ff(domain, problem, use_metric_ff=False):
     # stdout=subprocess.PIPE,
     # stderr=subprocess.PIPE)
 
-    for i in range(3000):
+    for i in range(5000):
         code = process.poll()
         if code == 0 or code == 1:
             break

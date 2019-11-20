@@ -71,7 +71,7 @@ class PGMCorrectingAgent(CorrectingAgent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
-                 model_config={}, tracker=Tracker(), debug=None):
+                 model_config={}, tracker=Tracker(), debug=None, simplified_colour_count=False):
 
         super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
                                                  domain_file, teacher, threshold,
@@ -88,6 +88,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.marks = defaultdict(list)
         self.previous_corrections = []
         self.previous_args = {}
+        self.simplified_colour_count = simplified_colour_count
 
     def update_goal(self):
         rule_probs = self.pgm_model.get_rule_probs(update_prior=True)
@@ -104,7 +105,9 @@ class PGMCorrectingAgent(CorrectingAgent):
     def no_correction(self, action, args):
         self.time += 1
         if args[0] in self.marks.keys() or args[1] in self.marks.keys():
-            self.pgm_model.add_no_correction(args, self.time, set(self.marks[args[0]] + self.marks[args[1]]))
+            marks = set(self.marks[args[0]] + self.marks[args[1]])
+            marks = [rule for rule in marks if isinstance(rule, RedOnBlueRule)]
+            self.pgm_model.add_no_correction(args, self.time, marks)
             data = self.get_colour_data(args)
             corr = f'corr_{self.time}'
             data[corr] = 0
@@ -172,11 +175,13 @@ class PGMCorrectingAgent(CorrectingAgent):
             cm = self.add_cm(colour_name)
             tower_name = args[-1]
             objects = self.world.state.get_objects_in_tower(tower_name)
+            top, _ = self.world.state.get_top_two(tower_name)
+            if self.simplified_colour_count:
+                objects = [top]
             violations = self.pgm_model.add_colour_count_correction(rule, cm, objects, self.time)
             data = self.get_colour_data(objects)
             corr = f"corr_{self.time}"
             data[corr] = 1
-            top, _ = self.world.state.get_top_two(tower_name)
             blue_top_obj = f"{colour_name}({top})"
             data[blue_top_obj] = 1
         elif 'colour count+tower' == message.T:
@@ -189,7 +194,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             tower_name = args[-1]
             top, _ = self.world.state.get_top_two(tower_name)
             objects = self.world.state.get_objects_in_tower(tower_name)
-
+            if self.simplified_colour_count:
+                objects = [top]
             violations = self.pgm_model.add_cc_and_rob(colour_count, red_on_blue, red_cm,
                                                        blue_cm, objects, top, self.time)
             data = self.get_colour_data(objects)
@@ -211,7 +217,12 @@ class PGMCorrectingAgent(CorrectingAgent):
                 red = f'{message.o1[0]}({args[0]})'
             else:
                 red = f'{message.o1}({args[0]}'
-            answer = self.teacher.answer_question(question, self.world)
+
+            if len(args) == 3:
+                tower = args[-1]
+            else:
+                tower = None
+            answer = self.teacher.answer_question(question, self.world, tower)
             # dialogue.info("T: " + answer)
             print(answer)
             bin_answer = int(answer.lower() == 'yes')
@@ -259,6 +270,8 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.pgm_model.observe(data)
 
         q = self.pgm_model.query(list(violations))
+
+        print(q)
 
         if max(q.values()) < self.threshold:
 
@@ -321,7 +334,9 @@ class PGMCorrectingAgent(CorrectingAgent):
         blue_cm = self.add_cm(message.o2[0])
 
         is_table_correction = message.T == 'table'
+        print("table correction?", is_table_correction)
         if is_table_correction:
+            args = args[:2]
             args += [message.o3]
 
         violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time, table_correction=is_table_correction)

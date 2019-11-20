@@ -273,6 +273,10 @@ class PDDLState(object):
                     top, second = on.args
                     if tower == args_tower:
                         return top, second
+        if tower is None:
+            return 't0', None
+        else:
+            return tower.replace('tower', 't')
 
     def count_coloured_blocks(self, colour):
         objects = self.get_objects_on_table()

@@ -24,7 +24,7 @@ class ActiveLearningTest(object):
         results = {}
 
         # for obj in pddl_functions.filter_tower_locations(data.keys(), get_locations=False):
-        for obj in w.objects_not_in_tower():
+        for obj in w.state.get_objects_on_table():
             datum = data[obj]
             p_colour = c3_model.p(1, datum)
             results[obj] = p_colour
@@ -74,8 +74,11 @@ class Planner(object):
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
             self.problem.initialstate = self.current_state.asPDDL()
+
             # for formula in self.current_state.asPDDL():
             #     print(formula.asPDDL())
+            # print(self.problem.goal.asPDDL())
+
 
             with open(self.search_file, 'w') as f:
                 f.write(self.problem.asPDDL())

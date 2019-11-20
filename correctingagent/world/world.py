@@ -9,10 +9,8 @@ from ..pddl import block_plotting
 import numpy as np
 import os
 from ..util.util import get_config
-from ..util.colour_dict import colour_names
 import json
-from skimage.color import rgb2hsv, hsv2rgb
-import matplotlib.pyplot as plt
+from skimage.color import hsv2rgb
 
 
 Observation = namedtuple("Observation", ['objects', 'colours', 'state'])
@@ -40,6 +38,12 @@ class World(object):
 class PDDLWorld(World):
 
     def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+
+        if domain_file == 'blocks-domain-colour-unknown-cc.pddl':
+            domain_file = 'blocks-domain-updated.pddl'
+        elif domain_file == 'blocks-domain-colour-unknown.pddl':
+            domain_file = 'blocks-domain.pddl'
+
 
         self.use_metric_ff = "updated" in domain_file
 
@@ -94,6 +98,9 @@ class PDDLWorld(World):
 
         return Observation(self.objects, self.colours, obscured_state)
 
+    def observe_object(self, obj):
+        return self.colours[obj]
+
     def draw(self, debug=False):
 
         positions = block_plotting.place_objects(self.objects, self.state, self.start_positions)
@@ -141,7 +148,7 @@ class PDDLWorld(World):
     def objects_not_in_tower(self):
         out_objects = []
         for o in self.objects:
-            if not self.state._predicate_holds(pddl_functions.Predicate('in-tower', [o])):
+            if not self.state.predicate_holds('in-tower', [o]):
                 out_objects.append(o)
         return out_objects
 

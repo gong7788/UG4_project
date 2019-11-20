@@ -189,18 +189,23 @@ class PGMModel(object):
     def add_no_correction(self, args, time, rules):
         if not rules:
             return
-        o1, o2 = args
+        o1, o2 = args[:2]
 
         violations = []
 
         for rule in rules:
-            red = rule.c1
-            blue = rule.c2
-            colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2], table_correction=False)
+            if isinstance(rule, RedOnBlueRule):
+                red = rule.c1
+                blue = rule.c2
+                colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2], table_correction=False)
 
-            Vrule = self.add_violation_factor(rule, time, colour_models)
+                Vrule = self.add_violation_factor(rule, time, colour_models)
 
-            violations.append(Vrule)
+                violations.append(Vrule)
+            elif isinstance(rule, ColourCountRule):
+                return []
+            else:
+                raise ValueError(f"Unexpected rule type {type(rule)}")
 
         self.add_correction_factor(violations, time)
 

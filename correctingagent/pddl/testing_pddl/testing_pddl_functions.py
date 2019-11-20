@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -278,6 +279,8 @@ def test_get_objects_in_tower():
     action.apply_action(state, ['b2', 'b1', 'tower0'])
     action.apply_action(state, ['b3', 't1', 'tower1'])
     action.apply_action(state, ['b4', 'b3', 'tower1'])
+    action.apply_action(state, ['b7', 'b4', 'tower1'])
+    action.apply_action(state, ['b5', 'b7', 'tower1'])
 
     objects_in_tower1 = state.get_objects_in_tower('tower0')
     assert('b1' in objects_in_tower1)
@@ -287,6 +290,59 @@ def test_get_objects_in_tower():
     assert('b3' in objects_in_tower2)
     assert('b4' in objects_in_tower2)
     assert('b1' not in objects_in_tower2)
-    assert('b5' not in objects_in_tower2)
+    assert('b5' in objects_in_tower2)
     assert('b6' not in objects_in_tower1)
     assert('t0' not in objects_in_tower1)
+    assert(objects_in_tower2[-1] == 'b5')
+
+def test_update_state():
+    config = get_config()
+    data_dir = Path(config['data_location'])
+    domain_file = 'blocks-domain-updated.pddl'
+    domain_file = data_dir / 'domain' / domain_file
+    problem_directory = 'multitower'
+    problem_number = 1
+    problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+    domain, problem = pddl_functions.parse(domain_file, problem_file)
+
+    pddl_state = pddl_functions.PDDLState.from_problem(problem)
+    action = pddl_functions.Action.from_pddl(domain.actions[0])
+
+    state = [('b1', 'red'), ('b2', 'blue'), ('b3', 'blue'), ('b4', 'purple'), ('b5', 'blue')]
+    action.apply_action(pddl_state, ['b1', 't0', 'tower0'])
+    action.apply_action(pddl_state, ['b2', 'b1', 'tower0'])
+    action.apply_action(pddl_state, ['b3', 't1', 'tower1'])
+    action.apply_action(pddl_state, ['b4', 'b3', 'tower1'])
+    action.apply_action(pddl_state, ['b7', 'b4', 'tower1'])
+    action.apply_action(pddl_state, ['b5', 'b7', 'tower1'])
+
+
+    colour_counts = defaultdict(int)
+    for o, c in state:
+        pddl_state.apply_effect(Predicate(c, [o]))
+        for t in pddl_state.towers:
+            tower = t.replace('t', 'tower')
+            if pddl_state.predicate_holds("in-tower", [o, tower]):
+                colour_counts[(c, tower)] += 1
+
+
+
+    new_fexpressions = []
+    for cc in pddl_state.fexpressions:
+        cc = ColourCount(cc.colour, cc.tower, colour_counts[(cc.colour, cc.tower)])
+        new_fexpressions.append(cc)
+    pddl_state.fexpressions = new_fexpressions
+
+    assert(pddl_state.predicate_holds("in-tower", ['b2', 'tower0']))
+
+    assert(pddl_state.get_colour_count('red', 'tower0') == 1)
+    assert(pddl_state.get_colour_count('red', 'tower1') == 0)
+    assert(colour_counts[('blue', 'tower1')] == 2)
+    assert(colour_counts[('blue', 'tower0')] == 1)
+    assert (pddl_state.get_colour_count('blue', 'tower0') == 1)
+
+    assert (pddl_state.get_colour_count('purple', 'tower1') == 1)
+
+    assert(pddl_state.get_colour_count('blue', 'tower1') == 2)
+
+

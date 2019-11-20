@@ -310,6 +310,10 @@ class KDEColourModel(ColourModel):
         if data_neg is not None:
             self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
         self.use_hsv = use_hsv
+        print("fix bw?", fix_bw)
+        print("bw", self.bw([[0., 0., 0.]]))
+
+
 
     def reset(self):
         self.data = self.fixed_pos

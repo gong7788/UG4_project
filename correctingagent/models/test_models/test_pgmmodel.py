@@ -1,7 +1,7 @@
 import pytest
 from pgmpy.factors.discrete import TabularCPD
 
-from correctingagent.models.pgmmodels import PGMModel, Rule
+from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.world import rules
 from correctingagent.world.rules import RedOnBlueRule
@@ -15,7 +15,7 @@ def test_cpd_creation_r1():
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
     blue_o2 = f'{blue}(o2)'
-    violated_rule_cpd = rule.generate_CPD()
+    violated_rule_cpd = rule.generateCPD()
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, rule],
                      evidence_card=[2, 2, 2])
 
@@ -33,7 +33,7 @@ def test_cpd_creation_r2():
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
     blue_o2 = f'{blue}(o2)'
-    violated_rule_cpd = rule.generate_CPD()
+    violated_rule_cpd = rule.generateCPD()
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, rule],
                      evidence_card=[2, 2, 2])
 
@@ -130,7 +130,7 @@ def test_extend_model():
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
     time = 0
-    red_on_blue_rules = Rule.generate_red_on_blue_options('red', 'blue')
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
 
     violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, table_correction=False)
 
@@ -146,7 +146,7 @@ def test_extend_model_table():
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
     time = 0
-    red_on_blue_rules = Rule.generate_red_on_blue_options('red', 'blue')
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
 
     violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2', 'b4'], time, table_correction=True)
 

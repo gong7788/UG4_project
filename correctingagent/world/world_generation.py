@@ -305,10 +305,15 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
                     json.dump(colour_object_dict, f)
             scenarios.append(file_name)
 
-def generate_colour_count(max_num=4):
+
+def generate_colour_count(max_num=4, exact_num=None):
     colour = random.choice(list(colour_dict.keys()))
-    number = random.choice(range(1, max_num+1))
+    if exact_num is not None:
+        number = exact_num
+    else:
+        number = random.choice(range(1, max_num+1))
     return ColourCountRule(colour, number)
+
 
 def generate_consistent_red_on_blue(rules):
     rule = random.choice(rules)
@@ -320,7 +325,8 @@ def generate_consistent_red_on_blue(rules):
     return RedOnBlueRule(colour, colour2, rule_type)
 
 
-def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, num_redonblue, dataset_name, colour_dict=colour_dict, use_random_colours=True):
+def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, num_redonblue, dataset_name,
+                                        colour_dict=colour_dict, use_random_colours=True, cc_num=2, cc_exact_num=None):
     data_path = Path('/home/mappelgren/Desktop/correcting-agent/data')
     top_path = data_path / dataset_name
     try:
@@ -330,7 +336,11 @@ def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, nu
 
     while num_datasets < N_datasets:
 
-        colour_count = [generate_colour_count(3) for i in range(num_colour_count)]
+        colour_count = [generate_colour_count(cc_num, cc_exact_num) for i in range(num_colour_count)]
+        colours = [rule.colour_name for rule in colour_count]
+        while len(set(colours)) != len(colours):
+            colour_count = [generate_colour_count(cc_num, cc_exact_num) for i in range(num_colour_count)]
+            colours = [rule.colour_name for rule in colour_count]
         red_on_blue = [generate_consistent_red_on_blue(colour_count) for i in range(num_redonblue)]
         rules = colour_count + red_on_blue
 

@@ -1,6 +1,7 @@
 import pytest
 
 from correctingagent.world import world
+from correctingagent.world.goals import create_default_goal
 from correctingagent.world.rules import *
 
 def test_from_formula():
@@ -87,10 +88,10 @@ def test_colour_count_violation():
     w.update('put', ['b0', 't0', 'tower0'])
     w.update('put', ['b5', 'b0', 'tower0'])
 
-    assert(rule.check_tower_violation(w.state) is True)
+    assert(rule.check_tower_violation(w.state, 'tower0') is True)
     w.back_track()
     w.update('put', ['b5', 't1', 'tower1'])
-    assert(rule.check_tower_violation(w.state) is False)
+    assert(rule.check_tower_violation(w.state, 'tower1') is False)
 
 
 def test_table_correction_doesnt_overinfer():
@@ -150,3 +151,21 @@ def test_get_violation_type():
     new_rules = [Rule.rule_from_violation(violation) for violation in violations]
     for original, new in zip(rules, new_rules):
         assert(original == new)
+
+def test_not_redonblue_rule():
+    rule = NotRedOnBlueRule('red', 'blue')
+    assert(rule.asPDDL() == "(not (exists (?x ?y) (and (red ?x) (blue ?y) (on ?x ?y))))")
+
+
+def test_default_goal():
+    assert("done" in create_default_goal('blocks-domain-updated.pddl').asPDDL())
+    assert("in-tower" in create_default_goal('blocks-domain.pddl').asPDDL())
+    assert("in-tower" in create_default_goal('blocks-domain-colour-unknown.pddl').asPDDL())
+    assert("done" in create_default_goal('blocks-domain-colour-unknown-cc.pddl').asPDDL())
+
+
+def test_colour_count_cpd():
+    rule = ColourCountRule('red', 1)
+
+    cpd = rule.generateCPD(num_blocks_in_tower=3)
+

@@ -1,5 +1,5 @@
 (define (problem block-problem)
-	(:domain blocksworld)
+	(:domain blocksworld-updated)
 	(:objects b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 t0 t1 tower0 tower1)
 	(:init
 		(arm-empty )

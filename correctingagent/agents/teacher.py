@@ -38,7 +38,7 @@ class Teacher(object):
     def correction(self, world_):
         raise NotImplementedError()
 
-    def answer_question(self, question, world_):
+    def answer_question(self, question, world_, tower):
         raise NotImplementedError()
 
 
@@ -47,7 +47,7 @@ class HumanTeacher(Teacher):
     def correction(self, world_):
         return input('Correction?')
 
-    def answer_question(self, question, world_):
+    def answer_question(self, question, world_, tower):
         return input(question)
 
 
@@ -56,9 +56,13 @@ class TeacherAgent(Teacher):
     def reset(self):
         pass
 
-    def correction(self, w):
+    def correction(self, w, args):
         failure = w.test_failure()
-
+        if len(args) == 3:
+            tower = args[-1]
+        else:
+            tower = None
+        #print("Failure?", failure)
         if not failure:
             return ""
         #Reasons for failure:
@@ -66,18 +70,20 @@ class TeacherAgent(Teacher):
         # b-> a b -a
         rules = Rule.get_rules(w.problem.goal)
         for rule in rules:
-            rule_violated = rule.check_tower_violation(w.state)
+            rule_violated = rule.check_tower_violation(w.state, tower)
             if rule_violated:
-                return get_tower_correction(rule, w).sentence
+                return get_tower_correction(rule, w, tower).sentence
 
         for rule in rules:
-            if rule.check_table_violation(w.state, rules):
-                return get_table_correction(rule, w, rules).sentence
+            if rule.check_table_violation(w.state, rules, tower):
+                return get_table_correction(rule, w, rules, tower).sentence
 
-    def answer_question(self, question, world_):
+        return ""
+
+    def answer_question(self, question, world_, tower):
         if "Is the top object" in question:
             colour = question.replace("Is the top object", '').replace("?", '').strip()
-            o1, o2 = world_.state.get_top_two()
+            o1, o2 = world_.state.get_top_two(tower)
             o1_is_colour = world_.state.predicate_holds(colour, [o1])
             if o1_is_colour:
                 return "yes"
@@ -92,9 +98,9 @@ class BaseRule(object):
     pass
 
 
-def get_tower_correction(rule: Rule, wrld: PDDLWorld):
+def get_tower_correction(rule: Rule, wrld: PDDLWorld, tower: str):
     if isinstance(rule, RedOnBlueRule):
-        o1, o2 = wrld.state.get_top_two()
+        o1, o2 = wrld.state.get_top_two(tower)
         return Correction(rule, [o1, o2], tower_correction(rule.c1, rule.c2))
     elif isinstance(rule, ColourCountRule):
         correction_str = colour_count_correction(rule.colour_name, rule.number)
@@ -105,15 +111,22 @@ def get_tower_correction(rule: Rule, wrld: PDDLWorld):
         return Correction(rule, [out_tower], correction_str)
 
 
-def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None):
+def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None, tower: str = None):
     if isinstance(rule, RedOnBlueRule):
 
         if rule.rule_type == 1:
-            o3 = wrld.state.get_block_with_colour(rule.c1)
+            colour = rule.c1
         else:
-            o3 = wrld.state.get_block_with_colour(rule.c2)
+            colour = rule.c2
 
-        o1, o2 = wrld.state.get_top_two()
+        o3 = wrld.state.get_block_with_colour(colour)
+        if o3 is None:
+            towers = [t.replace('t', 'tower') for t in wrld.state.towers if t.replace('t', 'tower') != tower]
+            o3 = [top for top, second in
+                  [wrld.state.get_top_two(t) for t in towers]
+                  if wrld.state.predicate_holds(colour, [top])][0]
+
+        o1, o2 = wrld.state.get_top_two(tower)
 
         corr = Correction(rule, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
         return corr
@@ -133,7 +146,6 @@ def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None):
                             return corr
 
 
-
 class ExtendedTeacherAgent(TeacherAgent):
 
     def __init__(self):
@@ -146,8 +158,13 @@ class ExtendedTeacherAgent(TeacherAgent):
         self.rules_corrected = set()
         self.dialogue_history = []
 
-    def correction(self, wrld, return_possible_corrections=False):
+    def correction(self, wrld, args, return_possible_corrections=False):
         failure = wrld.test_failure()
+
+        if len(args) == 3:
+            tower = args[-1]
+        else:
+            tower = None
 
         if not failure:
             return ""
@@ -156,20 +173,22 @@ class ExtendedTeacherAgent(TeacherAgent):
         rules = Rule.get_rules(wrld.problem.goal)
         for rule in rules:
 
-            if rule.check_tower_violation(wrld.state):
+            if rule.check_tower_violation(wrld.state, tower):
 
-                corr = get_tower_correction(rule, wrld)
+                corr = get_tower_correction(rule, wrld, tower)
 
                 possible_corrections.append(corr)
 
         for rule in rules:
-            if rule.check_table_violation(wrld.state, rules):
+            if rule.check_table_violation(wrld.state, rules, tower):
 
-                corr = get_table_correction(rule, wrld, rules)
+                corr = get_table_correction(rule, wrld, rules, tower)
 
                 possible_corrections.append(corr)
 
         possible_corrections = self.generate_possible_corrections(possible_corrections, wrld)
+        if len(possible_corrections) == 0:
+            return ""
         selection = self.select_correction(possible_corrections)
         if return_possible_corrections:
             return selection, possible_corrections
@@ -183,28 +202,37 @@ class ExtendedTeacherAgent(TeacherAgent):
             if len(self.dialogue_history) > 0:
 
                 if "now you cannot put" not in correction.sentence:
-                    for previous_corr in self.dialogue_history[::-1]:
-                        if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence:
-                            colours = [previous_corr.rule.c1, previous_corr.rule.c2]
-                            if correction.rule.c1 in colours or correction.rule.c2 in colours:
 
-                                if correction.rule.c1 == colours[0]:
-                                    current_colour = wrld.state.get_colour_name(correction.args[0])
-                                    prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
-                                    if current_colour != correction.rule.c1 and prev_colour != correction.rule.c1:
-                                        possible_sentences.append((f'no, that is not {correction.rule.c1} again', correction))
-                                if correction.rule.c2 == colours[1]:
-                                    current_colour = wrld.state.get_colour_name(correction.args[1])
-                                    prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
-                                    if current_colour != correction.rule.c2 and prev_colour != correction.rule.c2:
-                                        possible_sentences.append((f'no, that is not {correction.rule.c2} again', correction))
-                                break
+                    for previous_corr in self.dialogue_history[::-1]:
+
+                        if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence and not(isinstance(previous_corr.rule, ColourCountRule)):
+
+                            if isinstance(correction.rule, RedOnBlueRule) and isinstance(previous_corr.rule, RedOnBlueRule):
+
+                                colours = [previous_corr.rule.c1, previous_corr.rule.c2]
+
+                                if correction.rule.c1 in colours or correction.rule.c2 in colours:
+
+                                    if correction.rule.c1 == colours[0]:
+                                        current_colour = wrld.state.get_colour_name(correction.args[0])
+                                        prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
+                                        if current_colour != correction.rule.c1 and prev_colour != correction.rule.c1:
+                                            possible_sentences.append((f'no, that is not {correction.rule.c1} again', correction))
+                                    if correction.rule.c2 == colours[1]:
+                                        current_colour = wrld.state.get_colour_name(correction.args[1])
+                                        prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
+                                        if current_colour != correction.rule.c2 and prev_colour != correction.rule.c2:
+                                            possible_sentences.append((f'no, that is not {correction.rule.c2} again', correction))
+                                    break
                         elif 'now you cannot put' in previous_corr.sentence:
                             colours = [previous_corr.rule.c1, previous_corr.rule.c2]
-                            if correction.rule.c1 in colours or correction.rule.c2 in colours:
-                                break
+                            if isinstance(correction.rule, RedOnBlueRule):
+                                if correction.rule.c1 in colours or correction.rule.c2 in colours:
+                                    break
+                        elif isinstance(previous_corr.rule, ColourCountRule):
+                            break
 
-                if self.previous_correction.sentence == correction.sentence:
+                if isinstance(correction.rule, RedOnBlueRule) and self.previous_correction.sentence == correction.sentence:
                      possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))
 
             possible_sentences.append((correction.sentence, correction))

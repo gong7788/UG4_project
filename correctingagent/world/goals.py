@@ -10,7 +10,7 @@ class Goal(object):
 
 
 def create_default_goal(domain_file):
-    if 'updated' not in domain_file:
+    if 'updated' not in domain_file and 'blocks-domain-colour-unknown-cc' not in domain_file:
         var = pddl_functions.make_variable_list(['?x'])
         pred = Predicate('in-tower', var)
         goal = Formula([pred], op='forall', variables=var)

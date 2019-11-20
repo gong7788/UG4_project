@@ -252,3 +252,6 @@ def test_get_correction_colour_count2():
     rule_probs = agent.pgm_model.get_rule_probs()
     assert(rule_probs[rule] > 0.5)
 
+
+def test_model_update():
+     w = RandomColoursWorld('blocks-domain-updated.pddl', problem_directory='multitower', problem_number=2)

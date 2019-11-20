@@ -63,7 +63,7 @@
 	)
 	(:goal (and
 						(forall (?x) (done ?x))
-						(forall (?t) (or (not (tower ?t)) (<= (blue-count ?t) 1)))
+						(forall (?t) (or (not (tower ?t)) (<= (blue-count ?t) 2)))
 						(forall (?y) (or (not (red ?y)) (exists (?x) (and (blue ?x) (on ?x ?y)))))
 					)
 	)

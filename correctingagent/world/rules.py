@@ -11,8 +11,8 @@ from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
 from correctingagent.util.CPD_generation import binary_flip
 from correctingagent.pddl import pddl_functions
-from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState
-from correctingagent.world import goals
+from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState, ColourCount
+from correctingagent.world import goals, PDDLWorld
 
 
 def split_rule(rule):
@@ -53,7 +53,7 @@ class Rule(object):
             return RedOnBlueRule(c1, c2, rule_type)
         elif rule_type == 3:
             c1, c2 = Rule.get_rule_colours_existential(formula)
-            raise NotImplementedError("Have not implemented not red on blue rules")
+            return NotRedOnBlueRule(c1, c2)
         elif rule_type == 4:
             return ColourCountRule.from_formula(formula)
 
@@ -190,7 +190,8 @@ class ColourCountRule(Rule):
         or_formula = Formula([right, left], op='or')
         return Formula([or_formula], op='forall', variables=args)
 
-    def check_tower_violation(self, state: PDDLState):
+    def check_tower_violation(self, state: PDDLState, tower: str):
+
         for tower in state.towers:
             tower = tower.replace('t', 'tower')
             cc = state.get_colour_count(self.colour_name, tower)
@@ -198,26 +199,31 @@ class ColourCountRule(Rule):
                 return True
         return False
 
-    def check_table_violation(self, state: PDDLState, rules: list):
-        for tower in state.towers:
-            tower = tower.replace('t', 'tower')
-            if state.get_colour_count(self.colour_name, tower) == self.number:
-                for rule in rules:
-                    try:
-                        top, _ = state.get_top_two(tower)
-                        if rule.c1 == self.colour_name and state.predicate_holds(rule.c2, [top]):
-                            if rule.rule_type == 2:
+    def check_table_violation(self, state: PDDLState, rules: list, tower: str):
+
+        #for tower in state.towers:
+            #tower = tower.replace('t', 'tower')
+        if state.get_colour_count(self.colour_name, tower) == self.number:
+            for rule in rules:
+                try:
+                    top, _ = state.get_top_two(tower)
+                    if rule.c1 == self.colour_name and state.predicate_holds(rule.c2, [top]):
+                        if rule.rule_type == 2:
+                            return True
+                        else:
+                            towers = [t.replace('t', 'tower') for t in state.towers]
+                            tops = [top for top, second in [state.get_top_two(t) for t in towers if t != tower]]
+                            num_bottom_colour = sum([int(state.predicate_holds(rule.c2, [top])) for top in tops])
+
+                            first_colour_count = state.count_coloured_blocks(rule.c1)
+                            second_colour_count = state.count_coloured_blocks(rule.c2)
+                            if first_colour_count == (second_colour_count + 1 + num_bottom_colour):
                                 return True
-                            else:
-                                first_colour_count = state.count_coloured_blocks(rule.c1)
-                                second_colour_count = state.count_coloured_blocks(rule.c2)
-                                if first_colour_count == second_colour_count + 1:
-                                    return True
-                    except AttributeError:
-                        continue
+                except AttributeError:
+                    continue
         return False
 
-    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, num_blocks_on_table=8, second_rule=None, **kwargs):
+    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, **kwargs):
         #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
         if table_correction is False:
             return self.generate_tower_cpd(num_blocks_in_tower, table_correction=table_correction)
@@ -233,52 +239,48 @@ class ColourCountRule(Rule):
             top_block = flip_selection[num_blocks_in_tower-1]
             other_rule = flip_selection[-2]
             cc = flip_selection[-1]
-            this_rule_satisfied = sum(blocks_in_tower) == self.number and top_block == 1
+            if len(blocks_in_tower) == 0:
+                this_rule_satisfied = top_block == 1
+            else:
+                this_rule_satisfied = sum(blocks_in_tower) == self.number and top_block == 1
             violation = this_rule_satisfied and other_rule == 1 and cc == 1
             CPD[1][i] = int(violation)
             CPD[0][i] = 1 - int(violation)
         return CPD
-
-
-    # def generate_table_cpd(self, num_blocks_in_tower: int, num_blocks_on_table: int, second_rule):
-    #     """ output order is blocks in tower, blocks on table (red then blue), second rule, this rule
-    #
-    #     :param num_blocks_in_tower: len([blue(o1), blue(o2),...,red(oN)])
-    #     :param num_blocks_on_table: len([red(on+1), ..., red(oN+M])
-    #     :param second_rule: RedOnBlueRule
-    #     :return:
-    #     """
-    #     flippings = binary_flip(num_blocks_in_tower + (2 * num_blocks_on_table) + 1 + 1)
-    #     CPD = np.zeros((2, len(flippings)), dtype=np.int32)
-    #     for i, flip_selection in enumerate(flippings):
-    #
-    #         blocks_in_tower = flip_selection[:num_blocks_in_tower]
-    #         red_blocks_on_table = flip_selection[num_blocks_in_tower:num_blocks_in_tower+num_blocks_on_table]
-    #         blue_blocks_on_table = flip_selection[num_blocks_in_tower+num_blocks_on_table:num_blocks_in_tower+2*num_blocks_on_table]
-    #         other_rule = bool(flip_selection[-2])
-    #         this_rule = bool(flip_selection[-1])
-    #         this_rule_satisfied = sum(blocks_in_tower) == self.number
-    #         red_equals_blue = sum(blue_blocks_on_table) == sum(red_blocks_on_table)
-    #         more_blue_than_red = sum(blue_blocks_on_table) >= sum(red_blocks_on_table)
-    #
-    #         if second_rule.rule_type == 1:
-    #             violated = int(this_rule_satisfied and red_equals_blue and other_rule and this_rule)
-    #         elif second_rule.rule_type == 2:
-    #             violated = int(this_rule_satisfied and more_blue_than_red and other_rule and this_rule)
-    #         CPD[1][i] = violated
-    #         CPD[0][i] = violated
-    #     return CPD
-
 
     def generate_tower_cpd(self, num_blocks_in_tower, table_correction=False):
         offset = 1 if not table_correction else 0
         flippings = binary_flip(num_blocks_in_tower)
         CPD = np.zeros((2, len(flippings)), dtype=np.int32)
         for i, l in enumerate(flippings):
-            rule_violated = int(sum(l[:-1]) == (self.number + offset)) * l[-1]
+            if num_blocks_in_tower == 2:
+                top, rule = l
+                rule_violated = int(top and rule)
+            else:
+                rule_violated = int(sum(l[:-1]) == (self.number + offset)) * l[-1]
             CPD[1][i] = rule_violated
             CPD[0][i] = 1 - rule_violated
         return CPD
+
+
+class NotRedOnBlueRule(Rule):
+
+    def __init__(self, c1: str, c2: str):
+        self.c1 = c1
+        self.c2 = c2
+        self.name = f'not (exist x.y.({self.c1}(x) & {self.c2}(y) & on(x,y)))'
+        self.constraint = NotRedOnBlueConstraint(c1, c2)
+
+    def to_formula(self):
+        variables = pddl_functions.make_variable_list(['?x', '?y'])
+
+        on = Predicate('on', variables)
+        red = Predicate(self.c1, pddl_functions.make_variable_list(['?x']))
+        blue = Predicate(self.c2, pddl_functions.make_variable_list((['?y'])))
+        and_formula = Formula([Formula([red]), Formula([blue]), Formula([on])], op='and')
+        exist_formula = Formula([and_formula], op='exists', variables=variables)
+        not_formula = Formula([exist_formula], op='not')
+        return not_formula
 
 
 class RedOnBlueRule(Rule):
@@ -377,9 +379,9 @@ class RedOnBlueRule(Rule):
                             cpd_line_corr0.append(1 - result)
         return [cpd_line_corr0, cpd_line_corr1]
 
-    def check_tower_violation(self, state):
+    def check_tower_violation(self, state: PDDLState, tower: str):
 
-        o1, o2 = state.get_top_two()
+        o1, o2 = state.get_top_two(tower)
 
         c1_o1 = state.predicate_holds(self.c1, [o1])
         c2_o2 = state.predicate_holds(self.c2, [o2])
@@ -388,8 +390,6 @@ class RedOnBlueRule(Rule):
             return True
         elif not c1_o1 and c2_o2 and self.rule_type == 2:
             return True
-        else:
-            return False
 
     def get_all_relevant_colours(self, rules):
         """
@@ -408,8 +408,18 @@ class RedOnBlueRule(Rule):
                 additional_blue_constraints.append(rule.c1)
         return additional_red_constraints, additional_blue_constraints
 
-    def check_table_violation(self, state, additional_rules=[]):
-        top_object, second_object = state.get_top_two()
+    def check_table_violation(self, state: PDDLState, additional_rules=[], tower: str = None):
+
+        if tower is not None:
+            towers = [tower2.replace('t', 'tower') for tower2 in state.towers if tower2.replace('t', 'tower') != tower]
+            additional_blue = sum(
+                [int(state.predicate_holds(self.c2, [first_object])) for first_object, second_object in [state.get_top_two(t) for t in towers]]
+            )
+        else:
+            additional_blue = 0
+
+        top_object, second_object = state.get_top_two(tower)
+
         additional_relevant_rules = [rule for rule in additional_rules if isinstance(rule, RedOnBlueRule)]
         additional_bottom_constrained_objects, additional_top_constrained_objects = self.get_all_relevant_colours(additional_relevant_rules)
 
@@ -417,7 +427,7 @@ class RedOnBlueRule(Rule):
         second_object_is_blue = state.predicate_holds(self.c2, [second_object])
 
         number_red_blocks = state.count_coloured_blocks(self.c1)
-        number_blue_blocks = state.count_coloured_blocks(self.c2)
+        number_blue_blocks = state.count_coloured_blocks(self.c2) + additional_blue
 
         number_additional_bottom_objects = sum([state.count_coloured_blocks(colour) for colour in additional_bottom_constrained_objects])
         number_additional_top_objects = sum([state.count_coloured_blocks(colour) for colour in additional_top_constrained_objects])
@@ -431,6 +441,16 @@ class RedOnBlueRule(Rule):
                 return True
         return False
 
+
+class NotRedOnBlueConstraint(object):
+
+    def __init__(self, c1, c2):
+        self.name = 'no constraints'
+        self.c1 = c1
+        self.c2 = c2
+
+    def evaluate(self, colour_counts):
+        return True
 
 class RuleConstraint(object):
 
@@ -591,11 +611,23 @@ class State(object):
                 raise e
 
     def asPDDL(self):
-        pddl_state = copy.copy(self.initialstate.to_formula())
+        pddl_state = copy.deepcopy(self.initialstate)
+        colour_counts = defaultdict(int)
+
         for o, c in self.state:
-            colour_formula = pddl_functions.create_formula(c, [o])
-            pddl_state.append(colour_formula)
-        return pddl_state
+            pddl_state.apply_effect(pddl_functions.Predicate(c, [o]))
+            for t in pddl_state.towers:
+                tower = t.replace('t', 'tower')
+                if pddl_state.predicate_holds("in-tower", [o, tower]):
+                    colour_counts[(c, tower)] += 1
+
+        new_fexpressions = []
+        for cc in pddl_state.fexpressions:
+            cc = ColourCount(cc.colour, cc.tower, colour_counts[(cc.colour, cc.tower)])
+            new_fexpressions.append(cc)
+        pddl_state.fexpressions = new_fexpressions
+
+        return pddl_state.to_formula()
 
     def __eq__(self, other):
         if isinstance(other, State):
