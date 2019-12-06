@@ -168,14 +168,17 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     print(colour_model_config_name)
 
     if new_teacher:
+        print("NEW TEACHER!")
         teacher = ExtendedTeacherAgent()
     else:
+        print("old teacher :(")
         teacher = TeacherAgent()
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                          threshold, update_negative, update_once, debug_agent, domain_file, simplified_colour_count)
 
-    results_file.write(f'Results for {problem_name}\n')
+    if results_file is not None:
+        results_file.write(f'Results for {problem_name}\n')
 
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
@@ -187,11 +190,11 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
         total_reward += w.reward
         print(f'{problem_name} reward: {w.reward}')
-
-        results_file.write(f'{problem_name} reward: {w.reward}\n')
-        results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
-
-    results_file.write(f'total reward: {total_reward}\n')
+        if results_file is not None:
+            results_file.write(f'{problem_name} reward: {w.reward}\n')
+            results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
+    if results_file is not None:
+        results_file.write(f'total reward: {total_reward}\n')
 
     if debug and not 'Random' in config['agent']:
         debugger.save_confusion()

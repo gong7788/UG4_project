@@ -14,6 +14,8 @@ from ..util.util import get_config
 c = get_config()
 data_location = c['data_location']
 
+class TestFailed(Exception):
+    pass
 
 class ActiveLearningTest(object):
 
@@ -28,6 +30,9 @@ class ActiveLearningTest(object):
             datum = data[obj]
             p_colour = c3_model.p(1, datum)
             results[obj] = p_colour
+
+        if len(results) == 0:
+            raise TestFailed("The number of blocks on the table is 0, must be r2")
 
         least_likely_obj = min(results, key=results.get)
         self.objects = (least_likely_obj, c2_obj)
@@ -66,13 +71,14 @@ class Planner(object):
 
     def evaluate_current_state(self, default_plan=False):
         if default_plan:
-            print('Doing default plan')
+            #print('Doing default plan')
             self.current_state.state = []
             self.current_state.colour_counts = {c: 0 for c in self.current_state.colour_counts.keys()}
         success, increase, decrease = self.constraints.evaluate(self.current_state)
 
         if success:
             self.problem.goal = goals.update_goal(self.goal, self.tmp_goal)
+            # print(self.problem.goal.asPDDL())
             self.problem.initialstate = self.current_state.asPDDL()
 
             # for formula in self.current_state.asPDDL():
@@ -89,7 +95,7 @@ class Planner(object):
                 # print('Plan successful')
                 return plan
             except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
-                print(e)
+                # print(e)
                 # for p in self.problem.initialstate:
                 #     print(p.asPDDL())
                 # print(self.problem.goal.asPDDL())
@@ -126,7 +132,7 @@ class Planner(object):
                 break
             #if plan:
             #    return plan
-
+        # print("doing default plan")
         return self.evaluate_current_state(default_plan=True)
 
     def add_candidate(self, colour, increase_count=True):
@@ -174,13 +180,10 @@ class NoLanguagePlanner(Planner):
                 f.write(self.problem.asPDDL())
             try:
                 plan = ff.run(self.domain_file, self.search_file, use_metric_ff=self.use_metric_ff)
-            except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError):
+            except (ImpossibleGoalError, IDontKnowWhatIsGoingOnError, NoPlanError):
 
                 test.failed = True
                 continue
-            except (IDontKnowWhatIsGoingOnError, NoPlanError):
-                self.goal = goals.update_goal(self.goal, test.test_formula)
-                tmp_goal = goals.update_goal(tmp_goal, test.test_formula)
             else:
                 self.goal = goals.update_goal(self.goal, test.test_formula)
                 tmp_goal = goals.update_goal(tmp_goal, test.test_formula)

@@ -127,7 +127,7 @@ def equals_CPD(seta, setb, carda=None, cardb=None):
     if cardb is None:
         cardb = [2]*len(setb)
     results = []
-    def helper(settingsa, cardsa, settingsb, cardsb):
+    def helper(settingsa, cardsa, settingsb, cardsb, results):
         if len(cardsa) == 0:
             results.append(int(all([a == b for a,b in zip(settingsa, settingsb)])))
         else:
@@ -135,7 +135,17 @@ def equals_CPD(seta, setb, carda=None, cardb=None):
                 for j in range(cardsb[0]):
                     sa = settingsa.copy()
                     sb = settingsb.copy()
-                    helper(sa+[i], cardsa[1:], sb+[j], cardsb[1:])
-    helper([], carda, [], cardb)
+                    helper(sa+[i], cardsa[1:], sb+[j], cardsb[1:], results)
+    helper([], carda, [], cardb, results)
 
     return results
+
+
+# def equals_CPD(seta, setb):
+#     flips = binary_flip(len(seta) + len(setb))
+#
+#     results = []
+#     for flip in flips:
+#         r = all([flip[i] == flip[len(seta)] + i for i in range(len(seta))])
+#         results.append(int(r))
+#     return results

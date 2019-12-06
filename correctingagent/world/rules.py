@@ -593,6 +593,8 @@ class State(object):
     def flip_colour(self, colour, increase_count=True):
         """flip positive means flipping a positive to a negative
         I'm not sure if this is the most intutive..."""
+        # print(colour, increase_count)
+        # print(self.state)
         try:
             delta_p, obj = self._pop(colour, increase_count)
         except IndexError:

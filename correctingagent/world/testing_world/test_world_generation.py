@@ -26,7 +26,8 @@ def test_rules_consistent2():
     r6 = problem_def.Ruledef(['green'], ['red'], 'first')
     r7 = problem_def.Ruledef(['pink'], ['yellow'], 'second')
 
-    assert(rules_consistent([r4, r5]) is False)  # red constrained and not constrained
+    assert(rules_consistent([r4, r5]) is True)  # bijection
+    assert(rules_consistent([r4, r6]) is False)  # red constrained and not constrained with different colours
     assert(rules_consistent([r2, r3]) is False)  # red constrained twice (second and first)
     assert(rules_consistent([r6, r7]) is True)  # No relation between rules
 

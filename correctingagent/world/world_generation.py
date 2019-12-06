@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from correctingagent.pddl.ff import FailedParseError
 from correctingagent.world.rules import ColourCountRule, RedOnBlueRule
 from . import world
 import random
@@ -83,7 +84,7 @@ def generate_biased_sample(rules, colour_dict=colour_dict):
     important_colours = list(important_colours)
 
     r = random.random()
-    if r < 0.2:
+    if r < 0.4:
         c = random.choice(list(colour_dict.keys()))
         return c
     else:
@@ -163,7 +164,7 @@ def generate_rule(p_primary_colour=0.8):
     return problem_def.Ruledef([c1], [c2], direction)
 
 
-def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_random_colours=False):
+def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_random_colours=False, bijection=False):
     directory = Path(directory)
 
     os.makedirs(directory, exist_ok=True)
@@ -178,20 +179,23 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
         else:
             cc = generate_biased_colour_counts(rules)
             colours = generate_from_colour_count(rules, cc)
-
+        print(colours)
         with open('../data/tmp/generation.pddl', 'w') as f:
             problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).asPDDL()
             f.write(problem)
         w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
-        if not w.test_failure():
-            file_name = directory / f"problem{len(scenarios)+1}.pddl"
-            json_name = directory / f"colours{len(scenarios)+1}.json"
-            os.rename('../data/tmp/generation.pddl', file_name)
-            if use_random_colours:
-                with open(json_name, 'w') as f:
-                    json.dump(colour_object_dict, f)
-            scenarios.append(file_name)
-
+        try:
+            if not w.test_failure():
+                file_name = directory / f"problem{len(scenarios)+1}.pddl"
+                json_name = directory / f"colours{len(scenarios)+1}.json"
+                os.rename('../data/tmp/generation.pddl', file_name)
+                if use_random_colours:
+                    with open(json_name, 'w') as f:
+                        json.dump(colour_object_dict, f)
+                scenarios.append(file_name)
+                print("added scenario!")
+        except FailedParseError as e:
+            print(e)
 
 def rules_consistent(rules):
     constrained_colours = [rule.first_obj for rule in rules if rule.constrained_obj == 'first']
@@ -204,12 +208,27 @@ def rules_consistent(rules):
             return False
     for colour in other_colours:
         if colour in constrained_colours:
-            return False
+            # this ensure that bijections are allowed but it is horrible, so sorry
+            a = [rule.second_obj for rule in rules if rule.first_obj == colour]
+            b = [rule.first_obj for rule in rules if rule.second_obj == colour]
+            if len(a) > 0 and len(b) == 0:
+                q = [c for c in a if c != a[0]]
+                return len(q) == 0
+            elif len(b) > 0 and len(a) == 0:
+                q = [c for c in b if c != b[0]]
+                return len(q) == 0
+            else:
+                return False
     return True
+
+def generate_bijection(p_primary_colour=1.0):
+    c1 = generate_colour(p_primary_colour)
+    c2 = generate_colour(p_primary_colour)
+    return [problem_def.Ruledef([c1], [c2], 'first'), problem_def.Ruledef([c1], [c2], 'second')]
 
 
 def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dict=colour_dict,
-                         p_primary_colour=0.8, use_random_colours=True):
+                         p_primary_colour=0.8, use_random_colours=True, create_bijection=False):
     data_path = '/home/mappelgren/Desktop/correcting-agent/data'
     top_path = os.path.join(data_path, dataset_name)
 
@@ -218,11 +237,15 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
     except FileNotFoundError:
         num_datasets = 0
     while num_datasets < N_datasets:
-        rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
+        if create_bijection:
+            bijections = generate_bijection(p_primary_colour)
+        else:
+            bijections = []
+        rules = bijections + [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules - len(bijections))]
         while not rules_consistent(rules):
-            rules = [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules)]
-
-        dataset_path = os.path.join(top_path, '{}{}'.format(dataset_name, num_datasets))
+            rules = bijections + [generate_rule(p_primary_colour=p_primary_colour) for i in range(num_rules - len(bijections))]
+        print(rules)
+        dataset_path = os.path.join(top_path, f'{dataset_name}{num_datasets}')
         os.makedirs(dataset_path, exist_ok=True)
 
         generate_biased_dataset(N_data, rules, dataset_path, colour_dict=colour_dict,

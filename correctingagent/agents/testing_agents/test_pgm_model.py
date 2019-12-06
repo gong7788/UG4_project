@@ -127,6 +127,22 @@ def test_colour_count_CPD_generation3():
         assert(abs(q[colour] - 1/(len(colours_in_tower) - 1) < 0.0001))
 
 
+def test_equals_cpd():
+    pgm_model = PGMModel()
+
+    r1, r2 = Rule.generate_red_on_blue_options('blue', 'red')
+    v1 = f"V_1({r1})"
+    v2 = f"V_1({r2})"
+    v3 = f"V_2({r1})"
+    v4 = f"V_2({r2})"
+
+    pgm_model.add_same_reason([v1, v2], [v3, v4])
+
+    pgm_model.infer()
+
+    q = pgm_model.query([v1, v2, v3, v4])
+
+
 #
 # def test_joint_colour_count_CPD_generation1():
 #     pgm_model = PGMModel()

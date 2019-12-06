@@ -103,14 +103,19 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.goal = goals.goal_from_list(rules, self.domain_file)
 
     def no_correction(self, action, args):
+        # print("no correction", self.time)
         self.time += 1
+        # print(args, self.marks.keys())
         if args[0] in self.marks.keys() or args[1] in self.marks.keys():
             marks = set(self.marks[args[0]] + self.marks[args[1]])
             marks = [rule for rule in marks if isinstance(rule, RedOnBlueRule)]
+            if len(marks) == 0:
+                return
             self.pgm_model.add_no_correction(args, self.time, marks)
             data = self.get_colour_data(args)
             corr = f'corr_{self.time}'
             data[corr] = 0
+            # print(data)
             self.pgm_model.observe(data)
             self.pgm_model.infer()
             self.update_cms()
@@ -134,9 +139,13 @@ class PGMCorrectingAgent(CorrectingAgent):
     def update_model(self, user_input, args):
         message = read_sentence(user_input)
         if message.T == 'same reason':
+
             for prev_corr, prev_time in self.previous_corrections[::-1]:
                 if 'same reason' not in prev_corr:
                     break
+            print("Same reason", self.time)
+            print(prev_corr, prev_time)
+
             prev_message = read_sentence(prev_corr, use_dmrs=False)
             user_input = prev_corr
             violations = self.build_same_reason(prev_message, args, prev_time)
@@ -149,10 +158,11 @@ class PGMCorrectingAgent(CorrectingAgent):
             violations = self.build_pgm_model(message, args)
 
         elif 'partial.neg' == message.T:
-
+            print("partial.neg", self.time)
             for i, (prev_corr, prev_time) in enumerate(self.previous_corrections[::-1]):
                 if message.o1 in prev_corr:
                     break
+            print(prev_corr, prev_time)
             user_input = prev_corr
             prev_message = read_sentence(prev_corr, use_dmrs=False)
             violations = self.build_pgm_model(prev_message, args)
@@ -168,6 +178,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             data = self.get_relevant_data(args, prev_message)
             data[curr_negation] = 0
             data[prev_negation] = 0
+            print(data)
         elif 'colour count' == message.T:
             colour_name = message.o1
             number = message.o2

@@ -177,7 +177,7 @@ class PGMModel(object):
         try:
             return self.rule_priors[rule]
         except KeyError:
-            return 0.01
+            return 0.1
 
     def add_prior(self, rule):
         if rule not in self.known_rules:
@@ -194,6 +194,7 @@ class PGMModel(object):
         violations = []
 
         for rule in rules:
+            print("no correction", args, time, rules)
             if isinstance(rule, RedOnBlueRule):
                 red = rule.c1
                 blue = rule.c2
@@ -343,11 +344,17 @@ class PGMModel(object):
             return [red_o1, blue_o2]
 
     def add_same_reason(self, current_violations, previous_violations):
+        # print("adding same reason")
+        # print(current_violations)
+        # print(previous_violations)
         evidence = []
         for c, p in zip(current_violations, previous_violations):
             evidence.extend([c, p])
 
+        # evidence = list(current_violations) + list(previous_violations)
         t = equals_CPD(current_violations, previous_violations)
+
+        # print(t)
         f = DiscreteFactor(evidence, [2]*len(evidence), t)
         self.add_factor(evidence, f)
 
@@ -366,7 +373,13 @@ class PGMModel(object):
         self.search_inference.variable_clamp(worlds)
 
     def infer(self):
+        # for beam in self.search_inference.beam:
+        #     print(beam)
+
         self.search_inference.infer(self.observed)
+
+        # for beam in self.search_inference.beam:
+        #     print(beam)
 
     def query(self, variables, values=None):
         return self.search_inference.query(variables, values=values)

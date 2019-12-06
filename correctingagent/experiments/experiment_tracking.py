@@ -106,18 +106,29 @@ def get_mean(big_id):
     return mean
 
 
-def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', **kwargs):
+def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', axes=None,
+                         show_xlabel=True, show_ylabel=True, legend_font=12, **kwargs):
     for experiment, label, marker in zip(list_of_experiments, labels,
                                          ['--', '-', '-.', ':']):  #::['_', 'x', '+', '|']):
         cumsum = get_mean(experiment)
         plt.plot(range(1, 51), cumsum, label=label, linestyle=marker, linewidth=3)  # marker=marker)
-    plt.ylabel('regret', fontsize=13)
-    plt.xlabel('scenario', fontsize=13)
-
-    plt.legend(fontsize=12)
-    plt.title(title, fontsize=14)
-    plt.savefig(fname, **kwargs)
-    plt.show()
+    # if axes is not None:
+    #     print("this here")
+    #     axes.set_ylabel('regret')
+    #     axes.set_xlabel('scenario')
+    #
+    #     axes.legend()
+    #
+    # else:
+    #     if show_ylabel:
+    #         plt.ylabel('regret', fontsize=13)
+    #     if show_xlabel:
+    #         plt.xlabel('scenario', fontsize=13)
+    #
+        plt.legend(fontsize=legend_font)
+    #     plt.title(title, fontsize=14)
+    #     #plt.savefig(fname, **kwargs)
+    #     #plt.show()
 
 
 def do_ttest(old, old_nocorr, new, new_nocorr):
@@ -139,7 +150,7 @@ def do_ttest(old, old_nocorr, new, new_nocorr):
     print(ttest_ind(total_new, total_new_no_corr), np.mean(total_new), np.mean(total_new_no_corr))
 
 
-def do_ttest_rel(old, old_nocorr, new, new_nocorr):
+def do_ttest_rel_4way(old, old_nocorr, new, new_nocorr):
     total_old = get_cumsum(old)[:, -1]
     total_new = get_cumsum(new)[:, -1]
     total_old_no_corr = get_cumsum(old_nocorr)[:, -1]
@@ -162,3 +173,12 @@ def do_ttest_rel(old, old_nocorr, new, new_nocorr):
     print(ttest_rel(total_old_no_corr, total_new_no_corr))
     print('new vs new no corr')
     print(ttest_rel(total_new, total_new_no_corr), np.mean(total_new), np.mean(total_new_no_corr))
+
+def do_ttest_rel(a, b):
+    total_a = get_cumsum(a)[:, -1]
+    total_b = get_cumsum(b)[:, -1]
+    print("Min for a:", np.min(total_a), "Max for a:", np.max(total_a))
+    print("Min for b:", np.min(total_b), "Max for b:", np.max(total_b))
+
+    print("p=", ttest_rel(total_a, total_b), f"mean a: {np.mean(total_a)}", f"mean b: {np.mean(total_b)}")
+    return total_a, total_b

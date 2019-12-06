@@ -199,47 +199,59 @@ class ExtendedTeacherAgent(TeacherAgent):
 
         possible_sentences = []
         for correction in violations:
-            if len(self.dialogue_history) > 0:
+            if len(self.dialogue_history) > 0 and isinstance(correction.rule, RedOnBlueRule):
 
-                if "now you cannot put" not in correction.sentence:
+                for previous_corr in self.dialogue_history[::-1]:
 
-                    for previous_corr in self.dialogue_history[::-1]:
+                    if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence and isinstance(previous_corr.rule, RedOnBlueRule):
 
-                        if 'now you cannot put' not in previous_corr.sentence and 'same reason' not in previous_corr.sentence and not(isinstance(previous_corr.rule, ColourCountRule)):
+                        colours = [previous_corr.rule.c1, previous_corr.rule.c2]
 
-                            if isinstance(correction.rule, RedOnBlueRule) and isinstance(previous_corr.rule, RedOnBlueRule):
+                        if correction.rule.c1 in colours or correction.rule.c2 in colours:
+                            if correction.rule == previous_corr.rule:
 
-                                colours = [previous_corr.rule.c1, previous_corr.rule.c2]
-
-                                if correction.rule.c1 in colours or correction.rule.c2 in colours:
-
-                                    if correction.rule.c1 == colours[0]:
-                                        current_colour = wrld.state.get_colour_name(correction.args[0])
-                                        prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
-                                        if current_colour != correction.rule.c1 and prev_colour != correction.rule.c1:
-                                            possible_sentences.append((f'no, that is not {correction.rule.c1} again', correction))
-                                    if correction.rule.c2 == colours[1]:
-                                        current_colour = wrld.state.get_colour_name(correction.args[1])
-                                        prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
-                                        if current_colour != correction.rule.c2 and prev_colour != correction.rule.c2:
-                                            possible_sentences.append((f'no, that is not {correction.rule.c2} again', correction))
-                                    break
-                        elif 'now you cannot put' in previous_corr.sentence:
-                            colours = [previous_corr.rule.c1, previous_corr.rule.c2]
-                            if isinstance(correction.rule, RedOnBlueRule):
-                                if correction.rule.c1 in colours or correction.rule.c2 in colours:
-                                    break
-                        elif isinstance(previous_corr.rule, ColourCountRule):
+                                #if correction.rule.c1 == colours[0]:  # should be doing nothing
+                                current_colour = wrld.state.get_colour_name(correction.args[0])
+                                prev_colour = wrld.state.get_colour_name(previous_corr.args[0])
+                                if current_colour != correction.rule.c1 and prev_colour != correction.rule.c1:
+                                    possible_sentences.append((f'no, that is not {correction.rule.c1} again', correction))
+                                #if correction.rule.c2 == colours[1]:  # should be doing nothing
+                                current_colour = wrld.state.get_colour_name(correction.args[1])
+                                prev_colour = wrld.state.get_colour_name(previous_corr.args[1])
+                                if current_colour != correction.rule.c2 and prev_colour != correction.rule.c2:
+                                    possible_sentences.append((f'no, that is not {correction.rule.c2} again', correction))
+                            break
+                    elif isinstance(previous_corr.rule, ColourCountRule):
+                        break
+                    elif 'now you cannot put' in previous_corr.sentence:
+                        colours = [previous_corr.rule.c1, previous_corr.rule.c2]
+                        if correction.rule.c1 in colours or correction.rule.c2 in colours:
                             break
 
-                if isinstance(correction.rule, RedOnBlueRule) and self.previous_correction.sentence == correction.sentence:
-                     possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))
 
+
+                if isinstance(correction.rule, RedOnBlueRule) and self.previous_correction.sentence == correction.sentence:
+                    if self.previous_correction.rule == correction.rule:
+                        possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))
+                elif self.previous_correction == 'no, that is wrong for the same reason':
+                    for previous_corr in self.dialogue_history[::-1]:
+                        if previous_corr.sentence != 'no, that is wrong for the same reason':
+                            if isinstance(correction.rule,
+                                          RedOnBlueRule) and previous_corr.sentence == correction.sentence:
+                                if previous_corr.rule == correction.rule:
+                                    possible_sentences.append(
+                                        ('no, that is wrong for the same reason', self.previous_correction))
+                            break
             possible_sentences.append((correction.sentence, correction))
 
         return possible_sentences
 
     def select_correction(self, possible_sentences):
+        print(possible_sentences)
+
+        reduced = list(filter(lambda x: 'same reason' in x[0] or 'again' in x[0], possible_sentences))
+        if len(reduced) > 0:
+            possible_sentences = reduced
 
         sentence, correction = random.choice(possible_sentences)
 

@@ -2,6 +2,7 @@ import copy
 import time
 
 import correctingagent.world.rules
+from correctingagent.models.search import TestFailed
 from correctingagent.util import util
 from ..pddl import ff
 from ..language import dmrs_functions
@@ -679,7 +680,12 @@ class NoLanguageAgent(CorrectingAgent):
                 cm.update(dp, cm.p(1, dp_prim))
                 return c, cm
         else:
-            return None
+            n = len(self.colour_models) - int('blue' in self.colour_models.keys())
+            if n > 37:
+                raise ValueError("Too many colour models, stopped learning")
+            c1_model = prob_model.KDEColourModel(f"C{n}", data=np.array([dp]),
+                                                 weights=np.array([1]), **self.model_config)
+            return f"C{n}", c1_model
 
     def no_correction(self, action, args):
         for test in self.active_tests:
@@ -699,40 +705,15 @@ class NoLanguageAgent(CorrectingAgent):
         # To reduce the number of individual colour names reuse colour models where the colour is the same
         # This only works because we have a set number of colour terms
         # First try to find colour models that match particular data points
-        cm1 = self.find_matching_cm(data['o1'])
-        cm2 = self.find_matching_cm(data['o2'])
-
-
-        n = len(self.colour_models) - int('blue' in self.colour_models.keys())
-        if n > 37 and (cm1 is None or cm2 is None):
+        if data['o2'] is None:
+            print("o2 is bottom position")
+            return
+        try:
+            c1, c1_model = self.find_matching_cm(data['o1'])
+            c2, c2_model = self.find_matching_cm(data['o2'])
+        except ValueError:
             print("too many colour models, stopped learning")
             return
-
-        # If such colour models exist, use those
-        # otherwise construct new colour models for any data point for which there was no match
-        if cm1 is not None:
-            c1, c1_model = cm1
-
-        else:
-            c1 = "C{}".format(n)
-            c1_model = prob_model.KDEColourModel(c1, data=np.array([data['o1']]),
-                                        weights=np.array([1]), **self.model_config)
-            i += 1
-
-        if cm2 is not None:
-            c2, c2_model = cm2
-        else:
-            c2 = "C{}".format(n + i)
-
-
-            if data['o2'] is not None:
-                c2_model = prob_model.KDEColourModel(c2, data=np.array([data['o2']]),
-                                        weights=np.array([1]), **self.model_config)
-                i += 1
-            else:
-                c2_model = None
-
-
 
         #If tower: create the negated rule and two new colour variables.
         if message.T == 'tower':
@@ -745,15 +726,11 @@ class NoLanguageAgent(CorrectingAgent):
             return
 
         elif message.T == 'table':
-            cm3 = self.find_matching_cm(data['o3'])
-            if cm3 is not None:
-                c3, c3_model = cm3
-            else:
-                c3 = "C{}".format(n+i)
-                c3_model = prob_model.KDEColourModel(c3, data=np.array([data['o3']]), weights=np.array([1]), **self.model_config)
+            c3, c3_model = self.find_matching_cm(data['o3'])
 
-            rule1 = RedOnBlueRule(c3, c2, 1).to_formula()
-            rule2 = RedOnBlueRule(c1, c3, 2).to_formula()
+
+            rule1 = RedOnBlueRule(c3, c2, 1)
+            rule2 = RedOnBlueRule(c1, c3, 2)
 
             # rule1 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c2])
             # rule2 = correctingagent.world.rules.create_red_on_blue_rule([c3], [c1], ['?y', '?x'])
@@ -764,9 +741,13 @@ class NoLanguageAgent(CorrectingAgent):
                 self.colour_models.update({c1:c1_model, c2:c2_model, c3:c3_model})
 
                 obs = self.world.sense()
-                test = search.ActiveLearningTest(rule1, rule2, obs.colours, c3_model, args[1], self.world)
-                self.active_tests.append(test)
-
+                try:
+                    test = search.ActiveLearningTest(rule1.to_formula(), rule2.to_formula(),
+                                                 obs.colours, c3_model, args[1],
+                                                 self.world)
+                    self.active_tests.append(test)
+                except TestFailed:
+                    self.rule_models[rule2] = rule2.to_formula()
             return
         elif message.T == 'colour count':
             n = 0
@@ -783,16 +764,16 @@ class NoLanguageAgent(CorrectingAgent):
                 datum = self.world.observe_object(block)
                 if cm.p(1, datum) > 0.5:
                     n = min(3, n+1)
-
-            rule = ColourCountRule('blue', n)
-            self.colour_models.update({'blue':cm})
-            self.rule_models["colour_count"] = rule.to_formula()
+            if n > 0:
+                rule = ColourCountRule('blue', n)
+                self.colour_models.update({'blue':cm})
+                self.rule_models["colour_count"] = rule.to_formula()
             return
         elif message.T == 'colour count+tower':
             if 'blue' in self.colour_models.keys():
-                rule = RedOnBlueRule(c1, 'blue')
-                self.colour_models.update({c1:cm1})
-                self.rule_models[str(rule)] = rule
+                rule = RedOnBlueRule('blue', c1, 2)
+                self.colour_models.update({c1:c1_model})
+                self.rule_models[str(rule)] = rule.to_formula()
                 return
             else:
                 return
