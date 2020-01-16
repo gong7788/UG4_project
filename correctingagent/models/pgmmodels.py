@@ -452,11 +452,12 @@ class PGMModel(object):
         rule1, rule2 = rules
         colour_variables = []
         i = 0
+
         for obj in objects_in_tower:
             if i > 0:
                 colour_variables.append(self.add_cm(blue_cm, obj))
             colour_variables.append(self.add_cm(red_cm, obj))
-        violations = [self.add_violation_factor(rule1, time, colour_variables),
-                      self.add_violation_factor(rule2, time, colour_variables)]
+        violations = [self.add_violation_factor(rule1, time, colour_variables, correction_type=CorrectionType.UNCERTAIN_TABLE),
+                      self.add_violation_factor(rule2, time, colour_variables, correction_type=CorrectionType.UNCERTAIN_TABLE)]
         self.add_correction_factor(violations, time)
         return violations

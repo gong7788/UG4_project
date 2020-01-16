@@ -362,9 +362,9 @@ class RedOnBlueRule(Rule):
         return m.evaluate(str(self), g)
 
     def generateCPD(self, correction_type=CorrectionType.TOWER, **kwargs):
-        if correction_type == CorrectionType.TOWER:
+        if correction_type == CorrectionType.TABLE:
             return self.generate_table_cpd()
-        elif correction_type == CorrectionType.TABLE:
+        elif correction_type == CorrectionType.TOWER:
             return self.generate_tower_cpd()
         elif correction_type == CorrectionType.UNCERTAIN_TABLE:
             raise NotImplementedError()

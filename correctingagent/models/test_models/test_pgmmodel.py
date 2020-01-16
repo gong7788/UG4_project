@@ -4,7 +4,7 @@ from pgmpy.factors.discrete import TabularCPD
 from correctingagent.models.pgmmodels import PGMModel
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.world import rules
-from correctingagent.world.rules import RedOnBlueRule
+from correctingagent.world.rules import RedOnBlueRule, CorrectionType
 
 
 def test_cpd_creation_r1():
@@ -15,7 +15,11 @@ def test_cpd_creation_r1():
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
     blue_o2 = f'{blue}(o2)'
-    violated_rule_cpd = rule.generateCPD()
+    violated_rule_cpd = rule.generateCPD(correction_type=CorrectionType.TOWER)
+
+    #violated_rule_cpd = rule.generate_tower_cpd()
+
+
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, rule],
                      evidence_card=[2, 2, 2])
 
@@ -33,7 +37,7 @@ def test_cpd_creation_r2():
     violated_rule_factor_name = f"V_{time}({rule})"
     red_o1 = f'{red}(o1)'
     blue_o2 = f'{blue}(o2)'
-    violated_rule_cpd = rule.generateCPD()
+    violated_rule_cpd = rule.generateCPD(correction_type=CorrectionType.TOWER)
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, rule],
                      evidence_card=[2, 2, 2])
 
@@ -53,7 +57,7 @@ def test_table_cpd_creation_r1():
     blue_o2 = f'{blue}(o2)'
     red_o3 = f'{red}(o3)'
     blue_o3 = f'{blue}(o3)'
-    violated_rule_cpd = rule.generate_table_cpd()
+    violated_rule_cpd = rule.generateCPD(correction_type=CorrectionType.TABLE)
 
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, red_o3, blue_o3, rule],
                      evidence_card=[2, 2, 2, 2, 2])
@@ -81,7 +85,7 @@ def test_table_cpd_creation_r2():
     blue_o2 = f'{blue}(o2)'
     red_o3 = f'{red}(o3)'
     blue_o3 = f'{blue}(o3)'
-    violated_rule_cpd = rule.generate_table_cpd()
+    violated_rule_cpd = rule.generateCPD(correction_type=CorrectionType.TABLE)
 
     cpd = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd, evidence=[red_o1, blue_o2, red_o3, blue_o3, rule],
                      evidence_card=[2, 2, 2, 2, 2])
@@ -121,7 +125,7 @@ def test_add_cm():
 
     pgm_model.add_prior(str(rule))
 
-    assert(pgm_model.get_rule_prior(str(rule)) == 0.01)
+    assert(pgm_model.get_rule_prior(str(rule)) == 0.1)
 
 
 def test_extend_model():
@@ -132,7 +136,7 @@ def test_extend_model():
     time = 0
     red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
 
-    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, table_correction=False)
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
 
     pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
     q = pgm_model.query(violations, [1, 1])
@@ -148,7 +152,7 @@ def test_extend_model_table():
     time = 0
     red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
 
-    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2', 'b4'], time, table_correction=True)
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2', 'b4'], time, correction_type=CorrectionType.TABLE)
 
     pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1, 'F(b4)':[0.5, 0.5, 0.5]})
     q = pgm_model.query(violations, [1, 1])
