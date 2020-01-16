@@ -143,7 +143,7 @@ class Action(object):
             predicate = copy.deepcopy(predicate)
             if isinstance(predicate, Conditional):
                 predicate.condition.args = [param_dict[arg] for arg in predicate.condition.args]
-                if isinstance(predicate.effect, Increase):
+                if isinstance(predicate.effect, Increase) or isinstance(predicate.effect, Decrease):
                     predicate.effect.tower = param_dict[predicate.effect.tower]
                 else:
                     predicate.effect.args = [param_dict[arg] for arg in predicate.effect.args]
@@ -216,6 +216,10 @@ class PDDLState(object):
             for fluent in self.fexpressions:
                 if predicate.compare_colour_count(fluent) is True:
                     fluent.increment(predicate.number)
+        elif isinstance(predicate, Decrease):
+            for fluent in self.fexpressions:
+                if predicate.compare_colour_count(fluent) is True:
+                    fluent.decrement(predicate.number)
         else:
             if predicate.valency is False:
                 predicate = predicate.negate()
@@ -296,6 +300,19 @@ class PDDLState(object):
                 return o
         return
 
+    def __eq__(self, other):
+        for predicate in self.predicates:
+            if predicate not in other.predicates:
+                return False
+        for predicate in other.predicates:
+            if predicate not in self.predicates:
+                return False
+        return True
+
+    def print(self):
+        for f in self.to_formula():
+            print(f.asPDDL())
+
 
 class ColourCount(object):
 
@@ -370,6 +387,42 @@ class Increase(object):
         return self.__str__()
 
 
+class Decrease(object):
+
+    def __init__(self, colour, tower, number):
+        self.colour = colour
+        self.number = number
+        self.tower = tower
+
+    @staticmethod
+    def from_formula(formula):
+        assert (formula.op == 'decrease')
+        head, number = formula.subformulas
+        colour_count = head.name
+        arg = head.args.args[0].arg_name
+        colour = colour_count.split('-')[0]
+        return Decrease(colour, arg, number.val)
+
+    def to_formula(self):
+        args = make_variable_list([self.tower])
+        colour_count_head = pythonpddl.pddl.FHead(f'{self.colour}-count', args)
+        count_value = pythonpddl.pddl.ConstantNumber(self.number)
+        subexpressions = [colour_count_head, count_value]
+        return pythonpddl.pddl.Formula(subexpressions, op='decrease')
+
+    def compare_colour_count(self, other):
+        return self.colour == other.colour and self.tower == other.tower
+
+    def asPDDL(self):
+        return self.to_formula().asPDDL()
+
+    def __str__(self):
+        return self.asPDDL()
+
+    def __repr__(self):
+        return self.__str__()
+
+
 class Conditional(object):
     def __init__(self, condition, effect):
         self.condition = condition
@@ -381,6 +434,8 @@ class Conditional(object):
         condition = Predicate.from_formula(formula.condition)
         if formula.op == 'increase':
             effect = Increase.from_formula(formula)
+        elif formula.op == 'decrease':
+            effect = Decrease.from_formula(formula)
         else:
             formula.is_condition = False
             effect = Predicate.from_formula(formula)

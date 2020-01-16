@@ -369,3 +369,23 @@ def test_red_on_blue_directly_on_table():
 
     correction = extended_teacher.correction(w, args=['b9', 't0', 'tower0'])
     assert('no, put green blocks on yellow blocks' == correction)
+
+
+def test_faulty_teacher():
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=3)
+
+    w.update('put', ['b1', 't1', 'tower1'])  # red
+    w.update('put', ['b0', 't0', 'tower0'])  # blue
+
+    assert(w.test_failure())
+
+    teacher = ExtendedTeacherAgent()
+    faulty_teacher = FaultyTeacherAgent(recall_failure_prob=1.0)
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True,
+                                                          args=['b0', 't0', 'tower0'])
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert ("No, now you cannot put b4 in the tower because you must put blue blocks on red blocks" in possible_corrections)
+    assert ("" == faulty_teacher.correction(w, args=['b0', 't0', 'tower0']))

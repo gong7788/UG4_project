@@ -346,3 +346,24 @@ def test_update_state():
     assert(pddl_state.get_colour_count('blue', 'tower1') == 2)
 
 
+def test_update_state():
+    config = get_config()
+    data_dir = Path(config['data_location'])
+    domain_file = 'blocks-domain-updated.pddl'
+    domain_file = data_dir / 'domain' / domain_file
+    problem_directory = 'multitower'
+    problem_number = 1
+    problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+    domain, problem = pddl_functions.parse(domain_file, problem_file)
+
+    pddl_state = pddl_functions.PDDLState.from_problem(problem)
+    action = pddl_functions.Action.from_pddl(domain.actions[0])
+
+    # action.apply_action(pddl_state, ['b1', 't0', 'tower0'])
+    # action.apply_action(pddl_state, ['b2', 'b1', 'tower0'])
+
+    s = copy.deepcopy(pddl_state)
+    assert(s == pddl_state)
+
+    action.apply_action(pddl_state, ['b1', 't0', 'tower0'])
+    assert(s != pddl_state)

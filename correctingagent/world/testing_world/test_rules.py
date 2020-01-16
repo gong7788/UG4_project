@@ -116,13 +116,13 @@ def test_colour_count_table_violation():
     rule2 = RedOnBlueRule('blue', 'red', 2)
     rule3 = ColourCountRule('green', 1)
 
-    w.update('put', ['b0', 't0', 'tower0'])
-    w.update('put', ['b1', 'b0', 'tower0'])
+    w.update('put', ['b0', 't0', 'tower0']) # Blue
+    w.update('put', ['b1', 'b0', 'tower0']) # Red
 
-    assert(rule.check_table_violation(w.state, [rule2, rule3]) is True)
+    assert(rule.check_table_violation(w.state, [rule2, rule3], tower='tower0') is True)
     w.back_track()
-    w.update('put', ['b1', 't1', 'tower1'])
-    assert(rule.check_table_violation(w.state, [rule2, rule3]) is False)
+    w.update('put', ['b1', 't1', 'tower1']) # Red
+    assert(rule.check_table_violation(w.state, [rule2, rule3], tower='tower1') is False)
 
 
 def test_colour_count_table_violation2():
@@ -135,10 +135,10 @@ def test_colour_count_table_violation2():
     w.update('put', ['b0', 'b4', 'tower0'])  # blue
     w.update('put', ['b1', 'b0', 'tower0'])  # red
 
-    assert(rule.check_table_violation(w.state, [rule2]) is True)
+    assert(rule.check_table_violation(w.state, [rule2], tower='tower0') is True)
     w.back_track()
     w.update('put', ['b1', 't1', 'tower1'])  # red
-    assert(rule.check_table_violation(w.state, [rule2]) is False)
+    assert(rule.check_table_violation(w.state, [rule2], tower='tower1') is False)
 
 
 def test_get_violation_type():
@@ -151,6 +151,7 @@ def test_get_violation_type():
     new_rules = [Rule.rule_from_violation(violation) for violation in violations]
     for original, new in zip(rules, new_rules):
         assert(original == new)
+
 
 def test_not_redonblue_rule():
     rule = NotRedOnBlueRule('red', 'blue')

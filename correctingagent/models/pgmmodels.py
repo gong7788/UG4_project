@@ -7,7 +7,9 @@ import numpy as np
 
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.util.CPD_generation import variable_or_CPD, generate_neg_table_cpd, equals_CPD
-from correctingagent.world.rules import ColourCountRule, RedOnBlueRule
+from correctingagent.world.rules import ColourCountRule, RedOnBlueRule, CorrectionType
+
+
 
 
 def check_beam_holds(beam, worlds):
@@ -147,11 +149,6 @@ class PGMModel(object):
         self.observed = {}
         self.colour_variables = []
 
-    # def add_rules(self, rules, cm1, cm2):
-    #     self.colours[cm1.name] = cm1
-    #     self.colours[cm2.name] = cm2
-    #     self.known_rules = self.known_rules.union(rules)
-
     def add_cm(self, cm, block):
 
         red_rgb = f'F({block})'
@@ -198,7 +195,8 @@ class PGMModel(object):
             if isinstance(rule, RedOnBlueRule):
                 red = rule.c1
                 blue = rule.c2
-                colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2], table_correction=False)
+                colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2],
+                                             correction_type=CorrectionType.TOWER)
 
                 Vrule = self.add_violation_factor(rule, time, colour_models)
 
@@ -227,7 +225,7 @@ class PGMModel(object):
 
         return violations
 
-    def add_violation_factor(self, rule, time, colours, table_correction=False):
+    def add_violation_factor(self, rule, time, colours, correction_type=CorrectionType.TABLE):
         """ Adds a factor representing when the rule is violated
 
         :param rule: Rule object representing the rule being violated
@@ -240,9 +238,7 @@ class PGMModel(object):
 
         evidence = colours + [rule]
 
-        violated_rule_cpd = rule.generateCPD(table_correction=table_correction, num_blocks_in_tower=len(evidence))
-
-
+        violated_rule_cpd = rule.generateCPD(correction_type=correction_type, num_blocks_in_tower=len(evidence))
 
         rule_violated_factor = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd,
                                            evidence=evidence, evidence_card=[2]*len(evidence))
@@ -281,7 +277,7 @@ class PGMModel(object):
 
     def add_joint_violations(self, colour_count: ColourCountRule, red_on_blue_options: list, time: int,
                              colours_in_tower: list):
-        cpds = [colour_count.generateCPD(num_blocks_in_tower=len(colours_in_tower), table_correction=True)
+        cpds = [colour_count.generateCPD(num_blocks_in_tower=len(colours_in_tower), correction_type=CorrectionType.TABLE)
                 for rule in red_on_blue_options]
         violated_rule_factor_name1 = f"V_{time}({colour_count} && {red_on_blue_options[0]})"
         violated_rule_factor_name2 = f"V_{time}({colour_count} && {red_on_blue_options[1]})"
@@ -312,9 +308,9 @@ class PGMModel(object):
         self.add_correction_factor(violations, time)
         return violations
 
-    def extend_model(self, rules, red_cm, blue_cm, args, time, table_correction):
+    def extend_model(self, rules, red_cm, blue_cm, args, time, correction_type):
 
-        colour_models = self.add_cms(red_cm, blue_cm, args, table_correction=table_correction)
+        colour_models = self.add_cms(red_cm, blue_cm, args, correction_type=correction_type)
 
         r1, r2 = rules
 
@@ -324,18 +320,18 @@ class PGMModel(object):
         self.known_rules.add(r1)
         self.known_rules.add(r2)
 
-        violated_r1 = self.add_violation_factor(r1, time, colour_models, table_correction=table_correction)
-        violated_r2 = self.add_violation_factor(r2, time, colour_models, table_correction=table_correction)
+        violated_r1 = self.add_violation_factor(r1, time, colour_models, correction_type=correction_type)
+        violated_r2 = self.add_violation_factor(r2, time, colour_models, correction_type=correction_type)
         self.add_correction_factor([violated_r1, violated_r2], time)
 
         return violated_r1, violated_r2
 
-    def add_cms(self, red_cm, blue_cm, args, table_correction=False):
+    def add_cms(self, red_cm, blue_cm, args, correction_type=CorrectionType.TABLE):
         o1, o2 = args[:2]
         red_o1 = self.add_cm(red_cm, o1)
         blue_o2 = self.add_cm(blue_cm, o2)
 
-        if table_correction:
+        if correction_type == CorrectionType.TABLE:
             o3 = args[2]
             red_o3 = self.add_cm(red_cm, o3)
             blue_o3 = self.add_cm(blue_cm, o3)
@@ -445,7 +441,22 @@ class PGMModel(object):
         rule_violated = TabularCPD(Vrule, 2, rule_cpd, evidence=rule_evidence, evidence_card=[2,2,2,2,2])
         self.add_factor(rule_evidence + [Vrule], rule_violated.to_factor())
 
-        correction =  TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
+        correction = TabularCPD(corr, 2, correction_table, evidence=[Vrule], evidence_card=[2])
         self.add_factor([Vrule, corr], correction.to_factor())
 
         return [Vrule]
+
+    def create_uncertain_table_model(self, rules, red_cm, blue_cm, args, objects_in_tower, time):
+
+        self.known_rules = self.known_rules.union(rules)
+        rule1, rule2 = rules
+        colour_variables = []
+        i = 0
+        for obj in objects_in_tower:
+            if i > 0:
+                colour_variables.append(self.add_cm(blue_cm, obj))
+            colour_variables.append(self.add_cm(red_cm, obj))
+        violations = [self.add_violation_factor(rule1, time, colour_variables),
+                      self.add_violation_factor(rule2, time, colour_variables)]
+        self.add_correction_factor(violations, time)
+        return violations

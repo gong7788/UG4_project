@@ -4,6 +4,7 @@ from ..pddl import pddl_functions
 from collections import namedtuple
 import random
 from ..util.colour_dict import colour_dict
+import numpy as np
 
 
 def tower_correction(obj1, obj2):
@@ -38,8 +39,18 @@ class Teacher(object):
     def correction(self, world_):
         raise NotImplementedError()
 
+    def reset(self):
+        pass
+
     def answer_question(self, question, world_, tower):
-        raise NotImplementedError()
+        if "Is the top object" in question:
+            colour = question.replace("Is the top object", '').replace("?", '').strip()
+            o1, o2 = world_.state.get_top_two(tower)
+            o1_is_colour = world_.state.predicate_holds(colour, [o1])
+            if o1_is_colour:
+                return "yes"
+            else:
+                return "no"
 
 
 class HumanTeacher(Teacher):
@@ -52,9 +63,6 @@ class HumanTeacher(Teacher):
 
 
 class TeacherAgent(Teacher):
-
-    def reset(self):
-        pass
 
     def correction(self, w, args):
         failure = w.test_failure()
@@ -79,16 +87,6 @@ class TeacherAgent(Teacher):
                 return get_table_correction(rule, w, rules, tower).sentence
 
         return ""
-
-    def answer_question(self, question, world_, tower):
-        if "Is the top object" in question:
-            colour = question.replace("Is the top object", '').replace("?", '').strip()
-            o1, o2 = world_.state.get_top_two(tower)
-            o1_is_colour = world_.state.predicate_holds(colour, [o1])
-            if o1_is_colour:
-                return "yes"
-            else:
-                return "no"
 
 
 Correction = namedtuple('Correction', ['rule', 'args', 'sentence'])
@@ -228,8 +226,6 @@ class ExtendedTeacherAgent(TeacherAgent):
                         if correction.rule.c1 in colours or correction.rule.c2 in colours:
                             break
 
-
-
                 if isinstance(correction.rule, RedOnBlueRule) and self.previous_correction.sentence == correction.sentence:
                     if self.previous_correction.rule == correction.rule:
                         possible_sentences.append(('no, that is wrong for the same reason', self.previous_correction))
@@ -264,3 +260,40 @@ class ExtendedTeacherAgent(TeacherAgent):
             print(correction)
             raise e
         return sentence
+
+
+class FaultyTeacherAgent(Teacher):
+
+    def __init__(self, recall_failure_prob=0.5):
+        self.recall_failure_prob = recall_failure_prob
+        self.skipped_corrections = []
+
+    def correction(self, w, args):
+        failure = w.test_failure()
+        if len(args) == 3:
+            tower = args[-1]
+        else:
+            tower = None
+        #print("Failure?", failure)
+        if not failure:
+            return ""
+        #Reasons for failure:
+        # a->b, a -b
+        # b-> a b -a
+        rules = Rule.get_rules(w.problem.goal)
+        for rule in rules:
+            rule_violated = rule.check_tower_violation(w.state, tower)
+            if rule_violated:
+                return get_tower_correction(rule, w, tower).sentence
+
+        r = np.random.rand()
+
+        for rule in rules:
+            if rule.check_table_violation(w.state, rules, tower):
+                if r > self.recall_failure_prob:
+                    return get_table_correction(rule, w, rules, tower).sentence
+                else:
+                    self.skipped_corrections.append(get_table_correction(rule, w, rules, tower))
+
+        return ""
+

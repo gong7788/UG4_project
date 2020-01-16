@@ -14,7 +14,7 @@ from skimage.color import hsv2rgb
 
 
 Observation = namedtuple("Observation", ['objects', 'colours', 'state'])
-
+ActionRecord = namedtuple("ActionRecord", ['action', 'args'])
 
 def get_world(problem_name, problem_number, domain_file='blocks-domain.pddl', world_type='PDDL', use_hsv=False):
     world_types = {'PDDL': PDDLWorld,
@@ -37,7 +37,8 @@ class World(object):
 
 class PDDLWorld(World):
 
-    def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None, problem_number=None, problem_file=None, use_hsv=False):
+    def __init__(self, domain_file='blocks-domain.pddl', problem_directory=None,
+                 problem_number=None, problem_file=None, use_hsv=False):
 
         if domain_file == 'blocks-domain-colour-unknown-cc.pddl':
             domain_file = 'blocks-domain-updated.pddl'
@@ -45,7 +46,8 @@ class PDDLWorld(World):
             domain_file = 'blocks-domain.pddl'
 
 
-        self.use_metric_ff = "updated" in domain_file
+        self.use_metric_ff = ("updated" in domain_file or "unstack" in domain_file)
+
 
         config = get_config()
         data_dir = Path(config['data_location'])
@@ -74,20 +76,26 @@ class PDDLWorld(World):
         with open(self.tmp_file, 'w') as f:
             f.write('this one is mine!')
 
-        self.actions = {action.name: pddl_functions.Action.from_pddl(action) for action in self.domain.actions}
+        self.actions = {action.name: pddl_functions.Action.from_pddl(action)
+                        for action in self.domain.actions}
+        self.history = []
 
     def clean_up(self):
         os.remove(self.tmp_file)
 
     def update(self, action, args):
+        self.history.append(ActionRecord(action, args))
         self.previous_state = copy.deepcopy(self.state)
         self.actions[action].apply_action(self.state, args)
         self.reward += -1
 
     def back_track(self):
-        self.state = self.previous_state
-        self.previous_state = None
-        self.reward += -1
+        if 'unstack' in self.actions:
+            self.update('unstack', self.history[-1].args)
+        else:
+            self.state = self.previous_state
+            self.previous_state = None
+            self.reward += -1
 
     def sense(self, obscure=True):
         # relations = block_plotting.get_predicates(self.objects, self.state, obscure=obscure)
@@ -138,11 +146,14 @@ class PDDLWorld(World):
 
     def test_failure(self):
         try:
-            self.find_plan()
+            plan = self.find_plan()
         except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
             return True
         except Solved:
             return False
+        actions = [action.lower() for action, args in plan]
+        if 'unstack' in actions:
+            return True
         return False
 
     def objects_not_in_tower(self):

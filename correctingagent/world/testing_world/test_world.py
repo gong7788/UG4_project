@@ -1,3 +1,5 @@
+import copy
+
 import pytest
 
 from correctingagent.pddl.pddl_functions import Predicate
@@ -91,3 +93,21 @@ def test_failure():
 
     assert(w.test_failure())
 
+
+def test_unstack():
+    w = world.PDDLWorld(
+        domain_file='blocks-domain-unstackable.pddl',
+        problem_directory='multitower', problem_number=8)
+
+    s = copy.deepcopy(w.state)
+
+    w.update('put', ['b0', 't0', 'tower0'])
+    w.update('unstack', ['b0', 't0', 'tower0'])
+
+    assert(s == w.state)
+
+    w.update('put', ['b8', 't0', 'tower0'])
+    w.update('put', ['b4', 'b8', 'tower0'])
+    w.update('put', ['b0', 'b4', 'tower0'])
+
+    assert(w.find_plan())

@@ -2,6 +2,7 @@ import copy
 import heapq
 import re
 from collections import defaultdict
+from enum import Enum
 
 import nltk
 import numpy as np
@@ -14,6 +15,11 @@ from correctingagent.pddl import pddl_functions
 from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState, ColourCount
 from correctingagent.world import goals, PDDLWorld
 
+
+class CorrectionType(Enum):
+    TOWER = 1
+    TABLE = 2
+    UNCERTAIN_TABLE = 3
 
 def split_rule(rule):
     bits = rule.split('.(')
@@ -138,7 +144,7 @@ class Rule(object):
 
         elif "count" in rule_string:
             _, right = rule_string.split('->')
-            colour_count, count = rule_string.split('>=')
+            colour_count, count = right.split('>=')
             count = int(count.strip())
             colour_name = colour_count.split('-')[0].strip()
             # f"all t. tower(t) -> {colour_name}-count >= {count}"
@@ -199,7 +205,7 @@ class ColourCountRule(Rule):
                 return True
         return False
 
-    def check_table_violation(self, state: PDDLState, rules: list, tower: str):
+    def check_table_violation(self, state: PDDLState, rules: list, tower: str = None):
 
         #for tower in state.towers:
             #tower = tower.replace('t', 'tower')
@@ -223,10 +229,10 @@ class ColourCountRule(Rule):
                     continue
         return False
 
-    def generateCPD(self, num_blocks_in_tower=2, table_correction=False, **kwargs):
+    def generateCPD(self, num_blocks_in_tower=2, correction_type=CorrectionType.TOWER, **kwargs):
         #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
-        if table_correction is False:
-            return self.generate_tower_cpd(num_blocks_in_tower, table_correction=table_correction)
+        if correction_type == CorrectionType.TOWER:
+            return self.generate_tower_cpd(num_blocks_in_tower)
         else:
             # return self.generate_table_cpd(num_blocks_in_tower, num_blocks_on_table, second_rule)
             return self.generate_table_cpd(num_blocks_in_tower)
@@ -248,8 +254,7 @@ class ColourCountRule(Rule):
             CPD[0][i] = 1 - int(violation)
         return CPD
 
-    def generate_tower_cpd(self, num_blocks_in_tower, table_correction=False):
-        offset = 1 if not table_correction else 0
+    def generate_tower_cpd(self, num_blocks_in_tower):
         flippings = binary_flip(num_blocks_in_tower)
         CPD = np.zeros((2, len(flippings)), dtype=np.int32)
         for i, l in enumerate(flippings):
@@ -257,7 +262,7 @@ class ColourCountRule(Rule):
                 top, rule = l
                 rule_violated = int(top and rule)
             else:
-                rule_violated = int(sum(l[:-1]) == (self.number + offset)) * l[-1]
+                rule_violated = int(sum(l[:-1]) == (self.number + 1)) * l[-1]
             CPD[1][i] = rule_violated
             CPD[0][i] = 1 - rule_violated
         return CPD
@@ -356,11 +361,13 @@ class RedOnBlueRule(Rule):
         g = nltk.sem.Assignment(dom)
         return m.evaluate(str(self), g)
 
-    def generateCPD(self, table_correction=False, **kwargs):
-        if table_correction:
+    def generateCPD(self, correction_type=CorrectionType.TOWER, **kwargs):
+        if correction_type == CorrectionType.TOWER:
             return self.generate_table_cpd()
-        else:
+        elif correction_type == CorrectionType.TABLE:
             return self.generate_tower_cpd()
+        elif correction_type == CorrectionType.UNCERTAIN_TABLE:
+            raise NotImplementedError()
 
     def generate_table_cpd(self):
         cpd_line_corr0 = []
@@ -379,7 +386,7 @@ class RedOnBlueRule(Rule):
                             cpd_line_corr0.append(1 - result)
         return [cpd_line_corr0, cpd_line_corr1]
 
-    def check_tower_violation(self, state: PDDLState, tower: str):
+    def check_tower_violation(self, state: PDDLState, tower: str = None):
 
         o1, o2 = state.get_top_two(tower)
 
@@ -390,6 +397,7 @@ class RedOnBlueRule(Rule):
             return True
         elif not c1_o1 and c2_o2 and self.rule_type == 2:
             return True
+        return False
 
     def get_all_relevant_colours(self, rules):
         """
@@ -451,6 +459,7 @@ class NotRedOnBlueConstraint(object):
 
     def evaluate(self, colour_counts):
         return True
+
 
 class RuleConstraint(object):
 
