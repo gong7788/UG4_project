@@ -361,13 +361,13 @@ class RedOnBlueRule(Rule):
         g = nltk.sem.Assignment(dom)
         return m.evaluate(str(self), g)
 
-    def generateCPD(self, correction_type=CorrectionType.TOWER, **kwargs):
+    def generateCPD(self, correction_type=CorrectionType.TOWER, len_evidence=0, **kwargs):
         if correction_type == CorrectionType.TABLE:
             return self.generate_table_cpd()
         elif correction_type == CorrectionType.TOWER:
             return self.generate_tower_cpd()
         elif correction_type == CorrectionType.UNCERTAIN_TABLE:
-            raise NotImplementedError()
+            return self.generate_uncertain_table_cpd(len_evidence=len_evidence)
 
     def generate_table_cpd(self):
         cpd_line_corr0 = []
@@ -384,6 +384,35 @@ class RedOnBlueRule(Rule):
                                 result = r1 * int(redo1 and not (blueo2) and blueo3)
                             cpd_line_corr1.append(result)
                             cpd_line_corr0.append(1 - result)
+        return [cpd_line_corr0, cpd_line_corr1]
+
+    def generate_uncertain_table_cpd(self, len_evidence=6):
+        cpd_line_corr0 = []
+        cpd_line_corr1 = []
+
+        num_colours = len_evidence - 3
+        num_red = int(num_colours/2) + 1
+        num_blue = int(num_colours/2)
+
+        flippings = binary_flip(len_evidence)
+        for flip in flippings:
+            red = flip[:num_red]
+            blue = flip[num_red:num_red+num_blue]
+            red_o3 = flip[-3]
+            blue_o3 = flip[-2]
+            rule = flip[-1]
+            assert((len(red) + len(blue) + 3) == len_evidence)
+            if self.rule_type == 1:
+                a = any([not(r) and b for r, b in zip(red, blue)])
+                truth = red_o3 and a and rule
+            elif self.rule_type == 2:
+                a = any([r and not(b) for r,b in zip(red, blue)])
+                a = a or red[-1]
+                truth = blue_o3 and a and rule
+            else:
+                raise ValueError(f"Incorect rule type {self.rule_type}")
+            cpd_line_corr0.append(1 - int(truth))
+            cpd_line_corr1.append(int(truth))
         return [cpd_line_corr0, cpd_line_corr1]
 
     def check_tower_violation(self, state: PDDLState, tower: str = None):

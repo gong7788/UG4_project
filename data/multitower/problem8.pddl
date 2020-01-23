@@ -58,5 +58,5 @@
 		(yellow b8)
 		(green b9)
 	)
-	(:goal (and (forall (?x) (done ?x)) (forall (?t) (or (not (tower ?t)) (<= (green-count ?t) 1))) (forall (?x) (or (not (green ?x)) (exists (?y) (and (yellow ?y) (on ?x ?y)))))))
+	(:goal (and (forall (?x) (done ?x)) (forall (?x) (or (not (green ?x)) (exists (?y) (and (yellow ?y) (on ?x ?y)))))))
 )

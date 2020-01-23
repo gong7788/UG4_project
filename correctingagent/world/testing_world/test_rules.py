@@ -170,3 +170,17 @@ def test_colour_count_cpd():
 
     cpd = rule.generateCPD(num_blocks_in_tower=3)
 
+
+def test_colour_count_cpd():
+    r1 = RedOnBlueRule('red', 'blue', 1)
+    r2 = RedOnBlueRule('red', 'blue', 2)
+
+    cpd = r1.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=6)
+    cpd = r2.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=6)
+    cpd = r1.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=10)
+    cpd = r2.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=10)
+
+    cpd = r1.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=22)
+    cpd = r2.generateCPD(correction_type=CorrectionType.UNCERTAIN_TABLE, num_blocks_in_tower=22)
+
+

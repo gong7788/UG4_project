@@ -5,7 +5,7 @@ from skimage.color import hsv2rgb
 
 from correctingagent.agents.PGMAgent import *
 from correctingagent.agents.teacher import ExtendedTeacherAgent
-from correctingagent.world import RandomColoursWorld
+from correctingagent.world import RandomColoursWorld, PDDLWorld
 from correctingagent.world.rules import ColourCountRule
 
 
@@ -254,4 +254,36 @@ def test_get_correction_colour_count2():
 
 
 def test_model_update():
-     w = RandomColoursWorld('blocks-domain-updated.pddl', problem_directory='multitower', problem_number=2)
+    w = PDDLWorld('blocks-domain-unstackable.pddl', problem_directory='multitower', problem_number=8)
+
+    w.find_plan()
+
+    teacher = FaultyTeacherAgent(recall_failure_prob=0.0)
+
+    agent = PGMCorrectingAgent(w, teacher=teacher, domain_file='blocks-domain-unstackable.pddl')
+
+    agent.plan()
+
+    w.update('put', ['b4', 't0', 'tower0'])  # yellow
+    w.update('put', ['b8', 'b4', 'tower0'])  # yellow
+    w.update('put', ['b6', 'b8', 'tower0'])  # orange
+
+    correction = teacher.correction(w, ['b6', 'b8', 'tower0'])
+    assert (correction.lower() == "no, now you cannot put b9 in the tower because you must put green blocks on yellow blocks")
+
+    agent.get_correction(correction, 'put', ['b6', 'b8', 'tower0'])
+
+    assert(w.state.predicate_holds('on', ['b6', 'b8']) is False)
+
+    w.update('put', ['b6', 'b8', 'tower0'])
+    w.update('put', ['b7', 'b6', 'tower0'])
+
+    assert(w.test_failure() is True)
+
+    agent = PGMCorrectingAgent(w, teacher=teacher, domain_file='blocks-domain-unstackable.pddl')
+
+    agent.get_correction(correction, 'put', ['b7', 'b6', 'tower0'])
+
+    assert(w.state.predicate_holds('on', ['b7', 'b6']) is False)
+
+    assert(w.test_failure() is True)

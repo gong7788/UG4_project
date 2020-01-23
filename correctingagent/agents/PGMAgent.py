@@ -2,6 +2,7 @@
 
 import numpy as np
 from correctingagent.agents.agents import CorrectingAgent, Tracker
+from correctingagent.agents.teacher import FaultyTeacherAgent
 from correctingagent.experiments.colour_model_evaluation import evaluate_colour_model
 from correctingagent.pddl import pddl_functions
 from correctingagent.util.CPD_generation import get_violation_type, get_predicate
@@ -11,7 +12,7 @@ from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
 
-from correctingagent.world.rules import Rule, ColourCountRule, RedOnBlueRule
+from correctingagent.world.rules import Rule, ColourCountRule, RedOnBlueRule, CorrectionType
 
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
@@ -154,8 +155,30 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         elif message.T in ['tower', 'table']:
 
-            data = self.get_relevant_data(args, message)
-            violations = self.build_pgm_model(message, args)
+            if isinstance(self.teacher, FaultyTeacherAgent) and message.T == 'table':
+                red = message.o1[0]
+                blue = message.o2[0]
+                rules = Rule.generate_red_on_blue_options(red, blue)
+
+                tower_name = args[-1] if 't' in args[-1] else None
+
+                red_cm = self.add_cm(red)
+                blue_cm = self.add_cm(blue)
+
+                objects = self.world.state.get_objects_in_tower(tower_name)
+
+                violations = self.pgm_model.create_uncertain_table_model(rules, red_cm, blue_cm,
+                                                            args + [message.o3],
+                                                            objects, self.time)
+
+                data = self.get_colour_data(objects + [message.o3])
+                corr = f"corr_{self.time}"
+                data[corr] = 1
+            else:
+                data = self.get_relevant_data(args, message)
+                violations = self.build_pgm_model(message, args)
+                corr = f"corr_{self.time}"
+                data[corr] = 1
 
         elif 'partial.neg' == message.T:
             print("partial.neg", self.time)
@@ -345,12 +368,21 @@ class PGMCorrectingAgent(CorrectingAgent):
         blue_cm = self.add_cm(message.o2[0])
 
         is_table_correction = message.T == 'table'
+        if message.T == 'tower':
+            correction_type = CorrectionType.TOWER
+        elif message.T == 'table':
+            if isinstance(self.teacher, FaultyTeacherAgent):
+                correction_type = CorrectionType.UNCERTAIN_TABLE
+            else:
+                correction_type = CorrectionType.TABLE
+        else:
+            raise ValueError(f"Invalid message type, expected tower or table, not {message.T}")
         print("table correction?", is_table_correction)
         if is_table_correction:
             args = args[:2]
             args += [message.o3]
 
-        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time, table_correction=is_table_correction)
+        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time, correction_type=correction_type)
 
         return violations
 

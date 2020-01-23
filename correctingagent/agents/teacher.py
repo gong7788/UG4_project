@@ -5,7 +5,13 @@ from collections import namedtuple
 import random
 from ..util.colour_dict import colour_dict
 import numpy as np
+from enum import Enum
 
+class TeacherType(Enum):
+    Human = 1
+    Old = 2
+    Extended = 3
+    Faulty = 4
 
 def tower_correction(obj1, obj2):
     return f"no, put {obj1} blocks on {obj2} blocks"

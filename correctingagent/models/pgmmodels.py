@@ -238,7 +238,7 @@ class PGMModel(object):
 
         evidence = colours + [rule]
 
-        violated_rule_cpd = rule.generateCPD(correction_type=correction_type, num_blocks_in_tower=len(evidence))
+        violated_rule_cpd = rule.generateCPD(correction_type=correction_type, len_evidence=len(evidence))
 
         rule_violated_factor = TabularCPD(violated_rule_factor_name, 2, violated_rule_cpd,
                                            evidence=evidence, evidence_card=[2]*len(evidence))
@@ -446,17 +446,19 @@ class PGMModel(object):
 
         return [Vrule]
 
-    def create_uncertain_table_model(self, rules, red_cm, blue_cm, args, objects_in_tower, time):
+    def create_uncertain_table_model(self, rules, red_cm, blue_cm, args,
+                                     objects_in_tower, time):
 
         self.known_rules = self.known_rules.union(rules)
         rule1, rule2 = rules
-        colour_variables = []
-        i = 0
 
-        for obj in objects_in_tower:
-            if i > 0:
-                colour_variables.append(self.add_cm(blue_cm, obj))
-            colour_variables.append(self.add_cm(red_cm, obj))
+        reds = [self.add_cm(red_cm, obj) for obj in objects_in_tower]
+        blues = [self.add_cm(blue_cm, obj) for obj in objects_in_tower[1:]]
+        red_o3 = self.add_cm(red_cm, args[-1])
+        blue_o3 = self.add_cm(blue_cm, args[-1])
+
+        colour_variables = reds + blues + [red_o3, blue_o3]
+
         violations = [self.add_violation_factor(rule1, time, colour_variables, correction_type=CorrectionType.UNCERTAIN_TABLE),
                       self.add_violation_factor(rule2, time, colour_variables, correction_type=CorrectionType.UNCERTAIN_TABLE)]
         self.add_correction_factor(violations, time)

@@ -4,7 +4,7 @@ from correctingagent.util.database import BigExperimentDB, ExperimentDB, JoinDB
 from ..world import world
 from ..agents import agents, PGMAgent
 from ..agents.agents import CorrectingAgent, RandomAgent, PerfectColoursAgent, NoLanguageAgent
-from ..agents.teacher import TeacherAgent, ExtendedTeacherAgent
+from ..agents.teacher import TeacherAgent, ExtendedTeacherAgent, TeacherType, HumanTeacher, FaultyTeacherAgent
 import os
 import pandas as pd
 from .evaluation import ResultsFile
@@ -150,7 +150,7 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
 
 def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
                     colour_model_type='KDE', no_correction_update=False, debug=False, colour_model_config_name='DEFAULT',
-                    new_teacher=False, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
+                    teacher_type=TeacherType.Old, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
                     domain_file='blocks-domain.pddl', simplified_colour_count=False, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
@@ -167,12 +167,16 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
     print(colour_model_config_name)
 
-    if new_teacher:
+    if teacher_type == TeacherType.Extended:
         print("NEW TEACHER!")
         teacher = ExtendedTeacherAgent()
-    else:
+    elif teacher_type == TeacherType.Old:
         print("old teacher :(")
         teacher = TeacherAgent()
+    elif teacher_type == TeacherType.Human:
+        teacher = HumanTeacher()
+    elif teacher_type == TeacherType.Faulty:
+        teacher = FaultyTeacherAgent()
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                          threshold, update_negative, update_once, debug_agent, domain_file, simplified_colour_count)
@@ -215,6 +219,10 @@ def run_experiment(config_name='DEFAULT', debug=False, colour_model_config='DEFA
 
 
 def get_experiment_config(config_name, colour_model_config):
+    teacher_type = {"old":TeacherType.Old,
+                    "faulty":TeacherType.Faulty,
+                    "extended":TeacherType.Extended,
+                    "human":TeacherType.Human}
     config = configparser.ConfigParser()
     config_file = os.path.join(config_location, 'experiments.ini')
     config.read(config_file)
@@ -229,7 +237,7 @@ def get_experiment_config(config_name, colour_model_config):
         "update_once": config.getboolean('update_once'),
         "colour_model_type": config['colour_model_type'],
         "no_correction_update": config.getboolean('no_correction_update'),
-        "new_teacher": config.getboolean('new_teacher'),
+        "teacher_type": teacher_type[config['teacher_type']],
         "world_type": config['world_type'],
         "use_hsv": colour_model_conf['use_hsv'],
         "domain_file": config['domain_name'],

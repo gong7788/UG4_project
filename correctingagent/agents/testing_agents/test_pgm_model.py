@@ -171,3 +171,173 @@ def test_equals_cpd():
 #     for colour in colours:
 #         assert(abs(q[colour] - 2/len(objects)) < 0.000001)
 #
+
+def test_uncertain_table1():
+    pgm_model = PGMModel()
+    time = 0
+    red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
+
+    blue_cm = KDEColourModel('blue')
+    red_cm = KDEColourModel('red')
+
+    objects = [f"b{o}" for o in range(10)]
+    i = 1
+    objects_in_tower = objects[:i]
+
+    o3 = objects[i]
+
+    red_in_tower = [f'red({obj})' for obj in objects_in_tower]
+    blue_in_tower = [f'blue({obj}' for obj in objects_in_tower[1:]]
+
+    violations = pgm_model.create_uncertain_table_model(red_on_blue_options, red_cm, blue_cm, [objects[0], objects[1], o3],
+                                           objects_in_tower, 1)
+
+    red_o3 = f'red({o3})'
+    blue_o3 = f'blue({o3})'
+
+    data = {f'corr_{time}': 1}
+    for obj in objects:
+        data[f'F({obj})'] = [1, 1, 1]
+
+    pgm_model.observe(data)
+
+    evidence = red_in_tower + blue_in_tower + [red_o3, blue_o3] + red_on_blue_options + violations
+
+    q = pgm_model.query(evidence)
+
+    assert (abs(q[violations[1]])-1 < 0.0001)
+
+
+    #
+    # assert (abs(q[violations[0]] - 2/3) < 0.001)
+    # assert(abs(q[violations[1]] - 2/3) < 0.0001)
+    #
+    # assert(abs(q[colour_count] - 1.0) <  0.00001)
+    # assert(abs(q[red_on_blue_options[0]] - 2/3) < 0.00001)
+    #
+    # assert(pgm_model.colours['red'] is not None)
+    # assert(abs(q[colours_in_tower[-1]] - 1.0) < 0.00001)
+    # for colour in colours_in_tower[:-1]:
+    #     assert(abs(q[colour] - 1/(len(colours_in_tower) - 1) < 0.0001))
+
+
+def test_uncertain_table2():
+    pgm_model = PGMModel()
+    time = 0
+    red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
+
+    blue_cm = KDEColourModel('blue')
+    red_cm = KDEColourModel('red')
+
+    objects = [f"b{o}" for o in range(10)]
+    i = 2
+    objects_in_tower = objects[:i]
+
+    o3 = objects[i]
+
+    red_in_tower = [f'red({obj})' for obj in objects_in_tower]
+    blue_in_tower = [f'blue({obj}' for obj in objects_in_tower[1:]]
+
+    violations = pgm_model.create_uncertain_table_model(red_on_blue_options, red_cm, blue_cm, [objects[0], objects[1], o3],
+                                           objects_in_tower, 1)
+
+    red_o3 = f'red({o3})'
+    blue_o3 = f'blue({o3})'
+
+    data = {f'corr_{time}': 1}
+    for obj in objects:
+        data[f'F({obj})'] = [1, 1, 1]
+
+    pgm_model.observe(data)
+
+    evidence = red_in_tower + blue_in_tower + [red_o3, blue_o3] + red_on_blue_options + violations
+
+    q = pgm_model.query(evidence)
+
+    assert (abs(q[violations[0]]) - 2/3 < 0.0001)
+    assert (abs(q[violations[1]]) - 5/6 < 0.0001)
+
+    assert (abs(q[red_on_blue_options[0]]) - 2 / 3 < 0.0001)
+    assert (abs(q[red_on_blue_options[1]]) - 5 / 6 < 0.0001)
+
+
+
+
+def test_uncertain_table3():
+    pgm_model = PGMModel()
+    time = 0
+    red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
+
+    blue_cm = KDEColourModel('blue')
+    red_cm = KDEColourModel('red')
+
+    objects = [f"b{o}" for o in range(10)]
+    i = 3
+    objects_in_tower = objects[:i]
+
+    o3 = objects[i]
+
+    red_in_tower = [f'red({obj})' for obj in objects_in_tower]
+    blue_in_tower = [f'blue({obj}' for obj in objects_in_tower[1:]]
+
+    violations = pgm_model.create_uncertain_table_model(red_on_blue_options, red_cm, blue_cm, [objects[0], objects[1], o3],
+                                           objects_in_tower, 1)
+
+    red_o3 = f'red({o3})'
+    blue_o3 = f'blue({o3})'
+
+    data = {f'corr_{time}': 1}
+    for obj in objects:
+        data[f'F({obj})'] = [1, 1, 1]
+
+    pgm_model.observe(data)
+
+    evidence = red_in_tower + blue_in_tower + [red_o3, blue_o3] + red_on_blue_options + violations
+
+    q = pgm_model.query(evidence)
+
+    assert (abs(q[violations[0]]) - 7/10 < 0.0001)
+    assert (abs(q[violations[1]]) - 4/5 < 0.0001)
+
+    assert (abs(q[red_on_blue_options[0]]) - 7 / 10 < 0.0001)
+    assert (abs(q[red_on_blue_options[1]]) - 4 / 5 < 0.0001)
+
+
+def test_uncertain_table4():
+    pgm_model = PGMModel()
+    time = 0
+    red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
+
+    blue_cm = KDEColourModel('blue')
+    red_cm = KDEColourModel('red')
+
+    objects = [f"b{o}" for o in range(10)]
+    i = 9
+    objects_in_tower = objects[:i]
+
+    o3 = objects[i]
+
+    red_in_tower = [f'red({obj})' for obj in objects_in_tower]
+    blue_in_tower = [f'blue({obj}' for obj in objects_in_tower[1:]]
+
+    violations = pgm_model.create_uncertain_table_model(red_on_blue_options, red_cm, blue_cm, [objects[0], objects[1], o3],
+                                           objects_in_tower, 1)
+
+    red_o3 = f'red({o3})'
+    blue_o3 = f'blue({o3})'
+
+    data = {f'corr_{time}': 1}
+    for obj in objects:
+        data[f'F({obj})'] = [1, 1, 1]
+
+    pgm_model.observe(data)
+
+    evidence = red_in_tower + blue_in_tower + [red_o3, blue_o3] + red_on_blue_options + violations
+
+    q = pgm_model.query(evidence)
+
+    assert (abs(q[violations[0]]) - (8 + 4.5)/17 < 0.0001)  # (n -1 + n/2) / (2n - 1)
+    assert (abs(q[violations[1]]) - (9 + 4.5)/17 < 0.0001)  # (n + n/2) / (2n -1)
+
+    assert (abs(q[red_on_blue_options[0]]) - (8 + 4.5)/17 < 0.0001)
+    assert (abs(q[red_on_blue_options[1]]) - (9 + 4.5)/17 < 0.0001)
