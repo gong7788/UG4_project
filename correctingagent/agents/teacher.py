@@ -1,11 +1,12 @@
-from correctingagent.world import World, PDDLWorld
-from correctingagent.world.rules import Rule, RedOnBlueRule, ColourCountRule
-from ..pddl import pddl_functions
-from collections import namedtuple
 import random
-from ..util.colour_dict import colour_dict
-import numpy as np
+from collections import namedtuple
 from enum import Enum
+
+import numpy as np
+
+from correctingagent.world import PDDLWorld
+from correctingagent.world.rules import Rule, RedOnBlueRule, ColourCountRule
+
 
 class TeacherType(Enum):
     Human = 1
@@ -42,7 +43,7 @@ def get_rules(goal):
 
 class Teacher(object):
 
-    def correction(self, world_):
+    def correction(self, world_, args):
         raise NotImplementedError()
 
     def reset(self):
@@ -61,7 +62,7 @@ class Teacher(object):
 
 class HumanTeacher(Teacher):
 
-    def correction(self, world_):
+    def correction(self, world_, args):
         return input('Correction?')
 
     def answer_question(self, question, world_, tower):
@@ -270,17 +271,22 @@ class ExtendedTeacherAgent(TeacherAgent):
 
 class FaultyTeacherAgent(Teacher):
 
-    def __init__(self, recall_failure_prob=0.5):
+    def __init__(self, recall_failure_prob=0.5, recover_prob=0.1):
         self.recall_failure_prob = recall_failure_prob
+        self.recover_prob = recover_prob
+        self.skipped_corrections = []
+
+    def reset(self):
         self.skipped_corrections = []
 
     def correction(self, w, args):
+
         failure = w.test_failure()
         if len(args) == 3:
             tower = args[-1]
         else:
             tower = None
-        #print("Failure?", failure)
+
         if not failure:
             return ""
         #Reasons for failure:
@@ -300,6 +306,24 @@ class FaultyTeacherAgent(Teacher):
                     return get_table_correction(rule, w, rules, tower).sentence
                 else:
                     self.skipped_corrections.append(get_table_correction(rule, w, rules, tower))
+
+        if len(w.state.get_objects_on_table()) == 0:
+            if not w.test_success():
+                rules = Rule.get_rules(w.problem.goal)
+                for rule in rules:
+                    if rule.rule_type == 2:
+                        for tower in w.state.towers:
+                            tower = tower.replace('t', 'tower')
+                            top, _ = w.state.get_top_two(tower)
+                            if w.state.predicate_holds(rule.c2, [top]):
+                                return get_tower_correction(rule, w, tower).sentence
+
+        if len(self.skipped_corrections) > 0:
+            r = np.random.rand()
+            if r < self.recover_prob:
+                correction = np.random.choice(self.skipped_corrections)
+                self.skipped_corrections.remove(correction)
+                return correction
 
         return ""
 

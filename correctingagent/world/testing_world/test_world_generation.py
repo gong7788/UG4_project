@@ -34,7 +34,7 @@ def test_rules_consistent2():
 def test_extended_blocks_world_problem():
     cc = ColourCountRule('blue', 2)
     colours = ['red', 'blue', 'green', 'yellow', 'pink', 'purple', 'red', 'blue', 'blue', 'blue']
-    problem = problem_def.ExtendedBlocksWorldProblem(n=10, m=2, rules=[cc.to_formula()], colours=colours)
+    problem = problem_def.ExtendedBlocksWorldProblem(num_blocks=10, num_towers=2, rules=[cc.to_formula()], colours=colours)
 
     assert(problem.goal.subformulas[0].asPDDL() == "(forall (?x) (done ?x))")
     assert(problem.goal.subformulas[1].asPDDL() == cc.asPDDL())

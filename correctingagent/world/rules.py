@@ -337,14 +337,29 @@ class RedOnBlueRule(Rule):
     def generate_tower_cpd(self):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
-        for i in range(2):
-            for j in range(2):
-                for r in range(2):
-                    result = r * (1 - int(self.evaluate_rule(i, j)))
+        for red_o1 in range(2):
+            for blue_o2 in range(2):
+                for r_in_goal in range(2):
+                    result = r_in_goal * (1 - int(self.evaluate_rule(red_o1, blue_o2)))
                     cpd_line_corr1.append(result)
                     cpd_line_corr0.append(1 - result)
 
         return [cpd_line_corr0, cpd_line_corr1]
+
+    def generate_empty_table_tower_cpd(self):
+        cpd_line_corr0 = []
+        cpd_line_corr1 = []
+        for red_o1 in range(2):
+            for blue_o2 in range(2):
+                for blue_o1 in range(2):
+                    for r_in_goal in range(2):
+                        result = r_in_goal * (1 - int(self.evaluate_rule(red_o1, blue_o2)))
+                        if self.rule_type == 2:
+                            result = int(result or (blue_o1 and r_in_goal))
+                        cpd_line_corr1.append(result)
+                        cpd_line_corr0.append(1 - result)
+        return [cpd_line_corr0, cpd_line_corr1]
+
 
     def evaluate_rule(self, value1: int, value2: int):
         c1_set = set()
@@ -361,9 +376,11 @@ class RedOnBlueRule(Rule):
         g = nltk.sem.Assignment(dom)
         return m.evaluate(str(self), g)
 
-    def generateCPD(self, correction_type=CorrectionType.TOWER, len_evidence=0, **kwargs):
+    def generateCPD(self, correction_type=CorrectionType.TOWER, len_evidence=0, table_empty=False, **kwargs):
         if correction_type == CorrectionType.TABLE:
             return self.generate_table_cpd()
+        elif correction_type == CorrectionType.TOWER and table_empty is True:
+            return self.generate_empty_table_tower_cpd()
         elif correction_type == CorrectionType.TOWER:
             return self.generate_tower_cpd()
         elif correction_type == CorrectionType.UNCERTAIN_TABLE:

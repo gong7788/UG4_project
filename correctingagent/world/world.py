@@ -89,9 +89,19 @@ class PDDLWorld(World):
         self.actions[action].apply_action(self.state, args)
         self.reward += -1
 
-    def back_track(self):
+    def remove_top_two(self, tower=None):
+        top, second = self.state.get_top_two(tower)
+        # unstack = self.actions['unstack']
+        self.update("unstack", [top, second, tower])
+
+    def back_track(self, tower="tower0"):
         if 'unstack' in self.actions:
-            self.update('unstack', self.history[-1].args)
+            try:
+                plan = self.find_plan()
+                action, args = plan[0]
+                self.update(action, args)
+            except NoPlanError:
+                self.remove_top_two(tower)
         else:
             self.state = self.previous_state
             self.previous_state = None
@@ -137,7 +147,7 @@ class PDDLWorld(World):
     def test_success(self):
         try:
             plan = self.find_plan()
-            return plan == []
+            return plan == [] or plan[0][0] == 'reach-goal'
         except Solved:
             return True
         except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):

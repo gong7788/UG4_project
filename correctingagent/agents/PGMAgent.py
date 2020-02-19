@@ -17,46 +17,43 @@ from correctingagent.world.rules import Rule, ColourCountRule, RedOnBlueRule, Co
 Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 
 
-def read_sentence(sentence, use_dmrs=False):
-    sentence = sentence.lower()
-    if sentence == 'no':
-        return Message(None, None, None, 'no', None)
-    sentence = sentence.replace('no,', '')
+def colour_variable_name(colour, object):
+    return f"{colour}({object})"
+
+
+def corr_variable_name(time):
+    return f"corr_{time}"
+
+
+def parse_colour_count_correction(sentence):
     o3 = None
-    T = 'tower'
-    if "same reason" in sentence:
-        return Message(None, None, None, 'same reason', None)
-    elif "cannot put more than" in sentence:
-        o3 = None
-        addon = ""
-        if "and" in sentence:
-            sentence, red_on_blue = sentence.split(' and ')
-            red_on_blue = red_on_blue.replace('you must', '').strip()
-            o3 = read_sentence(red_on_blue)
-            addon = "+tower"
-        sentence = sentence.replace('you cannot put more than', '').replace('blocks in a tower', '').strip()
-        number, colour = sentence.split(' ')
-        return Message(None, colour, int(number), "colour count"+addon, o3)
-    elif "you put" in sentence:
-        T = 'evidence'
-        sentence = sentence.replace('you', '').strip()
-        sentence = sentence.replace('a ', '')
+    addon = ""
+    if "and" in sentence:
+        sentence, red_on_blue = sentence.split(' and ')
+        red_on_blue = red_on_blue.replace('you must', '').strip()
+        o3 = read_sentence(red_on_blue)
+        addon = "+tower"
+    sentence = sentence.replace('you cannot put more than', '').replace('blocks in a tower', '').strip()
+    number, colour = sentence.split(' ')
+    return Message(None, colour, int(number), "colour count" + addon, o3)
 
-    elif "that is not" in sentence:
-         sentence = sentence.replace('that is not', '').strip()
-         sentence = sentence.replace('again', '').strip()
-         return Message(None, sentence, None, 'partial.neg', None)
+def parse_negated_elaboration(sentence):
+    sentence = sentence.replace('that is not', '').strip()
+    sentence = sentence.replace('again', '').strip()
+    return Message(None, sentence, None, 'partial.neg', None)
 
-    elif "don't" in sentence:
-        T = 'neg'
-        sentence = sentence.replace("don't", '').strip()
 
-    if 'tower because you' in sentence:
-        T = 'table'
+def parse_red_on_blue_rule(sentence):
+    t = 'tower'
+
+    o3 = None
+
+    if 'tower because you' in sentence:  # No, now you cannot but b3 in the tower because you must put red blocks on blue blocks
+        t = 'table'
         o3 = sentence.split('put')[1].split('in')[0].strip()
         sentence = sentence.split('because you')[1].strip()
         if 'cannot' in sentence:
-            T = 'table.neg'
+            t = 'table.neg'
             sentence = sentence.replace('cannot', '').strip()
         else:
             sentence = sentence.replace('must', '').strip()
@@ -65,7 +62,37 @@ def read_sentence(sentence, use_dmrs=False):
     o1, o2 = sentence.strip('no, ').strip('put').split(' on ')
     o1 = o1.strip().split()[0]
     o2 = o2.strip().split()[0]
-    return Message(rel, [o1], [o2], T, o3)
+    return Message(rel, [o1], [o2], t, o3)
+
+
+def read_sentence(sentence, use_dmrs=False):
+    sentence = sentence.lower()
+
+    # if sentence == 'no':
+    #     return Message(None, None, None, 'no', None)
+
+    sentence = sentence.replace('no,', '')
+
+    if "same reason" in sentence:  # That is wrong for the same reason
+        return Message(None, None, None, 'same reason', None)
+
+    elif "cannot put more than" in sentence:  # No, you cannot put more than 2 red blocks in a tower
+        return parse_colour_count_correction(sentence)
+
+    # elif "you put" in sentence:  # No, you put a red block on a blue block
+    #     T = 'evidence'
+    #     sentence = sentence.replace('you', '').strip()
+    #     sentence = sentence.replace('a ', '')
+
+    elif "that is not" in sentence:  # No, that is not green again
+        return parse_negated_elaboration(sentence)
+
+    # elif "don't" in sentence:  # No, don't put red blocks on blue blocks
+    #     T = 'neg'
+    #     sentence = sentence.replace("don't", '').strip()
+
+    else:
+        return parse_red_on_blue_rule(sentence)
 
 
 class PGMCorrectingAgent(CorrectingAgent):
@@ -104,6 +131,8 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.goal = goals.goal_from_list(rules, self.domain_file)
 
     def no_correction(self, action, args):
+        if action.lower() == 'unstack':
+            return
         # print("no correction", self.time)
         self.time += 1
         # print(args, self.marks.keys())
@@ -114,7 +143,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                 return
             self.pgm_model.add_no_correction(args, self.time, marks)
             data = self.get_colour_data(args)
-            corr = f'corr_{self.time}'
+            corr = corr_variable_name(self.time)
             data[corr] = 0
             # print(data)
             self.pgm_model.observe(data)
@@ -128,12 +157,12 @@ class PGMCorrectingAgent(CorrectingAgent):
             args_for_model += [message.o3]
         data = self.get_colour_data(args_for_model)
 
-        corr = f'corr_{self.time}'
+        corr = corr_variable_name(self.time)
 
         data[corr] = 1
 
         if 't' in args[1] and message.o2 is not None:
-            blue = f'{message.o2[0]}({args[1]})'
+            blue = colour_variable_name(message.o2[0], args[1])
             data[blue] = 0
         return data
 
@@ -168,16 +197,16 @@ class PGMCorrectingAgent(CorrectingAgent):
                 objects = self.world.state.get_objects_in_tower(tower_name)
 
                 violations = self.pgm_model.create_uncertain_table_model(rules, red_cm, blue_cm,
-                                                            args + [message.o3],
-                                                            objects, self.time)
+                                                                         args + [message.o3],
+                                                                         objects, self.time)
 
                 data = self.get_colour_data(objects + [message.o3])
-                corr = f"corr_{self.time}"
+                corr = corr_variable_name(self.time)
                 data[corr] = 1
             else:
                 data = self.get_relevant_data(args, message)
                 violations = self.build_pgm_model(message, args)
-                corr = f"corr_{self.time}"
+                corr = corr_variable_name(self.time)
                 data[corr] = 1
 
         elif 'partial.neg' == message.T:
@@ -367,6 +396,12 @@ class PGMCorrectingAgent(CorrectingAgent):
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
+
+        if isinstance(self.teacher, FaultyTeacherAgent):
+            table_empty = len(self.world.state.get_objects_on_table()) == 0
+        else:
+            table_empty = False
+
         is_table_correction = message.T == 'table'
         if message.T == 'tower':
             correction_type = CorrectionType.TOWER
@@ -382,7 +417,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             args = args[:2]
             args += [message.o3]
 
-        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time, correction_type=correction_type)
+        violations = self.pgm_model.extend_model(rules, red_cm, blue_cm, args, self.time,
+                                                 correction_type=correction_type, table_empty=table_empty)
 
         return violations
 

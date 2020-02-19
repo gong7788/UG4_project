@@ -39,8 +39,8 @@ class BlocksWorldProblem(Problem):
 
     @staticmethod
     def create_objects(n, m=1):
-        obj_names = ['b{}'.format(i) for i in range(n)]
-        tower_posns = ['t{}'.format(i) for i in range(m)]
+        obj_names = [f'b{i}' for i in range(n)]
+        tower_posns = [f't{i}' for i in range(m)]
         obj_names.extend(tower_posns)
         return pddl_functions.make_variable_list(obj_names)
 
@@ -77,8 +77,8 @@ class BlocksWorldProblem(Problem):
 
 class ExtendedBlocksWorldProblem(BlocksWorldProblem):
 
-    def __init__(self, n=10, m=2, **kwargs):
-        objects = ExtendedBlocksWorldProblem.create_objects(n, m)
+    def __init__(self, num_blocks=10, num_towers=2, **kwargs):
+        objects = ExtendedBlocksWorldProblem.create_objects(num_blocks, num_towers)
         super(ExtendedBlocksWorldProblem, self).__init__(objects=objects, **kwargs)
 
     def generate_default_position(self, objects):
@@ -111,18 +111,18 @@ class ExtendedBlocksWorldProblem(BlocksWorldProblem):
         return goals.create_defualt_goal_new()
 
     @staticmethod
-    def create_objects(n, m=1):
-        obj_names = [f'b{i}' for i in range(n)]
-        tower_posns = [f't{i}' for i in range(m)]
-        towers = [f'tower{i}' for i in range(m)]
+    def create_objects(num_blocks, num_towers=1):
+        obj_names = [f'b{i}' for i in range(num_blocks)]
+        tower_posns = [f't{i}' for i in range(num_towers)]
+        towers = [f'tower{i}' for i in range(num_towers)]
         obj_names.extend(tower_posns)
         obj_names.extend(towers)
         return obj_names
         #return pddl_functions.make_variable_list(obj_names)
 
     @staticmethod
-    def generate_problem(colours, rules, name='blocks-problem', domainname='blocksworld', m=2):
-        return ExtendedBlocksWorldProblem(name=name, domainname=domainname, n=len(colours), m=m, colours=colours, rules=rules)
+    def generate_problem(colours, rules, name='blocks-problem', domainname='blocksworld', num_towers=2):
+        return ExtendedBlocksWorldProblem(name=name, domainname=domainname, num_blocks=len(colours), num_towers=num_towers, colours=colours, rules=rules)
 
 
 def generate_rule(ruledef):

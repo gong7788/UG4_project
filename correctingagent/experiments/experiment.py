@@ -43,6 +43,9 @@ def get_agent(config):
     return agent_dict[config['agent']]
 
 
+def get_longest_list(results_dict):
+    return max([len(value) for value in results_dict.values()])
+
 class Debug(object):
 
     def __init__(self, config):
@@ -68,10 +71,11 @@ class Debug(object):
         try:
             df = pd.DataFrame(self.cm_results)
         except ValueError:
-            longest_list = max(map(len, self.cm_results.values()))
+
+            longest_list = get_longest_list(self.cm_results)
             for key in self.cm_results.keys():
                 n = len(self.cm_results[key])
-                if  n < longest_list:
+                if n < longest_list:
                     diff = longest_list - n
                     for i in range(diff):
                         self.cm_results[key].insert(0, None)
@@ -92,10 +96,10 @@ class Debug(object):
         try:
             df = pd.DataFrame(self.cm_params)
         except ValueError:
-            longest_list = max(map(len, self.cm_params.values()))
+            longest_list = get_longest_list(self.cm_params)
             for key in self.cm_params.keys():
                 n = len(self.cm_params[key])
-                if  n < longest_list:
+                if n < longest_list:
                     diff = longest_list - n
                     for i in range(diff):
                         self.cm_params[key].insert(0, None)
@@ -115,12 +119,15 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
             colour_model_config = {}
         agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
                       colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent, domain_file=domain_file, simplified_colour_count=simplified_colour_count)
+        print(colour_model_config_name)
+        print(colour_model_config)
     else:
         agent = agent(w, teacher=teacher, threshold=threshold)
-    print(colour_model_config_name)
-    print(colour_model_config)
+
     return agent
 
+class PlanningError(Exception):
+    pass
 
 def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, break_on_correction=False):
     if vis:
@@ -128,6 +135,9 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
     agent.new_world(world_scenario)
     while not world_scenario.test_success():
         plan = agent.plan()
+        print(plan)
+        if len(plan) == 0:
+            raise PlanningError("No plan was found and teacher did not attempt to correct.")
         for a, args in plan:
             if a == 'reach-goal':
                 break
@@ -151,7 +161,8 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
 def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
                     colour_model_type='KDE', no_correction_update=False, debug=False, colour_model_config_name='DEFAULT',
                     teacher_type=TeacherType.Old, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
-                    domain_file='blocks-domain.pddl', simplified_colour_count=False, **kwargs):
+                    domain_file='blocks-domain.pddl', simplified_colour_count=False,
+                    recall_failure_prob=0.0, recovery_prob=0.0, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
@@ -163,7 +174,8 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     if world_type == 'RandomColours':
         num_problems = int(num_problems / 2)
 
-    w = world.get_world(problem_name, 1, world_type=world_type, domain_file=domain_file, use_hsv=use_hsv)
+    w = world.get_world(problem_name, 1, world_type=world_type, domain_file=domain_file,
+                        use_hsv=use_hsv)
 
     print(colour_model_config_name)
 
@@ -176,10 +188,13 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     elif teacher_type == TeacherType.Human:
         teacher = HumanTeacher()
     elif teacher_type == TeacherType.Faulty:
-        teacher = FaultyTeacherAgent()
+        teacher = FaultyTeacherAgent(recall_failure_prob, recovery_prob)
+    else:
+        raise ValueError("Invalid teacher type")
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
-                         threshold, update_negative, update_once, debug_agent, domain_file, simplified_colour_count)
+                         threshold, update_negative, update_once, debug_agent, domain_file,
+                         simplified_colour_count)
 
     if results_file is not None:
         results_file.write(f'Results for {problem_name}\n')
@@ -188,9 +203,9 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
         do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update)
 
-        if debug and not 'Random' in config['agent']:
-            debugger.cm_confusion(agent)
-            debugger.update_cm_params(agent)
+        # if debug and not 'Random' in config['agent']:
+        #     debugger.cm_confusion(agent)
+        #     debugger.update_cm_params(agent)
 
         total_reward += w.reward
         print(f'{problem_name} reward: {w.reward}')
@@ -199,10 +214,10 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
             results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
     if results_file is not None:
         results_file.write(f'total reward: {total_reward}\n')
-
-    if debug and not 'Random' in config['agent']:
-        debugger.save_confusion()
-        debugger.save_params()
+    #
+    # if debug and not 'Random' in config['agent']:
+    #     debugger.save_confusion()
+    #     debugger.save_params()
 
     if not isinstance(agent, RandomAgent):
         results_file.save_agent(agent)
@@ -219,10 +234,10 @@ def run_experiment(config_name='DEFAULT', debug=False, colour_model_config='DEFA
 
 
 def get_experiment_config(config_name, colour_model_config):
-    teacher_type = {"old":TeacherType.Old,
-                    "faulty":TeacherType.Faulty,
-                    "extended":TeacherType.Extended,
-                    "human":TeacherType.Human}
+    teacher_type = {"old": TeacherType.Old,
+                    "faulty": TeacherType.Faulty,
+                    "extended": TeacherType.Extended,
+                    "human": TeacherType.Human}
     config = configparser.ConfigParser()
     config_file = os.path.join(config_location, 'experiments.ini')
     config.read(config_file)
@@ -243,7 +258,9 @@ def get_experiment_config(config_name, colour_model_config):
         "domain_file": config['domain_name'],
         "use_metric_ff": config.getboolean('use_metric_ff'),
         "simplified_colour_count": config.getboolean('simplified_colour_count'),
-        "colour_model_config_name": colour_model_config
+        "colour_model_config_name": colour_model_config,
+        "recall_failure_prob": config.getfloat('recall_failure_prob'),
+        "recovery_prob": config.getfloat('recovery_prob')
     }
     return config_dict
 

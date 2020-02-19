@@ -1,14 +1,15 @@
 #import block_plotting
 import numpy as np
+
+
 def binirise_labels(colour, labels):
-    return list(map(lambda x: int(x==colour), labels))
+    return [int(x == colour) for x in labels]
 
 
 colour_dict = {'blue':(0,0,1),
                    'yellow':(1,1,0),
                    'red':(1,0,0),
                    'green':(0, 1, 0)}
-
 
 
 def colour_model(colour):
@@ -21,6 +22,7 @@ def colour_model(colour):
             out[i] = max(dim - sample[i], 0)
     return tuple(out)
 
+
 def generate_data(colour ,n):
     colours = ['blue', 'green', 'red', 'yellow']
     data = []
@@ -28,6 +30,7 @@ def generate_data(colour ,n):
 
         data.append(colour_model(colour_dict[colour]))
     return data
+
 
 def generate_data_set(n):
     colours = ['blue', 'green', 'red', 'yellow']

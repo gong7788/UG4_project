@@ -3,6 +3,7 @@ import time
 
 import correctingagent.world.rules
 from correctingagent.models.search import TestFailed
+from correctingagent.pddl.ff import NoPlanError
 from correctingagent.util import util
 from ..pddl import ff
 from ..language import dmrs_functions
@@ -43,24 +44,21 @@ Message = namedtuple('Message', ['rel', 'o1', 'o2', 'T', 'o3'])
 class Priors(object):
     def __init__(self, objects, known_colours=[]):
         """known colours = list of pairs"""
-        if not known_colours:
-            self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
-        else:
-            self.priors = {o: defaultdict(float) for o in objects}
-            for o, c in known_colours:
-                self.priors[o][c] = 1.0
+        self.priors = {o: defaultdict(lambda: 0.5) for o in objects}
+
+        for o, c in known_colours:
+            self.priors[o][c] = 1.0
 
     def get_priors(self, message, args):
         o1 = self.priors[args[0]][message.o1[0]]
         o2 = self.priors[args[1]][message.o2[0]]
-        names = message.o1[0] + ' ' + message.o2[0]
+
         prior = [o1, o2]
         if message.T == 'table':
             c1 = self.priors[message.o3][message.o1[0]]
             c2 = self.priors[message.o3][message.o2[0]]
             o3 = c1/(c1+c2)
             prior.append(o3)
-        #logger.debug('priors for {}: ({})'.format(names, ','.join(map(str, prior))))
         return tuple(prior)
 
     def update(self, prior_dict):
@@ -431,7 +429,8 @@ class CorrectingAgent(Agent):
 
         #TODO change downstreem to expect Rule class rather than formula
         rules = [rule.to_formula() for rule in rules]
-        rule_names = tuple(map(lambda x: x.asPDDL(), rules))
+        rule_names = tuple([rule.asPDDL() for rule in rules])
+
 
         # If this this rule model already exists, keep using the same
         if (rule_names, message.T) in self.rule_models.keys():
@@ -548,30 +547,41 @@ class RandomAgent(Agent):
         self.problem.initialstate = observation.state.to_formula()
 
     def plan(self):
-        print(self.domain_file)
-        config = util.get_config()
-        data_dir = Path(config['data_location'])
-        tmp_dir = data_dir / 'tmp' / 'problem.pddl'
-        self.problem.goal = goals.update_goal(goals.create_default_goal(str(self.domain_file)), self.tmp_goal)
-        with open(tmp_dir, 'w') as f:
-            f.write(self.problem.asPDDL())
-        print(f"running planner with {self.domain_file} {tmp_dir}")
-        plan = ff.run(str(self.domain_file), str(tmp_dir), use_metric_ff=("updated" in str(self.domain_file)))
-        return plan
+        # print(self.domain_file)
+        # config = util.get_config()
+        # data_dir = Path(config['data_location'])
+        # tmp_dir = data_dir / 'tmp' / 'problem.pddl'
+        # self.problem.goal = goals.update_goal(goals.create_default_goal(str(self.domain_file)), self.tmp_goal)
+        # with open(tmp_dir, 'w') as f:
+        #     f.write(self.problem.asPDDL())
+        # print(f"running planner with {self.domain_file} {tmp_dir}")
+        # plan = ff.run(str(self.domain_file), str(tmp_dir), use_metric_ff=("updated" in str(self.domain_file)))
+        # return plan
 
+        observation, results = self.sense()
+        planner = search.Planner(results, observation, self.goal, self.tmp_goal,
+                                 self.problem, domain_file=self.domain_file, use_metric_ff=self.world.use_metric_ff, n=0)
+        step = time.time()
+
+        try:
+            plan = planner.plan()
+        except NoPlanError:
+            plan = self.world.find_plan()
+        return plan
 
     def sense(self):
         observation = self.world.sense()
         self.problem.initialstate = observation.state.to_formula()
 
-        return observation
+        return observation, {}
 
     def get_correction(self, user_input, action, args, test=False):
         # since this action is incorrect, ensure it is not done again
         args = args[:2]
         not_on_xy = pddl_functions.create_formula('on', args, op='not')
         self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
-        self.world.back_track()
+        tower = args[2] if len(args) == 3 else None
+        self.world.back_track(tower)
         self.sense()
 
 

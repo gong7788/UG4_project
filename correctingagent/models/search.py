@@ -41,7 +41,9 @@ class ActiveLearningTest(object):
 
 class Planner(object):
 
-    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl', use_metric_ff=False):
+    def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl',
+                 use_metric_ff=False, n=20):
+
         c = get_config()
         data_location = Path(c['data_location'])
         self.use_metric_ff = use_metric_ff
@@ -54,6 +56,7 @@ class Planner(object):
         self.tmp_goal = tmp_goal
         self.problem = problem
         self.state_queue = []
+        self.n = n
 
         self.search_dir = data_location / 'tmp' / 'search_problem'
         n = len(os.listdir(self.search_dir))
@@ -61,7 +64,6 @@ class Planner(object):
         # for formula in self.current_state.asPDDL():
         #     print(formula.asPDDL())
         # print(colour_choices)
-
 
     def _pop(self):
         return heapq.heappop(self.state_queue)
@@ -115,12 +117,18 @@ class Planner(object):
             score, self.current_state = self._pop()
             return False
         except IndexError:
+            print("Goal", self.goal.asPDDL())
+            print("tmp goal", self.tmp_goal.asPDDL())
+            print("state")
+            for f in self.current_state.initialstate.predicates:
+                print(f.asPDDL())
+
             raise NoPlanError('Search could not find a possible plan')
 
     def plan(self):
 
         # print(self.goal.asPDDL())
-        for i in range(20):
+        for i in range(self.n):
             # print(self.current_state.score, self.current_state.state)
             try:
                 plan = self.evaluate_current_state()
@@ -132,8 +140,12 @@ class Planner(object):
                 break
             #if plan:
             #    return plan
-        # print("doing default plan")
-        return self.evaluate_current_state(default_plan=True)
+        try:
+            plan = self.evaluate_current_state(default_plan=True)
+
+            return plan
+        except (TypeError, NoPlanError):
+            raise NoPlanError("No plan could be found")
 
     def add_candidate(self, colour, increase_count=True):
         new_state = copy.deepcopy(self.current_state)

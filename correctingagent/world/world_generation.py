@@ -164,7 +164,8 @@ def generate_rule(p_primary_colour=0.8):
     return problem_def.Ruledef([c1], [c2], direction)
 
 
-def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_random_colours=False, bijection=False):
+def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_random_colours=False,
+                            bijection=False, domain_name="blocksdomain"):
     directory = Path(directory)
 
     os.makedirs(directory, exist_ok=True)
@@ -181,9 +182,10 @@ def generate_biased_dataset(N, rules, directory, colour_dict=colour_dict, use_ra
             colours = generate_from_colour_count(rules, cc)
         print(colours)
         with open('../data/tmp/generation.pddl', 'w') as f:
-            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules).asPDDL()
+            problem = problem_def.BlocksWorldProblem.generate_problem(colours, rules, domainname=domain_name).asPDDL()
             f.write(problem)
-        w = world.PDDLWorld('blocks-domain.pddl', problem_file='../data/tmp/generation.pddl')
+        domain_file = 'blocks-domain-unstackable.pddl' if domain_name == 'blocksdomain-unstack' else 'blocks-domain.pddl'
+        w = world.PDDLWorld(domain_file, problem_file='../data/tmp/generation.pddl')
         try:
             if not w.test_failure():
                 file_name = directory / f"problem{len(scenarios)+1}.pddl"
@@ -228,7 +230,8 @@ def generate_bijection(p_primary_colour=1.0):
 
 
 def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dict=colour_dict,
-                         p_primary_colour=0.8, use_random_colours=True, create_bijection=False):
+                         p_primary_colour=0.8, use_random_colours=True, create_bijection=False,
+                         domain_name="blocksdomain"):
     data_path = '/home/mappelgren/Desktop/correcting-agent/data'
     top_path = os.path.join(data_path, dataset_name)
 
@@ -249,7 +252,7 @@ def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dic
         os.makedirs(dataset_path, exist_ok=True)
 
         generate_biased_dataset(N_data, rules, dataset_path, colour_dict=colour_dict,
-                                use_random_colours=use_random_colours)
+                                use_random_colours=use_random_colours, domain_name=domain_name)
         num_datasets = len(os.listdir(top_path))
 
 
@@ -299,7 +302,8 @@ def generate_colour_count_scenario(rules, num_tower=2):
     return colour_counts
 
 
-def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colours=True):
+def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colours=True,
+                                           domain_name="blocksworld-updated", num_towers=2):
     directory = Path(directory)
 
     os.makedirs(directory, exist_ok=True)
@@ -316,9 +320,12 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
             colours = generate_from_colour_count(rules, cc)
 
         with open('../data/tmp/generation.pddl', 'w') as f:
-            problem = problem_def.ExtendedBlocksWorldProblem.generate_problem(colours, rules, domainname='blocksworld-updated').asPDDL()
+            problem = problem_def.ExtendedBlocksWorldProblem.generate_problem(colours, rules, domainname=domain_name,
+                                                                              num_towers=num_towers).asPDDL()
             f.write(problem)
-        w = world.PDDLWorld('blocks-domain-updated.pddl', problem_file='../data/tmp/generation.pddl')
+        domain_file = 'blocks-domain-unstackable.pddl' if domain_name == 'blocksworld-unstack' \
+            else 'blocks-domain-updated.pddl'
+        w = world.PDDLWorld(domain_file, problem_file='../data/tmp/generation.pddl')
         if not w.test_failure():
             file_name = directory / f"problem{len(scenarios)+1}.pddl"
             json_name = directory / f"colours{len(scenarios)+1}.json"
@@ -348,8 +355,11 @@ def generate_consistent_red_on_blue(rules):
     return RedOnBlueRule(colour, colour2, rule_type)
 
 
-def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, num_redonblue, dataset_name,
-                                        colour_dict=colour_dict, use_random_colours=True, cc_num=2, cc_exact_num=None):
+def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count,
+                                        num_redonblue, dataset_name,
+                                        colour_dict=colour_dict, use_random_colours=True,
+                                        cc_num=2, cc_exact_num=None, num_towers=2,
+                                        domain_name="blocksdomain-updated"):
     data_path = Path('/home/mappelgren/Desktop/correcting-agent/data')
     top_path = data_path / dataset_name
     try:
@@ -364,11 +374,18 @@ def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count, nu
         while len(set(colours)) != len(colours):
             colour_count = [generate_colour_count(cc_num, cc_exact_num) for i in range(num_colour_count)]
             colours = [rule.colour_name for rule in colour_count]
-        red_on_blue = [generate_consistent_red_on_blue(colour_count) for i in range(num_redonblue)]
+        if len(colour_count) > 0:
+            red_on_blue = [generate_consistent_red_on_blue(colour_count) for i in range(num_redonblue)]
+        else:
+            red_on_blue = [generate_rule(p_primary_colour=1.0) for i in range(num_redonblue)]
         rules = colour_count + red_on_blue
 
         dataset_path = top_path / f'{dataset_name}{num_datasets}'
         os.makedirs(dataset_path, exist_ok=True)
 
-        generate_biased_dataset_w_colour_count(N_data, rules, dataset_path, use_random_colours=use_random_colours)
+        generate_biased_dataset_w_colour_count(N_data, rules, dataset_path,
+                                               use_random_colours=use_random_colours, domain_name=domain_name,
+                                               num_towers=num_towers)
         num_datasets = len(os.listdir(top_path))
+
+
