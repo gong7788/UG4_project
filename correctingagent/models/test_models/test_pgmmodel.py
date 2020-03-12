@@ -1,7 +1,7 @@
 import pytest
 from pgmpy.factors.discrete import TabularCPD
 
-from correctingagent.models.pgmmodels import PGMModel
+from correctingagent.models.pgmmodels import PGMModel, PGMPYInference, InferenceType
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.world import rules
 from correctingagent.world.rules import RedOnBlueRule, CorrectionType
@@ -158,3 +158,37 @@ def test_extend_model_table():
     q = pgm_model.query(violations, [1, 1])
     assert((q[violations[0]] - 0.5) < 0.001)
     assert((q[violations[1]] - 0.5) < 0.001)
+
+
+def test_belief_inference():
+    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'red(b1)': 1})
+
+    q = pgm_model.query(violations)
+
+    assert(q[violations[0]] == 1.0)
+    assert(q[violations[1]] == 0.0)
+
+

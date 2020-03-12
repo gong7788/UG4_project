@@ -10,18 +10,20 @@ class Goal(object):
 
 
 def create_default_goal(domain_file):
+    #print("domain file is", domain_file)
 
     new_domain_type = 'updated' in domain_file or \
-                      'blocks-domain-colour-unknown-cc' or \
+                      'blocks-domain-colour-unknown-cc' in domain_file or \
                       'blocks-domain-unstackable' in domain_file
 
-
     if new_domain_type:
+        #print("New domain used to create goal")
         var = pddl_functions.make_variable_list(['?x'])
         pred = Predicate('done', var)
         goal = Formula([pred], op='forall', variables=var)
         return goal
     else:
+        #print("old domain used to create goal")
         var = pddl_functions.make_variable_list(['?x'])
         pred = Predicate('in-tower', var)
         goal = Formula([pred], op='forall', variables=var)

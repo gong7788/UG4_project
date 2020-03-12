@@ -1,7 +1,10 @@
+import copy
+from enum import Enum
 from functools import reduce
 
 from pgmpy.factors.discrete import TabularCPD, DiscreteFactor
-from pgmpy.models import FactorGraph
+from pgmpy.inference import BeliefPropagation
+from pgmpy.models import FactorGraph, BayesianModel
 from pgmpy.factors.continuous import ContinuousFactor
 import numpy as np
 
@@ -18,6 +21,91 @@ def check_beam_holds(beam, worlds):
     return any([all([beam[var] == w[var] if var in beam.keys() else False for var in w.keys()]) for w in worlds])
 
 
+class PGMPYInference(object):
+
+    def __init__(self, model):
+        self.model = model
+        self.evidence = {}
+        self.belief_propagation = None
+        self.scope = set()
+
+    def infer(self, evidence, new_evidence):
+
+        evidence.update(new_evidence)
+
+        model = copy.deepcopy(self.model)
+        continuous_factors = [factor for factor in model.factors if isinstance(factor, ContinuousFactor)]
+
+        for var, val in evidence.items():
+            for factor in continuous_factors:
+                if var in factor.scope() and "F(" in var:  # make sure that we only reduce at this stage for continuous values, let the inference algorithm deal with reducing for binary variables
+                    factor.reduce([(var, val)])
+
+
+        # updated_factors = []
+        # for factor in model.factors:
+        #     if isinstance(factor, ContinuousFactor):
+        #         if len(factor.scope()) == 1:
+        #             factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
+        #             updated_factors.append(factor)
+        #     else:
+        #         updated_factors.append(factor)
+        #     model.factors = updated_factors
+
+        new_model = FactorGraph()
+
+        for node in model.factors:
+            if isinstance(node, ContinuousFactor):
+                if len(node.scope()) == 1:
+                    node = DiscreteFactor(node.scope(), [2], [node.assignment(0), node.assignment(1)])
+            new_model.add_nodes_from(node.scope())
+            new_model.add_factors(node)
+            new_model.add_nodes_from([node])
+
+        belief_propagation = BeliefPropagation(new_model)
+
+        self.evidence = {var: val for (var, val) in evidence.items() if "F(" not in var}
+        self.belief_propagation = belief_propagation
+        self.scope = get_scope(new_model)
+        print(self.scope)
+        return new_model
+
+    def query(self, variables, values=None):
+        output = {}
+        vars_to_query = []
+        vals_to_query = []
+
+        if values is None:
+            values = [1]*len(variables)
+
+        for variable, val in zip(variables, values):
+            # Some of the variables will be in the evidence and will therefore have been reduced away in the model
+            # These should either have 1.0 or 0.0 probability
+            # This depends on whether the evidence value matches the wanted value
+            if variable in self.evidence:
+                output[variable] = int(self.evidence[variable] == val)
+            # Some of the variables queried will be rules which have not been added to the current model
+            # The chosen convention for these is to simply use None as their value
+            # This is consistent with the functionallity of SearchInference.query / SearchInference.p
+            elif variable not in self.scope:
+                output[variable] = None
+            else:
+                vars_to_query.append(variable)
+                vals_to_query.append(val)
+
+
+        q = self.belief_propagation.query(variables=vars_to_query, evidence=self.evidence)
+        output.update({var: q[var].values[val] for var, val in zip(vars_to_query, vals_to_query)})
+        return output
+
+
+def get_scope(model):
+    scope = set()
+    for variable in model.factors:
+        scope = scope.union(variable.scope())
+    return scope
+
+
 class SearchInference(object):
 
     def __init__(self, model, beam_size=-1):
@@ -26,9 +114,17 @@ class SearchInference(object):
         self.beam_size = beam_size
         self.norm = 0
 
-    def infer(self, evidence):
+    def infer(self, evidence, new_evidence):
         # print("starting inference")
         # step = time.time()
+
+        overlapping_vars = False
+        if self.search_inference.beam:
+            remains = set(new_evidence.keys()) - set(self.observed.keys())
+            overlapping_vars = remains.intersection(set(self.beam[0][0].keys()))
+
+        if overlapping_vars:
+            self.clamp({o: new_evidence[o] for o in overlapping_vars})
 
         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
         if len(variables) == 0:
@@ -122,34 +218,82 @@ class SearchInference(object):
         for var, val in evidence.items():
             self.beam = [(beam, p) for beam, p in self.beam if beam[var] == val]
         self.norm = sum([p for _, p in self.beam])
-
-    def variable_clamp(self, worlds):
-        self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
+    #
+    # def variable_clamp(self, worlds):
+    #     self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
 
     def query(self, variables, values=None):
         if values is None:
             values = [1]*len(variables)
         return {var: self.p(var, val) for var, val in zip(variables, values)}
 
+def is_overlap(set1, set2):
+    set1 = set(set1)
+    set2 = set(set2)
+
+    return len(set1.intersection(set2)) > 0
+
+def is_scope_overlap(model1, model2):
+    scope1 = get_scope(model1)
+    scope2 = get_scope(model2)
+    return is_overlap(scope1, scope2)
+
+class InferenceType(Enum):
+    SearchInference = 1
+    BeliefPropagation = 2
+
+
+def combine_models(model1, model2):
+    assert(is_scope_overlap(model1, model2))
+
+    for node in model2.factors:
+        model1.add_nodes_from(node.scope())
+        model1.add_factors(node)
+        model1.add_nodes_from([node])
+
+    return model1
+
+
 
 class PGMModel(object):
 
-    def __init__(self):
+    def __init__(self, inference_type=InferenceType.SearchInference):
         self.known_rules = set()
         self.rule_priors = {}
         self.colours = {}
+        self.inference_type = inference_type
         self.reset()
+
+    def get_model_scopes(self):
+        scope = set()
+        for model in self.models:
+            scope = scope.union(get_scope(model))
+        return scope
+
+    def get_nodes(self):
+        nodes = set()
+        for model in self.models:
+            nodes = nodes.union(model.nodes())
+        return nodes
 
     def reset(self):
         """ Resets variables which need to be updated for each new scenario
         """
         self.model = FactorGraph()
-        self.search_inference = SearchInference(self.model)
-
+        if self.inference_type == InferenceType.SearchInference:
+            self.search_inference = SearchInference(self.model)
+        elif self.inference_type == InferenceType.BeliefPropagation:
+            self.search_inference = PGMPYInference(self.model)
+        else:
+            raise TypeError('Invalid Inference Type')
         self.observed = {}
         self.colour_variables = []
 
+        self.models = []
+
     def add_cm(self, cm, block):
+
+
 
         red_rgb = f'F({block})'
         red_o1 = f'{cm.name}({block})'
@@ -166,9 +310,22 @@ class PGMModel(object):
         return red_o1
 
     def add_factor(self, nodes, factor):
-        node_filter = lambda x: filter(lambda y: y not in self.model.nodes(), x)
-        self.model.add_nodes_from(node_filter(set(nodes + [factor])))
-        self.model.add_factors(factor)
+
+        if self.inference_type != InferenceType.SearchInference:
+            new_model = FactorGraph()
+            new_model.add_nodes_from(nodes + [factor])
+            new_model.add_factor(factor)
+            combined = False
+            for model in self.models:
+                if is_overlap(get_scope(model), get_scope(new_model)):
+                    combine_models(model, new_model)
+                    combined = True
+            if not combined:
+                self.models.append(new_model)
+        else:
+            node_filter = lambda x: filter(lambda y: y not in self.model.nodes(), x)
+            self.model.add_nodes_from(node_filter(set(nodes + [factor])))
+            self.model.add_factors(factor)
 
     def get_rule_prior(self, rule):
         try:
@@ -264,7 +421,6 @@ class PGMModel(object):
 
     def add_correction_factor(self, violations, time):
         """
-
         :param violations:
         :param time:
         :return:
@@ -375,27 +531,21 @@ class PGMModel(object):
         self.add_factor(evidence, f)
 
     def observe(self, observable={}):
-        overlapping_vars = False
-        if self.search_inference.beam:
-            remains = set(observable.keys()) - set(self.observed.keys())
-            overlapping_vars = remains.intersection(set(self.search_inference.beam[0][0].keys()))
 
-        if overlapping_vars:
-            self.search_inference.clamp({o: observable[o] for o in overlapping_vars})
+        self.search_inference.infer(self.observed, observable)
         self.observed.update(observable)
-        self.infer()
 
-    def observe_uncertain(self, worlds):
-        self.search_inference.variable_clamp(worlds)
+    # def observe_uncertain(self, worlds):
+    #     self.search_inference.variable_clamp(worlds)
 
-    def infer(self):
-        # for beam in self.search_inference.beam:
-        #     print(beam)
-
-        self.search_inference.infer(self.observed)
-
-        # for beam in self.search_inference.beam:
-        #     print(beam)
+    # def infer(self):
+    #     # for beam in self.search_inference.beam:
+    #     #     print(beam)
+    #
+    #
+    #
+    #     # for beam in self.search_inference.beam:
+    #     #     print(beam)
 
     def query(self, variables, values=None):
         return self.search_inference.query(variables, values=values)
@@ -483,3 +633,5 @@ class PGMModel(object):
                       self.add_violation_factor(rule2, time, colour_variables, correction_type=CorrectionType.UNCERTAIN_TABLE)]
         self.add_correction_factor(violations, time)
         return violations
+
+

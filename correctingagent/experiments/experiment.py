@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from correctingagent.models.pgmmodels import InferenceType
+from correctingagent.pddl.ff import NoPlanError
 from correctingagent.util.database import BigExperimentDB, ExperimentDB, JoinDB
 from ..world import world
 from ..agents import agents, PGMAgent
@@ -11,9 +13,7 @@ from .evaluation import ResultsFile
 import configparser
 import logging
 from collections import defaultdict
-from ..models import prob_model
-import sqlalchemy
-from ..util.util import config_location, get_config, get_neural_config, get_kde_config
+from ..util.util import config_location, get_config, get_kde_config
 from tqdm import tqdm
 
 handler = logging.StreamHandler()
@@ -109,7 +109,9 @@ class Debug(object):
 
 
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
-                 threshold, update_negative, update_once, debug_agent, domain_file, simplified_colour_count=False):
+                 threshold, update_negative, update_once, debug_agent, domain_file,
+                 simplified_colour_count=False, inference_type=InferenceType.SearchInference,
+                 ):
     if agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
@@ -118,7 +120,9 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
         else:
             colour_model_config = {}
         agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
-                      colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent, domain_file=domain_file, simplified_colour_count=simplified_colour_count)
+                      colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent,
+                      domain_file=domain_file, simplified_colour_count=simplified_colour_count,
+                      inference_type=inference_type)
         print(colour_model_config_name)
         print(colour_model_config)
     else:
@@ -129,12 +133,20 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
 class PlanningError(Exception):
     pass
 
-def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, break_on_correction=False):
+def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, break_on_correction=False, num_allowed_corrections = -1):
     if vis:
         world_scenario.draw()
     agent.new_world(world_scenario)
+    num_corrections = 0
     while not world_scenario.test_success():
-        plan = agent.plan()
+        if num_allowed_corrections != -1 and num_corrections >= num_allowed_corrections:
+            try:
+                plan = world_scenario.find_plan()
+            except NoPlanError:
+                world_scenario.reset()
+                plan = world_scenario.find_plan()
+        else:
+            plan = agent.plan()
         print(plan)
         if len(plan) == 0:
             raise PlanningError("No plan was found and teacher did not attempt to correct.")
@@ -146,6 +158,7 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
                 world_scenario.draw()
             correction = agent.teacher.correction(world_scenario, args)
             if correction:
+                num_corrections += 1
                 if break_on_correction:
                     return
                 # logger.info("T: " + correction)
@@ -162,7 +175,8 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
                     colour_model_type='KDE', no_correction_update=False, debug=False, colour_model_config_name='DEFAULT',
                     teacher_type=TeacherType.Old, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
                     domain_file='blocks-domain.pddl', simplified_colour_count=False,
-                    recall_failure_prob=0.0, recovery_prob=0.0, **kwargs):
+                    recall_failure_prob=0.0, recovery_prob=0.0, num_allowed_corrections=-1,
+                    inference_type=InferenceType.SearchInference, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
@@ -194,14 +208,15 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                          threshold, update_negative, update_once, debug_agent, domain_file,
-                         simplified_colour_count)
+                         simplified_colour_count, inference_type=inference_type)
 
     if results_file is not None:
         results_file.write(f'Results for {problem_name}\n')
 
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
-        do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update)
+        do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update,
+                    num_allowed_corrections=num_allowed_corrections)
 
         # if debug and not 'Random' in config['agent']:
         #     debugger.cm_confusion(agent)
@@ -238,6 +253,8 @@ def get_experiment_config(config_name, colour_model_config):
                     "faulty": TeacherType.Faulty,
                     "extended": TeacherType.Extended,
                     "human": TeacherType.Human}
+    inference_type = {"search": InferenceType.SearchInference,
+                      "BP": InferenceType.BeliefPropagation}
     config = configparser.ConfigParser()
     config_file = os.path.join(config_location, 'experiments.ini')
     config.read(config_file)
@@ -260,7 +277,9 @@ def get_experiment_config(config_name, colour_model_config):
         "simplified_colour_count": config.getboolean('simplified_colour_count'),
         "colour_model_config_name": colour_model_config,
         "recall_failure_prob": config.getfloat('recall_failure_prob'),
-        "recovery_prob": config.getfloat('recovery_prob')
+        "recovery_prob": config.getfloat('recovery_prob'),
+        "num_allowed_corrections": config.getint('num_allowed_corrections'),
+        "inference_type": inference_type[config['inference_type']]
     }
     return config_dict
 

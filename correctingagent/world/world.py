@@ -48,6 +48,11 @@ class PDDLWorld(World):
 
         self.use_metric_ff = ("updated" in domain_file or "unstack" in domain_file)
 
+        self.settings = {"domain_file":domain_file,
+                         "problem_directory":problem_directory,
+                         "problem_number":problem_number,
+                         "problem_file":problem_file,
+                         "use_hsv":use_hsv}
 
         config = get_config()
         data_dir = Path(config['data_location'])
@@ -56,6 +61,9 @@ class PDDLWorld(World):
         domain_file = data_dir / 'domain' / domain_file
         if problem_file is None:
             problem_file = data_dir / problem_directory / f'problem{problem_number}.pddl'
+
+        self.domain_file = domain_file
+        self.problem_file = problem_file
 
         self.domain, self.problem = pddl_functions.parse(domain_file, problem_file)
         self.state = pddl_functions.PDDLState.from_problem(self.problem)
@@ -79,6 +87,10 @@ class PDDLWorld(World):
         self.actions = {action.name: pddl_functions.Action.from_pddl(action)
                         for action in self.domain.actions}
         self.history = []
+
+    def reset(self):
+        self.domain, self.problem = pddl_functions.parse(self.domain_file, self.problem_file)
+        self.state = pddl_functions.PDDLState.from_problem(self.problem)
 
     def clean_up(self):
         os.remove(self.tmp_file)
@@ -172,6 +184,8 @@ class PDDLWorld(World):
             if not self.state.predicate_holds('in-tower', [o]):
                 out_objects.append(o)
         return out_objects
+
+
 
 
 class RandomColoursWorld(PDDLWorld):

@@ -44,6 +44,7 @@ class Planner(object):
     def __init__(self, colour_choices, obs, goal, tmp_goal, problem, domain_file='blocks-domain.pddl',
                  use_metric_ff=False, n=20):
 
+        print(goal.asPDDL())
         c = get_config()
         data_location = Path(c['data_location'])
         self.use_metric_ff = use_metric_ff

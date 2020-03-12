@@ -67,6 +67,7 @@ def ff(domain, problem, use_metric_ff=False):
         raise IDontKnowWhatIsGoingOnError('non Not,Or,And in goal set relevants, what ever that means?!')
 
     elif exitCode:
+        print(domain, problem, use_metric_ff)
         raise FailedParseError('Could not parse domain or problem file' + output)
     return output
 

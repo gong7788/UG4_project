@@ -7,7 +7,7 @@ from correctingagent.experiments.colour_model_evaluation import evaluate_colour_
 from correctingagent.pddl import pddl_functions
 from correctingagent.util.CPD_generation import get_violation_type, get_predicate
 from correctingagent.world import goals
-from correctingagent.models.pgmmodels import PGMModel
+from correctingagent.models.pgmmodels import PGMModel, InferenceType
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
@@ -99,7 +99,8 @@ class PGMCorrectingAgent(CorrectingAgent):
     def __init__(self, world, colour_models=None, rule_beliefs=None,
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
-                 model_config={}, tracker=Tracker(), debug=None, simplified_colour_count=False):
+                 model_config={}, tracker=Tracker(), debug=None, simplified_colour_count=False,
+                 inference_type=InferenceType.SearchInference):
 
         super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
                                                  domain_file, teacher, threshold,
@@ -110,7 +111,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         if debug is not None:
             self.debug.update(debug)
 
-        self.pgm_model = PGMModel()
+        self.pgm_model = PGMModel(inference_type=inference_type)
         self.time = 0
         self.last_correction = -1
         self.marks = defaultdict(list)
@@ -147,7 +148,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             data[corr] = 0
             # print(data)
             self.pgm_model.observe(data)
-            self.pgm_model.infer()
+            # self.pgm_model.infer()
             self.update_cms()
 
     def get_relevant_data(self, args, message):
