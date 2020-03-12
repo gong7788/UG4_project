@@ -1,0 +1,67 @@
+
+#python run_experiments.py naive_faulty_onerule fixed_bw_0.05
+
+#python run_experiments.py completely_faulty_onerule fixed_bw_0.05
+#python run_experiments.py faulty_onerule fixed_bw_0.05
+python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_BP fixed_bw_0.05
+
+#python run_experiments.py colour_count_mix_simpler_random DEFAULT
+#python run_experiments.py colour_count_random DEFAULT
+#python run_experiments.py big_two_rules_random DEFAULT
+
+#python continue_experiment.py 214
+#python run_experiments.py big_threerules_random_colours_new_teacher fixed_bw_0.05
+#python run_experiments.py big_threerules_random_colours_new_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_three_rules_random fixed_bw_0.05
+
+#python run_experiments.py colour_count_1_1 fixed_bw_0.05
+#python run_experiments.py colour_count_1_1_simplified fixed_bw_0.05
+#python run_experiments.py colour_count_1_2 fixed_bw_0.05
+#python run_experiments.py colour_count_1_2_simplified fixed_bw_0.05
+#python run_experiments.py colour_count_1_3 fixed_bw_0.05
+#python run_experiments.py colour_count_1_3_simplified fixed_bw_0.05
+#python run_experiments.py colour_count_2_1 fixed_bw_0.05
+#python run_experiments.py colour_count_2_1_simplified fixed_bw_0.05
+#python run_experiments.py colour_count_2_2 fixed_bw_0.05
+#python run_experiments.py colour_count_2_2_simplified fixed_bw_0.05
+#python run_experiments.py colour_count_2_3 fixed_bw_0.05
+#python run_experiments.py colour_count_2_3_simplified fixed_bw_0.05
+
+
+#python run_experiments.py big_fourrules_random_colours_old_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_fourrules_random_colours_new_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_fourrules_random_colours_old_teacher fixed_bw_0.05
+#python run_experiments.py big_fourrules_random_colours_new_teacher fixed_bw_0.05
+
+#python run_experiments.py big_bijection_random_colours_new_teacher fixed_bw_0.05
+#python run_experiments.py big_bijection_random_colours_new_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_bijection_random_colours_old_teacher fixed_bw_0.05
+#python run_experiments.py big_bijection_random_colours_old_teacher_no_correction fixed_bw_0.05
+
+
+#python run_experiments.py colour_count_mix_simpler_old_teacher fixed_bw_0.05
+#python run_experiments.py colour_count_mix_simpler_new_teacher fixed_bw_0.05
+#python run_experiments.py colour_count_mix_simpler_old_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py colour_count_mix_simpler_new_teacher_no_correction fixed_bw_0.05
+
+#python run_experiments.py big_tworules_random_colours_old_teacher fixed_bw_0.05
+#python run_experiments.py big_tworules_random_colours_new_teacher fixed_bw_0.05
+#python run_experiments.py big_tworules_random_colours_new_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_tworules_random_colours_old_teacher_no_correction fixed_bw_0.05
+
+#python run_experiments.py big_tworules_random_colours_nolanguage fixed_bw_0.05
+#python run_experiments.py big_threerules_random_colours_nolanguage fixed_bw_0.05
+
+#python run_experiments.py big_three_rules_random DEFAULT
+#python run_experiments.py big_four_rules_random DEFAULT
+
+#python run_experiments.py big_threerules_random_colours_nolanguage fixed_bw_0.05
+#python run_experiments.py big_fourrules_random_colours_nolanguage fixed_bw_0.05
+#python run_experiments.py colour_count_mix_simpler_nolanguage fixed_bw_0.05
+#python continue_experiment.py 387
+
+#python run_experiments.py big_threerules_random_colours_old_teacher fixed_bw_0.05
+#python run_experiments.py big_threerules_random_colours_new_teacher fixed_bw_0.05
+#python run_experiments.py big_threerules_random_colours_new_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_threerules_random_colours_old_teacher_no_correction fixed_bw_0.05
+

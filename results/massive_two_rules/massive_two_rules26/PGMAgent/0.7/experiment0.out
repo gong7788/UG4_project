@@ -1,0 +1,202 @@
+Results for massive_two_rules/massive_two_rules26
+problem67.pddl reward: -22
+problem67.pddl cumulative reward: -22
+problem99.pddl reward: -22
+problem99.pddl cumulative reward: -44
+problem64.pddl reward: -26
+problem64.pddl cumulative reward: -70
+problem86.pddl reward: -16
+problem86.pddl cumulative reward: -86
+problem48.pddl reward: -20
+problem48.pddl cumulative reward: -106
+problem74.pddl reward: -14
+problem74.pddl cumulative reward: -120
+problem26.pddl reward: -10
+problem26.pddl cumulative reward: -130
+problem20.pddl reward: -10
+problem20.pddl cumulative reward: -140
+problem45.pddl reward: -18
+problem45.pddl cumulative reward: -158
+problem53.pddl reward: -10
+problem53.pddl cumulative reward: -168
+problem18.pddl reward: -10
+problem18.pddl cumulative reward: -178
+problem1.pddl reward: -10
+problem1.pddl cumulative reward: -188
+problem96.pddl reward: -10
+problem96.pddl cumulative reward: -198
+problem58.pddl reward: -20
+problem58.pddl cumulative reward: -218
+problem82.pddl reward: -12
+problem82.pddl cumulative reward: -230
+problem36.pddl reward: -10
+problem36.pddl cumulative reward: -240
+problem85.pddl reward: -16
+problem85.pddl cumulative reward: -256
+problem41.pddl reward: -10
+problem41.pddl cumulative reward: -266
+problem70.pddl reward: -12
+problem70.pddl cumulative reward: -278
+problem44.pddl reward: -16
+problem44.pddl cumulative reward: -294
+problem40.pddl reward: -20
+problem40.pddl cumulative reward: -314
+problem31.pddl reward: -12
+problem31.pddl cumulative reward: -326
+problem59.pddl reward: -10
+problem59.pddl cumulative reward: -336
+problem84.pddl reward: -12
+problem84.pddl cumulative reward: -348
+problem27.pddl reward: -12
+problem27.pddl cumulative reward: -360
+problem37.pddl reward: -18
+problem37.pddl cumulative reward: -378
+problem51.pddl reward: -20
+problem51.pddl cumulative reward: -398
+problem33.pddl reward: -10
+problem33.pddl cumulative reward: -408
+problem73.pddl reward: -10
+problem73.pddl cumulative reward: -418
+problem92.pddl reward: -18
+problem92.pddl cumulative reward: -436
+problem88.pddl reward: -10
+problem88.pddl cumulative reward: -446
+problem34.pddl reward: -12
+problem34.pddl cumulative reward: -458
+problem46.pddl reward: -10
+problem46.pddl cumulative reward: -468
+problem50.pddl reward: -18
+problem50.pddl cumulative reward: -486
+problem91.pddl reward: -10
+problem91.pddl cumulative reward: -496
+problem68.pddl reward: -12
+problem68.pddl cumulative reward: -508
+problem69.pddl reward: -16
+problem69.pddl cumulative reward: -524
+problem71.pddl reward: -16
+problem71.pddl cumulative reward: -540
+problem77.pddl reward: -10
+problem77.pddl cumulative reward: -550
+problem2.pddl reward: -10
+problem2.pddl cumulative reward: -560
+problem23.pddl reward: -10
+problem23.pddl cumulative reward: -570
+problem24.pddl reward: -10
+problem24.pddl cumulative reward: -580
+problem7.pddl reward: -22
+problem7.pddl cumulative reward: -602
+problem66.pddl reward: -20
+problem66.pddl cumulative reward: -622
+problem8.pddl reward: -20
+problem8.pddl cumulative reward: -642
+problem63.pddl reward: -16
+problem63.pddl cumulative reward: -658
+problem65.pddl reward: -16
+problem65.pddl cumulative reward: -674
+problem60.pddl reward: -10
+problem60.pddl cumulative reward: -684
+problem30.pddl reward: -12
+problem30.pddl cumulative reward: -696
+problem42.pddl reward: -12
+problem42.pddl cumulative reward: -708
+problem43.pddl reward: -10
+problem43.pddl cumulative reward: -718
+problem61.pddl reward: -12
+problem61.pddl cumulative reward: -730
+problem28.pddl reward: -20
+problem28.pddl cumulative reward: -750
+problem29.pddl reward: -24
+problem29.pddl cumulative reward: -774
+problem94.pddl reward: -20
+problem94.pddl cumulative reward: -794
+problem78.pddl reward: -10
+problem78.pddl cumulative reward: -804
+problem17.pddl reward: -16
+problem17.pddl cumulative reward: -820
+problem79.pddl reward: -16
+problem79.pddl cumulative reward: -836
+problem10.pddl reward: -12
+problem10.pddl cumulative reward: -848
+problem25.pddl reward: -22
+problem25.pddl cumulative reward: -870
+problem39.pddl reward: -14
+problem39.pddl cumulative reward: -884
+problem93.pddl reward: -22
+problem93.pddl cumulative reward: -906
+problem19.pddl reward: -12
+problem19.pddl cumulative reward: -918
+problem81.pddl reward: -10
+problem81.pddl cumulative reward: -928
+problem56.pddl reward: -12
+problem56.pddl cumulative reward: -940
+problem55.pddl reward: -14
+problem55.pddl cumulative reward: -954
+problem6.pddl reward: -16
+problem6.pddl cumulative reward: -970
+problem12.pddl reward: -10
+problem12.pddl cumulative reward: -980
+problem87.pddl reward: -14
+problem87.pddl cumulative reward: -994
+problem22.pddl reward: -12
+problem22.pddl cumulative reward: -1006
+problem90.pddl reward: -10
+problem90.pddl cumulative reward: -1016
+problem89.pddl reward: -12
+problem89.pddl cumulative reward: -1028
+problem72.pddl reward: -12
+problem72.pddl cumulative reward: -1040
+problem52.pddl reward: -10
+problem52.pddl cumulative reward: -1050
+problem9.pddl reward: -24
+problem9.pddl cumulative reward: -1074
+problem76.pddl reward: -10
+problem76.pddl cumulative reward: -1084
+problem83.pddl reward: -12
+problem83.pddl cumulative reward: -1096
+problem75.pddl reward: -30
+problem75.pddl cumulative reward: -1126
+problem62.pddl reward: -22
+problem62.pddl cumulative reward: -1148
+problem15.pddl reward: -10
+problem15.pddl cumulative reward: -1158
+problem14.pddl reward: -26
+problem14.pddl cumulative reward: -1184
+problem38.pddl reward: -10
+problem38.pddl cumulative reward: -1194
+problem11.pddl reward: -30
+problem11.pddl cumulative reward: -1224
+problem49.pddl reward: -12
+problem49.pddl cumulative reward: -1236
+problem54.pddl reward: -16
+problem54.pddl cumulative reward: -1252
+problem16.pddl reward: -36
+problem16.pddl cumulative reward: -1288
+problem35.pddl reward: -12
+problem35.pddl cumulative reward: -1300
+problem3.pddl reward: -24
+problem3.pddl cumulative reward: -1324
+problem80.pddl reward: -16
+problem80.pddl cumulative reward: -1340
+problem47.pddl reward: -14
+problem47.pddl cumulative reward: -1354
+problem97.pddl reward: -18
+problem97.pddl cumulative reward: -1372
+problem21.pddl reward: -12
+problem21.pddl cumulative reward: -1384
+problem100.pddl reward: -10
+problem100.pddl cumulative reward: -1394
+problem4.pddl reward: -12
+problem4.pddl cumulative reward: -1406
+problem32.pddl reward: -14
+problem32.pddl cumulative reward: -1420
+problem13.pddl reward: -22
+problem13.pddl cumulative reward: -1442
+problem98.pddl reward: -10
+problem98.pddl cumulative reward: -1452
+problem5.pddl reward: -10
+problem5.pddl cumulative reward: -1462
+problem95.pddl reward: -18
+problem95.pddl cumulative reward: -1480
+problem57.pddl reward: -24
+problem57.pddl cumulative reward: -1504
+total reward: -1504
