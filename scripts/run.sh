@@ -44,10 +44,10 @@ python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_
 #python run_experiments.py colour_count_mix_simpler_old_teacher_no_correction fixed_bw_0.05
 #python run_experiments.py colour_count_mix_simpler_new_teacher_no_correction fixed_bw_0.05
 
-#python run_experiments.py big_tworules_random_colours_old_teacher fixed_bw_0.05
 #python run_experiments.py big_tworules_random_colours_new_teacher fixed_bw_0.05
 #python run_experiments.py big_tworules_random_colours_new_teacher_no_correction fixed_bw_0.05
 #python run_experiments.py big_tworules_random_colours_old_teacher_no_correction fixed_bw_0.05
+#python run_experiments.py big_tworules_random_colours_old_teacher fixed_bw_0.05
 
 #python run_experiments.py big_tworules_random_colours_nolanguage fixed_bw_0.05
 #python run_experiments.py big_threerules_random_colours_nolanguage fixed_bw_0.05

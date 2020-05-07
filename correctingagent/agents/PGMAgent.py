@@ -118,6 +118,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.previous_corrections = []
         self.previous_args = {}
         self.simplified_colour_count = simplified_colour_count
+        self.inference_times = []
 
     def update_goal(self):
         rule_probs = self.pgm_model.get_rule_probs(update_prior=True)
@@ -147,7 +148,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             corr = corr_variable_name(self.time)
             data[corr] = 0
             # print(data)
-            self.pgm_model.observe(data)
+            time = self.pgm_model.observe(data)
+            self.inference_times.append(time)
             # self.pgm_model.infer()
             self.update_cms()
 
@@ -290,7 +292,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             # dialogue.info("T: " + answer)
             print(answer)
             bin_answer = int(answer.lower() == 'yes')
-            self.pgm_model.observe({red: bin_answer})
+            time = self.pgm_model.observe({red: bin_answer})
+            self.inference_times.append(time)
 
     def mark_block(self, most_likely_violation, message, args):
         rule = Rule.rule_from_violation(most_likely_violation)
@@ -331,7 +334,8 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         violations, data, message = self.update_model(user_input, args)
 
-        self.pgm_model.observe(data)
+        time = self.pgm_model.observe(data)
+        self.inference_times.append(time)
 
         q = self.pgm_model.query(list(violations))
 

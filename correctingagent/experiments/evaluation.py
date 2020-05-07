@@ -268,6 +268,7 @@ class ResultsFile(object):
     def read_file(self):
         rewards = []
         cumulative_rewards = []
+        inference_times = []
         with open(self.name, 'r') as f:
             data = f.readlines()
         for line in data:
@@ -279,10 +280,14 @@ class ResultsFile(object):
             elif 'reward' in line:
                 datum = extract_data(line)
                 rewards.append(datum)
-        return rewards, cumulative_rewards
+            elif 'inference time' in line:
+                inference_times = [int(x) for x in line.replace("inference time:", "").strip().split(',')]
+
+        return rewards, cumulative_rewards, inference_times
+
 
     def to_df(self, discount=False):
-        rewards, _ = self.read_file()
+        rewards, _, _ = self.read_file()
         df = pd.DataFrame(data={'rewards': rewards})
         if discount:
             df['rewards'] += 10
@@ -302,3 +307,6 @@ class ResultsFile(object):
         plt.savefig(save_loc)
 
 
+    def get_inference_times(self):
+        _, _, inference_times = self.read_file()
+        return inference_times

@@ -229,6 +229,9 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
             results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
     if results_file is not None:
         results_file.write(f'total reward: {total_reward}\n')
+        if agent.inference_times is not None:
+            inference_times = [x for x in agent.inference_times if x is not None]
+            results_file.write(f"inference time: {','.join(inference_times)}")
     #
     # if debug and not 'Random' in config['agent']:
     #     debugger.save_confusion()

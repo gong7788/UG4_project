@@ -192,3 +192,239 @@ def test_belief_inference():
     assert(q[violations[1]] == 0.0)
 
 
+def test_belief_inference2():
+    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2', 'b3'], time, correction_type=CorrectionType.TABLE)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], 'F(b3)':[0.5, 0.5, 0.5], f'corr_{time}':1})
+
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'red(b1)': 1})
+
+    q = pgm_model.query(violations)
+
+    assert(q[violations[0]] == 0.0)
+    assert(q[violations[1]] == 1.0)
+
+
+def test_belief_inference():
+    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
+
+
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+
+    time = 1
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b3', 'b4'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.observe({'F(b3)':[1,1,1], 'F(b4)':[0,0,0], f'corr_{time}':1})
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'red(b3)': 1})
+
+    q = pgm_model.query(violations)
+
+    assert(q[violations[0]] == 1.0)
+    assert(q[violations[1]] == 0.0)
+
+
+
+def test_belief_inference_separated_models():
+    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
+
+
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+
+
+    green_on_orange_rules = rules.Rule.generate_red_on_blue_options('green', 'orange')
+
+    green_cm = KDEColourModel('green')
+    orange_cm = KDEColourModel('orange')
+
+    time = 1
+    violations = pgm_model.extend_model(green_on_orange_rules, green_cm, orange_cm, ['b3', 'b4'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.test_models()
+
+    pgm_model.observe({'F(b3)':[1,1,1], 'F(b4)':[0,0,0], f'corr_{time}':1})
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'green(b3)': 1})
+
+    q = pgm_model.query(violations)
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 1.0)
+    assert(q[violations[1]] == 0.0)
+
+    colours = ["red(b1)", "blue(b2)", "green(b3)", "orange(b4)"]
+
+    q = pgm_model.query(colours)
+
+    pgm_model.test_models()
+
+    assert(q[colours[-1]] == 0)
+    assert(q[colours[-2]] == 1.0)
+    assert(q[colours[0]] == 0.5)
+    assert(q[colours[1]] == 0.5)
+
+    violations = pgm_model.add_no_correction(['b3', 'b5'], 3, green_on_orange_rules)
+
+    pgm_model.test_models()
+
+    pgm_model.observe({"F(b3)":[1,1,1], "F(b5)":[0.2, 0.3, 0.4], "corr_3":0})
+
+    pgm_model.test_models()
+
+    q = pgm_model.query(violations)
+
+
+def test_belief_inference_connected_features():
+    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+
+
+    green_on_orange_rules = rules.Rule.generate_red_on_blue_options('green', 'orange')
+
+    green_cm = KDEColourModel('green')
+    orange_cm = KDEColourModel('orange')
+
+    time = 1
+    violations = pgm_model.extend_model(green_on_orange_rules, green_cm, orange_cm, ['b2', 'b4'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.test_models()
+
+    pgm_model.observe({'F(b2)':[1,1,1], 'F(b4)':[0,0,0], f'corr_{time}':1})
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'green(b2)': 1})
+
+    q = pgm_model.query(violations)
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 1.0)
+    assert(q[violations[1]] == 0.0)
+
+
+def test_gibbs_inference_connected_features():
+    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+
+    red_cm = KDEColourModel('red')
+    blue_cm = KDEColourModel('blue')
+
+    time = 0
+    red_on_blue_rules = rules.Rule.generate_red_on_blue_options('red', 'blue')
+
+    violations = pgm_model.extend_model(red_on_blue_rules, red_cm, blue_cm, ['b1', 'b2'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.observe({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+
+
+    green_on_orange_rules = rules.Rule.generate_red_on_blue_options('green', 'orange')
+
+    green_cm = KDEColourModel('green')
+    orange_cm = KDEColourModel('orange')
+
+    time = 1
+    violations = pgm_model.extend_model(green_on_orange_rules, green_cm, orange_cm, ['b2', 'b4'], time, correction_type=CorrectionType.TOWER)
+
+    pgm_model.test_models()
+
+    pgm_model.observe({'F(b2)':[1,1,1], 'F(b4)':[0,0,0], f'corr_{time}':1})
+
+    q = pgm_model.query(violations)
+    # inference = PGMPYInference(pgm_model)
+    # inference.infer({'F(b1)':[1,1,1], 'F(b2)':[0,0,0], f'corr_{time}':1})
+    # q = inference.query(violations)
+    # #
+    # q = pgm_model.query(violations, [1, 1])
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 0.5)
+    assert(q[violations[1]] == 0.5)
+
+    pgm_model.observe({'green(b2)': 1})
+
+    q = pgm_model.query(violations)
+
+    pgm_model.test_models()
+
+    assert(q[violations[0]] == 1.0)
+    assert(q[violations[1]] == 0.0)
