@@ -11,3 +11,5 @@ config.py
 tmp/*
 data/image_data/
 .idea
+results
+data/tmp

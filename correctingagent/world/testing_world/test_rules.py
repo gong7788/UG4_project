@@ -148,7 +148,7 @@ def test_get_violation_type():
     rule4 = RedOnBlueRule('red', 'blue', 2)
     rules = [rule1, rule2, rule3, rule4]
     violations = [f"V_{i}({rule})" for i, rule in enumerate(rules)]
-    new_rules = [Rule.rule_from_violation(violation) for violation in violations]
+    new_rules = [Rule.from_violation(violation) for violation in violations]
     for original, new in zip(rules, new_rules):
         assert(original == new)
 

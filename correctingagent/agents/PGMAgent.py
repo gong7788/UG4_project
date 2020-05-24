@@ -100,7 +100,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
                  model_config={}, tracker=Tracker(), debug=None, simplified_colour_count=False,
-                 inference_type=InferenceType.SearchInference):
+                 inference_type=InferenceType.SearchInference, max_inference_size=-1):
 
         super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
                                                  domain_file, teacher, threshold,
@@ -111,7 +111,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         if debug is not None:
             self.debug.update(debug)
 
-        self.pgm_model = PGMModel(inference_type=inference_type)
+        self.pgm_model = PGMModel(inference_type=inference_type, max_inference_size=max_inference_size)
         self.time = 0
         self.last_correction = -1
         self.marks = defaultdict(list)
@@ -120,12 +120,19 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.simplified_colour_count = simplified_colour_count
         self.inference_times = []
 
+    def __repr__(self):
+        return "PGMCorrectingAgent"
+
+    def __str__(self):
+        return self.__repr__()
+
     def update_goal(self):
         rule_probs = self.pgm_model.get_rule_probs(update_prior=True)
         rules = []
         for rule, p in rule_probs.items():
 
             if p > 0.5:
+                rule = Rule.from_string(rule)
                 rules.append(rule.to_formula())
                 if self.debug['show_rules']:
                     print(f'Added rule {rule} to goal')
@@ -217,18 +224,22 @@ class PGMCorrectingAgent(CorrectingAgent):
             for i, (prev_corr, prev_time) in enumerate(self.previous_corrections[::-1]):
                 if message.o1 in prev_corr:
                     break
-            print(prev_corr, prev_time)
+
             user_input = prev_corr
             prev_message = read_sentence(prev_corr, use_dmrs=False)
+
             violations = self.build_pgm_model(prev_message, args)
             prev_args = self.previous_args[prev_time]
 
-            if message.o1 == prev_message.o1:
+
+
+            if message.o1 == prev_message.o1[0]:
                 curr_negation = f'{message.o1}({args[0]})'
                 prev_negation = f'{message.o1}({prev_args[0]})'
             else:
                 curr_negation = f'{message.o1}({args[1]})'
                 prev_negation = f'{message.o1}({prev_args[1]})'
+
 
             data = self.get_relevant_data(args, prev_message)
             data[curr_negation] = 0
@@ -296,7 +307,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             self.inference_times.append(time)
 
     def mark_block(self, most_likely_violation, message, args):
-        rule = Rule.rule_from_violation(most_likely_violation)
+        rule = Rule.from_violation(most_likely_violation)
 
         if isinstance(rule, list):
             colour_count, red_on_blue = rule

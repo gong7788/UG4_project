@@ -111,7 +111,7 @@ class Debug(object):
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                  threshold, update_negative, update_once, debug_agent, domain_file,
                  simplified_colour_count=False, inference_type=InferenceType.SearchInference,
-                 ):
+                 max_inference_size=-1):
     if agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
@@ -122,7 +122,7 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
         agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
                       colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent,
                       domain_file=domain_file, simplified_colour_count=simplified_colour_count,
-                      inference_type=inference_type)
+                      inference_type=inference_type, max_inference_size=max_inference_size)
         print(colour_model_config_name)
         print(colour_model_config)
     else:
@@ -130,8 +130,10 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
 
     return agent
 
+
 class PlanningError(Exception):
     pass
+
 
 def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, break_on_correction=False, num_allowed_corrections = -1):
     if vis:
@@ -176,7 +178,7 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
                     teacher_type=TeacherType.Old, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
                     domain_file='blocks-domain.pddl', simplified_colour_count=False,
                     recall_failure_prob=0.0, recovery_prob=0.0, num_allowed_corrections=-1,
-                    inference_type=InferenceType.SearchInference, **kwargs):
+                    inference_type=InferenceType.SearchInference, max_inference_size=-1, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
@@ -208,7 +210,7 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                          threshold, update_negative, update_once, debug_agent, domain_file,
-                         simplified_colour_count, inference_type=inference_type)
+                         simplified_colour_count, inference_type=inference_type, max_inference_size=max_inference_size)
 
     if results_file is not None:
         results_file.write(f'Results for {problem_name}\n')
@@ -257,7 +259,8 @@ def get_experiment_config(config_name, colour_model_config):
                     "extended": TeacherType.Extended,
                     "human": TeacherType.Human}
     inference_type = {"search": InferenceType.SearchInference,
-                      "BP": InferenceType.BeliefPropagation}
+                      "BP": InferenceType.BeliefPropagation,
+                      "RejectionSampling": InferenceType.BayesianModelSampler}
     config = configparser.ConfigParser()
     config_file = os.path.join(config_location, 'experiments.ini')
     config.read(config_file)
@@ -282,7 +285,8 @@ def get_experiment_config(config_name, colour_model_config):
         "recall_failure_prob": config.getfloat('recall_failure_prob'),
         "recovery_prob": config.getfloat('recovery_prob'),
         "num_allowed_corrections": config.getint('num_allowed_corrections'),
-        "inference_type": inference_type[config['inference_type']]
+        "inference_type": inference_type[config['inference_type']],
+        "max_inference_size": config.getint("max_inference_size")
     }
     return config_dict
 

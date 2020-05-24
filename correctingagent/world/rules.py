@@ -130,14 +130,13 @@ class Rule(object):
     def generate_red_on_blue_options(c1, c2):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
-    @staticmethod
-    def rule_from_violation(violation):
-        rule_string = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
 
+    @staticmethod
+    def from_string(rule_string):
         if "&&" in rule_string:
             colour_count_string, red_on_blue_string = rule_string.split("&&")
-            return [Rule.rule_from_violation(f"V_1({colour_count_string.strip()})"),
-                    Rule.rule_from_violation(f"V_1({red_on_blue_string.strip()})")]
+            return [Rule.from_violation(f"V_1({colour_count_string.strip()})"),
+                    Rule.from_violation(f"V_1({red_on_blue_string.strip()})")]
 
         elif rule_string[:3] != 'all':
             raise NotImplemented('Not implemented non put red on blue rule')
@@ -163,6 +162,13 @@ class Rule(object):
                 return RedOnBlueRule(blue_colour, red_colour, rule_type=2)
             else:
                 raise ValueError('something went wrong')
+
+
+    @staticmethod
+    def from_violation(violation):
+        rule_string = re.sub(r"V_[0-9]+\(", '', violation)[:-1]
+
+        return Rule.from_string(rule_string)
 
 
 class ColourCountRule(Rule):
