@@ -1,9 +1,9 @@
 
 #python run_experiments.py naive_faulty_onerule fixed_bw_0.05
 
-#python run_experiments.py completely_faulty_onerule fixed_bw_0.05
+python run_experiments.py faulty_onerule fixed_bw_0.05
 #python run_experiments.py faulty_onerule fixed_bw_0.05
-python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_BP fixed_bw_0.05
+#python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_BP fixed_bw_0.05
 
 #python run_experiments.py colour_count_mix_simpler_random DEFAULT
 #python run_experiments.py colour_count_random DEFAULT
