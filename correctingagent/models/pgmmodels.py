@@ -1,5 +1,7 @@
 import copy
+import heapq
 import time
+from _operator import mul
 from collections import defaultdict
 from enum import Enum
 from functools import reduce
@@ -47,7 +49,6 @@ def to_CPD(factor):
         colour_variable = factor.variables[0]
 
         return TabularCPD(colour_variable, 2, factor.values.reshape((1,2)))
-
 
 
 class InferenceType(Enum):
@@ -198,6 +199,157 @@ def get_scope(model):
     return scope
 
 
+def reduce_model(model, evidence):
+    model = copy.deepcopy(model)
+    # continuous_factors = [factor for factor in model.factors if isinstance(factor, ContinuousFactor)]
+
+    for var, val in evidence.items():
+        for factor in model.factors:
+            if var in factor.scope():  # and "F(" in var:  # make sure that we only reduce at this stage for continuous values, let the inference algorithm deal with reducing for binary variables
+                factor.reduce([(var, val)])
+
+    new_model = FactorGraph()
+
+    additional_evidence = {}
+
+    for node in model.factors:
+        if isinstance(node, ContinuousFactor):
+            if len(node.scope()) == 1:
+                node = TabularCPD(str(node.scope()[0]), 2, [[node.assignment(0), node.assignment(1)]]).to_factor()
+        if len(node.scope()) == 0:
+            continue
+
+        #         try:
+        #             var = node.variable
+        #         except:
+        #             print(node.scope())
+        #         for v in node.scope():
+        #             if var != v:
+        #                 new_model.add_edge(str(v), str(var))
+
+        #         if "same_reason" in var:
+        #             additional_evidence[var] = 1
+
+        new_model.add_nodes_from([str(n) for n in node.scope()])
+        new_model.add_factors(node)
+    return new_model, additional_evidence
+
+
+def get_non_zero_states(model, data):
+    new_model, additional_evidence = reduce_model(model, data)
+    data.update(additional_evidence)
+    return _get_non_zero_states(new_model)
+
+
+def _get_non_zero_states(model):
+    factors = model.cpds if isinstance(model, BayesianModel) else model.factors
+    phi = reduce(lambda x, y: x * y, factors)
+
+    # find all non-zero probability states from the relevant factors
+    variables = phi.scope()
+    nonzero = np.nonzero(phi.values)  # the indexes of non-zero values in phi
+    assert (len(variables) == len(nonzero))
+    viable = []
+    for i in range(len(nonzero[0])):
+        d = {}
+        for j, var in enumerate(variables):
+            d[var] = nonzero[j][i]
+        viable.append(d)
+
+    new_beams = []
+    for trace in viable:
+        a = []
+        for var in phi.scope():
+            a.append(trace[var])
+        a = tuple(a)
+        new_beams.append((phi.values[a], trace))
+
+    return new_beams
+
+
+class SortableDict(dict):
+
+    def __lt__(self, other):
+        return True
+
+
+def normalise_beam(beams):
+    norm_val = sum([val for val, _ in beams])
+    return [(val / norm_val, b) for val, b in beams]
+
+
+def evaluate_factor(data, factor):
+    factor_data = {v: data[v] for v in factor.scope()}
+    return factor.p(factor_data)
+
+
+def product(x):
+    return reduce(mul, x, 1)
+
+
+def evaluate_model(data, model):
+    return product([evaluate_factor(data, factor) for factor in model.factors])
+
+
+def beams_compatible(beam1, beam2):
+    intersecting_variables = set(beam1.keys()).intersection(beam2.keys())
+    return all([beam1[var] == beam2[var] for var in intersecting_variables])
+
+
+class ApproximateSearchInference(object):
+
+    def __init__(self, beam_size, models):
+        self.beam_size = beam_size
+        self.beams = [(1, SortableDict())]
+        self.models = models
+        self.previous_inference_time = 0
+
+    def update_beams(self, new_beams, data, models):
+        model = build_combined_model(models)
+
+        q = []
+
+        for v1, old_beam in self.beams:
+            for v2, new_beam in new_beams:
+
+                if beams_compatible(old_beam, new_beam):
+                    combined_beam = SortableDict()
+                    combined_beam.update(old_beam)
+                    combined_beam.update(new_beam)
+                    combined_beam.update(data)
+
+                    beam_value = evaluate_model(combined_beam, model)
+                    heapq.heappush(q, (beam_value, combined_beam))
+                    if len(q) > self.beam_size > 0:
+                        heapq.heappop(q)
+        self.beams = normalise_beam(q)
+
+    def clamp(self, evidence):
+        for var, val in evidence.items():
+            self.beams = normalise_beam([(p, beam) for p, beam in self.beams if beam[var] == val])
+
+    def infer(self, evidence, new_evidence):
+
+        if self.previous_inference_time == len(self.models):
+            self.clamp(new_evidence)
+        else:
+            evidence.update(new_evidence)
+            beams = get_non_zero_states(self.models[-1], evidence)
+            self.update_beams(beams, evidence, self.models[:-1])
+            self.previous_inference_time = len(self.models)
+
+    def p(self, var, val):
+        try:
+            return sum([p for (p, beam) in self.beams if beam[var] == val])
+        except KeyError:
+            return None
+
+    def query(self, variables, values=None):
+        if values is None:
+            values = [1] * len(variables)
+        return {var: self.p(var, val) for var, val in zip(variables, values)}
+
+
 class SearchInference(object):
 
     def __init__(self, model, beam_size=-1):
@@ -221,23 +373,28 @@ class SearchInference(object):
         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
         if len(variables) == 0:
             return
+        # add factor to set of factors if a at least one variable is included in the factors scope (i.e. ignore irrelevant factors
         factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
 
+        # Reduce factors givent he evidence
         for var, val in evidence.items():
             for factor in factors:
                 if var in factor.scope():
                     factor.reduce([(var, val)])
 
+        # Make continuous factors discrete
         updated_factors = []
         for factor in factors:
             if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
                 factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
             updated_factors.append(factor)
 
+        # Combine everything into one big factor
         phi = reduce(lambda x, y: x * y, updated_factors)
 
+        # find all non-zero probability states from the relevant factors
         variables = phi.scope()
-        nonzero = np.nonzero(phi.values)
+        nonzero = np.nonzero(phi.values)  # the indexes of non-zero values in phi
         assert(len(variables) == len(nonzero))
         viable = []
         for i in range(len(nonzero[0])):
@@ -293,11 +450,13 @@ class SearchInference(object):
             values = [1]*len(variables)
         return {var: self.p(var, val) for var, val in zip(variables, values)}
 
+
 def is_overlap(set1, set2):
     set1 = set(set1)
     set2 = set(set2)
 
     return len(set1.intersection(set2)) > 0
+
 
 def is_scope_overlap(model1, model2):
     scope1 = [x for x in get_scope(model1) if "F(" not in str(x)]
@@ -332,6 +491,7 @@ def combine_models(model1, model2):
 
     return model1
 
+
 def create_new_model(nodes, factor):
     new_model = FactorGraph()
     new_model.add_nodes_from([str(n) for n in nodes] + [str(factor)])
@@ -348,14 +508,40 @@ def build_combined_model(relevant_models):
 
 class PGMModel(object):
 
-    def __init__(self, inference_type=InferenceType.SearchInference, sampling_type=SamplingType.LikelihoodWeighted, max_inference_size=-1):
-        self.known_rules = set()
-        self.rule_priors = {}
-        self.colours = {}
+    def __init__(self, inference_type=InferenceType.SearchInference, sampling_type=SamplingType.LikelihoodWeighted, max_inference_size=-1, max_beam_size=0):
         self.inference_type = inference_type
         self.sampling_type = sampling_type
         self.max_inference_size = max_inference_size
+        self.max_beam_size = max_beam_size
         self.reset()
+
+    def reset(self):
+        """ Resets variables which need to be updated for each new scenario
+        """
+        self.model = FactorGraph()
+
+        self.ordered_models = []
+
+        if self.inference_type == InferenceType.SearchInference:
+            self.inference = ApproximateSearchInference(self.max_beam_size, self.ordered_models)
+
+        # elif self.inference_type == InferenceType.SearchInference:
+        #     self.search_inference = SearchInference(self.model)
+        else:
+            self.inference = PGMPYInference(self.model, inference_type=self.inference_type, sampling_type=self.sampling_type)
+
+        self.observed = {}
+
+        self.models = []
+        self.model_nodes = set()
+
+    def add_new_model(self):
+        if self.max_inference_size > 0 or isinstance(self.inference, ApproximateSearchInference):
+            model = FactorGraph()
+            self.ordered_models.append(model)
+            return model
+        else:
+            return None
 
     def get_model_scopes(self):
         scope = set()
@@ -369,55 +555,12 @@ class PGMModel(object):
             nodes = nodes.union(model.nodes())
         return nodes
 
-    def reset(self):
-        """ Resets variables which need to be updated for each new scenario
-        """
-        self.model = FactorGraph()
-        if self.inference_type == InferenceType.SearchInference:
-            self.search_inference = SearchInference(self.model)
-        else:
-            self.search_inference = PGMPYInference(self.model, inference_type=self.inference_type, sampling_type=self.sampling_type)
-
-        self.observed = {}
-        self.colour_variables = []
-
-        self.models = []
-        self.model_nodes = set()
-
-        self.ordered_models = []
-
-    def add_new_model(self):
-        if self.max_inference_size > 0:
-            model = FactorGraph()
-            self.ordered_models.append(model)
-            return model
-        else:
-            return None
-
     def test_models(self):
         for model in self.models:
             variable_nodes = set([x for factor in model.factors for x in factor.scope()])
             factor_nodes = set(model.nodes()) - variable_nodes
 
             assert(len(factor_nodes) == len(model.factors))
-
-    def add_cm(self, cm, block, model=None):
-
-        red_rgb = f'F({block})'
-        red_o1 = f'{cm.name}({block})'
-        self.colours[cm.name] = cm
-        self.colour_variables.append(red_o1)
-        if 't' in block:
-            self.model.add_nodes_from([red_o1])
-            red_cm_factor = TabularCPD(red_o1, 2, [[1, 0]])
-            self.add_factor([red_o1], red_cm_factor, model)
-            return red_o1
-        if red_o1 not in self.model.nodes():
-            red_distribution = lambda rgb, c: cm.p(c, rgb)
-            red_evidence = [red_rgb, red_o1]
-            red_cm_factor = ContinuousFactor(red_evidence, red_distribution)
-            self.add_factor(red_evidence + [red_cm_factor], red_cm_factor, model)
-        return red_o1
 
     def reduce_models(self):
 
@@ -434,7 +577,6 @@ class PGMModel(object):
                         return self.reduce_models()
 
     def add_factor(self, nodes, factor, model=None):
-
 
         if model is not None:
             self.model_nodes.add(factor)
@@ -463,6 +605,93 @@ class PGMModel(object):
             node_filter = lambda x: filter(lambda y: y not in self.model.nodes(), x)
             self.model.add_nodes_from(node_filter(set([str(n) for n in nodes] + [str(factor)])))
             self.model.add_factors(factor)
+
+    def observe(self, observable=None):
+
+        if self.inference_type == InferenceType.SearchInference:
+            start = time.time()
+            self.inference.infer(self.observed, observable)
+            self.observed.update(observable)
+            end = time.time()
+            return end - start
+        else:
+            self.observed.update(observable)
+
+    def query(self, variables, values=None):
+
+        if self.inference_type == InferenceType.SearchInference:
+            return self.inference.query(variables, values=values)
+
+        elif self.max_inference_size > 0:
+
+            reverse_models = defaultdict(list)
+            for variable in variables:
+                latest_relevant_model = [model for model in self.ordered_models if variable in get_scope(model)][-1]
+
+                reverse_models[latest_relevant_model].append(variable)
+
+            output = {}
+
+            for model, variables in reverse_models.items():
+                relevant_models = [model]
+                for i in range(self.max_inference_size - 1):
+                    try:
+                        next_relevant_model = [m for m in self.ordered_models if is_relevant(m, relevant_models)][-1]
+                        relevant_models.append(next_relevant_model)
+                    except IndexError:
+                        break
+
+                inference_model = build_combined_model(relevant_models)
+                inference = PGMPYInference(inference_model, inference_type=self.inference_type,
+                                           sampling_type=self.sampling_type)
+                inference.infer({}, self.observed)
+
+                output.update(inference.query(variables, values=values))
+            return output
+
+        else:
+            output = {}
+            for model in self.models:
+                if any([variable in get_scope(model) for variable in variables]):
+                    inference = PGMPYInference(model, inference_type=self.inference_type,
+                                               sampling_type=self.sampling_type)
+                    inference.infer({}, self.observed)
+
+                    output.update(inference.query(variables, values=values))
+
+            return output
+
+
+class CorrectionPGMModel(PGMModel):
+
+    def __init__(self, **kwargs):
+        super(CorrectionPGMModel, self).__init__(**kwargs)
+        self.known_rules = set()
+        self.rule_priors = {}
+        self.colours = {}
+        # self.reset()
+
+    def reset(self):
+        super(CorrectionPGMModel, self).reset()
+        self.colour_variables = []
+
+    def add_cm(self, cm, block, model=None):
+
+        red_rgb = f'F({block})'
+        red_o1 = f'{cm.name}({block})'
+        self.colours[cm.name] = cm
+        self.colour_variables.append(red_o1)
+        if 't' in block:
+            self.model.add_nodes_from([red_o1])
+            red_cm_factor = TabularCPD(red_o1, 2, [[1, 0]])
+            self.add_factor([red_o1], red_cm_factor, model)
+            return red_o1
+        if red_o1 not in self.model.nodes():
+            red_distribution = lambda rgb, c: cm.p(c, rgb)
+            red_evidence = [red_rgb, red_o1]
+            red_cm_factor = ContinuousFactor(red_evidence, red_distribution)
+            self.add_factor(red_evidence + [red_cm_factor], red_cm_factor, model)
+        return red_o1
 
     def get_rule_prior(self, rule):
         try:
@@ -506,22 +735,22 @@ class PGMModel(object):
 
         return violations
 
-    def add_no_table_correciton(self, args, time):
-        if not self.known_rules:
-            return
-
-        model = self.add_new_model()
-
-        violations = []
-
-        for rule in self.known_rules:
-            red = rule.c1
-            blue = rule.c2
-            violations.append(self.add_table_violation(rule, self.colours[red], self.colours[blue], args, time, model=model))
-
-        self.add_correction_factor(violations, time)
-
-        return violations
+    # def add_no_table_correction(self, args, time):
+    #     if not self.known_rules:
+    #         return
+    #
+    #     model = self.add_new_model()
+    #
+    #     violations = []
+    #
+    #     for rule in self.known_rules:
+    #         red = rule.c1
+    #         blue = rule.c2
+    #         violations.append(self.add_table_violation(rule, self.colours[red], self.colours[blue], args, time, model=model))
+    #
+    #     self.add_correction_factor(violations, time)
+    #
+    #     return violations
 
     def add_violation_factor(self, rule, time, colours, correction_type=CorrectionType.TABLE, table_empty=False, model=None):
         """ Adds a factor representing when the rule is violated
@@ -670,62 +899,8 @@ class PGMModel(object):
         # evidence = list(current_violations) + list(previous_violations)
         t = equals_CPD(current_violations, previous_violations)
 
-
         f = DiscreteFactor(evidence, [2]*len(evidence), t)
         self.add_factor(evidence, f, model)
-
-    def observe(self, observable={}):
-
-        if self.inference_type == InferenceType.SearchInference:
-            start = time.time()
-            self.search_inference.infer(self.observed, observable)
-            self.observed.update(observable)
-            end = time.time()
-            return end-start
-        else:
-            self.observed.update(observable)
-
-    def query(self, variables, values=None):
-
-        if self.max_inference_size > 0:
-
-            reverse_models = defaultdict(list)
-            for variable in variables:
-                latest_relevant_model = [model for model in self.ordered_models if variable in get_scope(model)][-1]
-
-                reverse_models[latest_relevant_model].append(variable)
-
-            output = {}
-
-            for model, variables in reverse_models.items():
-                relevant_models = [model]
-                for i in range(self.max_inference_size-1):
-                    try:
-                        next_relevant_model = [m for m in self.ordered_models if is_relevant(m, relevant_models)][-1]
-                        relevant_models.append(next_relevant_model)
-                    except IndexError:
-                        break
-
-                inference_model = build_combined_model(relevant_models)
-                inference = PGMPYInference(inference_model, inference_type=self.inference_type, sampling_type=self.sampling_type)
-                inference.infer({}, self.observed)
-
-                output.update(inference.query(variables, values=values))
-            return output
-
-
-        elif self.inference_type == InferenceType.SearchInference:
-            return self.search_inference.query(variables, values=values)
-        else:
-            output = {}
-            for model in self.models:
-                if any([variable in get_scope(model) for variable in variables]):
-                    inference = PGMPYInference(model, inference_type=self.inference_type, sampling_type=self.sampling_type)
-                    inference.infer({}, self.observed)
-
-                    output.update(inference.query(variables, values=values))
-
-            return output
 
     def get_rule_probs(self, update_prior=False):
         rules = [str(rule) for rule in self.known_rules]

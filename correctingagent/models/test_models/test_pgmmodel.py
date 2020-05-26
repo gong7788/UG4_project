@@ -1,7 +1,7 @@
 import pytest
 from pgmpy.factors.discrete import TabularCPD
 
-from correctingagent.models.pgmmodels import PGMModel, PGMPYInference, InferenceType, SamplingType
+from correctingagent.models.pgmmodels import CorrectionPGMModel, PGMPYInference, InferenceType, SamplingType
 from correctingagent.models.prob_model import KDEColourModel
 from correctingagent.world import rules
 from correctingagent.world.rules import RedOnBlueRule, CorrectionType
@@ -104,7 +104,7 @@ def test_table_cpd_creation_r2():
 
 
 def test_add_cm():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -116,7 +116,7 @@ def test_add_cm():
     assert(blue_t0 == 'blue(t0)')
 
     pgm_model.observe({'F(b3)':[1,1,1], 'blue(t0)':0})
-    pgm_model.infer()
+    # pgm_model.infer()
 
     query = pgm_model.query(['red(b3)'], [1])
     assert(query['red(b3)'] == 0.5)
@@ -129,7 +129,7 @@ def test_add_cm():
 
 
 def test_extend_model():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -145,7 +145,7 @@ def test_extend_model():
 
 
 def test_extend_model_table():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -161,7 +161,7 @@ def test_extend_model_table():
 
 
 def test_belief_inference():
-    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BeliefPropagation)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -193,7 +193,7 @@ def test_belief_inference():
 
 
 def test_belief_inference2():
-    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BeliefPropagation)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -225,7 +225,7 @@ def test_belief_inference2():
 
 
 def test_belief_inference():
-    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BeliefPropagation)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -264,7 +264,7 @@ def test_belief_inference():
 
 
 def test_belief_inference_separated_models():
-    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BeliefPropagation)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -335,7 +335,7 @@ def test_belief_inference_separated_models():
 
 
 def test_belief_inference_connected_features():
-    pgm_model = PGMModel(inference_type=InferenceType.BeliefPropagation)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BeliefPropagation)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -383,7 +383,7 @@ def test_belief_inference_connected_features():
 
 
 def test_gibbs_inference_connected_features():
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -432,7 +432,7 @@ def test_gibbs_inference_connected_features():
 
 def test_gibbs_inference_connected_features2():
 
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -471,7 +471,7 @@ def test_gibbs_inference_connected_features2():
 
 
 def test_sampling_inference_table():
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -505,7 +505,7 @@ def test_sampling_inference_table():
 
 def test_sampling_inference_no_correction():
 
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -546,7 +546,7 @@ def test_sampling_inference_no_correction():
 
 def test_sampling_inference_reset():
 
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')
@@ -591,7 +591,7 @@ def test_sampling_inference_reset():
 
 
 def test_sampling_inference_table_likelihoddweighted():
-    pgm_model = PGMModel(inference_type=InferenceType.BayesianModelSampler, sampling_type=SamplingType.LikelihoodWeighted)
+    pgm_model = CorrectionPGMModel(inference_type=InferenceType.BayesianModelSampler, sampling_type=SamplingType.LikelihoodWeighted)
 
     red_cm = KDEColourModel('red')
     blue_cm = KDEColourModel('blue')

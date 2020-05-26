@@ -14,7 +14,7 @@ def parse_command(sentence):
     name = name.strip()
 
     concepts = concepts.split()
-    concepts = [Concept(concept.strip(', '), 0, 0.5) for concept in
+    concepts = [Concept.get_base_concept(concept.strip(', ')) for concept in
                 concepts if concept.strip(", ") != 'and']
 
 
@@ -35,6 +35,7 @@ def parse_sentence(sentence):
     elif "yes" in sentence:
         return None, ResponseType.assent
 
+
 class GentlyAgent(object):
 
     def __init__(self):
@@ -49,10 +50,12 @@ class GentlyAgent(object):
             self.behaviours[behaviour.name] = behaviour
             self.behaviour_under_discussion = behaviour
 
-
         if response_type == ResponseType.correction:
             concepts = data
             for concept in concepts:
                 self.behaviour_under_discussion.update_concept(action, concept, positive=False)
         elif response_type == ResponseType.assent:
             self.behaviour_under_discussion.update_concept(action, None, positive=True)
+
+    def generate_behaviour(self):
+        return self.behaviour_under_discussion.generate_behaviour()

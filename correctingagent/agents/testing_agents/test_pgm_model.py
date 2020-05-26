@@ -25,7 +25,7 @@ def test_build_pgm_model():
 
 
 def test_colour_count_CPD_generation():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     rule = ColourCountRule('blue', 1)
 
@@ -43,7 +43,7 @@ def test_colour_count_CPD_generation():
 
 
 def test_colour_count_CPD_generation2():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     rule = ColourCountRule('blue', 1)
 
@@ -62,7 +62,7 @@ def test_colour_count_CPD_generation2():
 
 
 def test_colour_count_CPD_generation2():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     rule = ColourCountRule('blue', 1)
 
@@ -90,7 +90,7 @@ def test_colour_count_CPD_generation2():
 
 
 def test_colour_count_CPD_generation3():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     colour_count = ColourCountRule('blue', 1)
     red_on_blue_options = Rule.generate_red_on_blue_options('blue', 'red')
@@ -128,7 +128,7 @@ def test_colour_count_CPD_generation3():
 
 
 def test_equals_cpd():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
 
     r1, r2 = Rule.generate_red_on_blue_options('blue', 'red')
     v1 = f"V_1({r1})"
@@ -173,7 +173,7 @@ def test_equals_cpd():
 #
 
 def test_uncertain_table1():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
 
@@ -222,7 +222,7 @@ def test_uncertain_table1():
 
 
 def test_uncertain_table2():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
 
@@ -264,7 +264,7 @@ def test_uncertain_table2():
 
 
 def test_uncertain_table3():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
 
@@ -304,7 +304,7 @@ def test_uncertain_table3():
 
 
 def test_uncertain_table4():
-    pgm_model = PGMModel()
+    pgm_model = CorrectionPGMModel()
     time = 0
     red_on_blue_options = RedOnBlueRule.generate_red_on_blue_options('red', 'blue')
 

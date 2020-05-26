@@ -63,7 +63,6 @@ def test_good_sample(sample, min_val, max_val):
     return min_holds and max_holds
 
 
-
 concepts = {
     "left": "curviness",
     "right": "curviness",
@@ -97,6 +96,13 @@ class Concept(object):
         if name in ["curviness", "speed", "energy"]:
             self.default_concept = True
 
+
+    def evaluate(self, point, truth_value=1):
+        if truth_value == 1:
+            return norm.pdf(point, self.mean, self.variance)
+
+
+
     def generate(self):
 
         if self.distribution_type == "normal":
@@ -109,15 +115,25 @@ class Concept(object):
             v = np.random.uniform(self.min_val, self.max_val)
             return v
 
+    def assert_mean_bound(self):
+        if self.max_val is not None:
+            self.mean = min(self.mean, self.max_val)
+        if self.min_val is not None:
+            self.mean = max(self.mean, self.min_val)
+
     def update_positive(self, datapoint):
 
         self.mean, self.n, self.variance, self.v = update_params(
             self.mean, self.n, self.variance, self.v, datapoint)
 
+        self.assert_mean_bound()
+
     def update_negative(self, datapoint):
 
         self.mean, self.n, self.variance, self.v = update_params_negative(
             self.mean, self.n, self.variance, self.v, datapoint)
+
+        self.assert_mean_bound()
 
     def update(self, datapoint, positive=True):
         if positive:
@@ -137,11 +153,34 @@ class Concept(object):
     def default_energy_concept():
         return Concept("energy", 0, 100, distribution_type="uniform")
 
+    @staticmethod
+    def base_speed_concept(name):
+        return Concept(name, .6, .5)
+
+    @staticmethod
+    def base_curve_concept(name):
+        return Concept(name, 0, .5)
+
+    @staticmethod
+    def base_energy_concept(name):
+        return Concept(name, .5, .5)
+
+    @staticmethod
+    def get_base_concept(name):
+        if concepts[name] == "speed":
+            return Concept.base_speed_concept(name)
+        elif concepts[name] == "energy":
+            return Concept.base_energy_concept(name)
+        elif concepts[name] == "curviness":
+            return Concept.base_curve_concept(name)
+
+
 def get_concept_of_type(concepts, concept_type):
     specific_conepts = [concept for concept in concepts if concept.concept_type == concept_type]
     assert (len(specific_conepts) <= 1)
     chosen_concept = specific_conepts[0] if len(specific_conepts) == 1 else None
     return chosen_concept
+
 
 class Behaviour(object):
 
