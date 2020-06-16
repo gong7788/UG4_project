@@ -7,7 +7,7 @@ from correctingagent.experiments.colour_model_evaluation import evaluate_colour_
 from correctingagent.pddl import pddl_functions
 from correctingagent.util.CPD_generation import get_violation_type, get_predicate
 from correctingagent.world import goals
-from correctingagent.models.pgmmodels import CorrectionPGMModel, InferenceType
+from correctingagent.models.pgmmodels import CorrectionPGMModel, InferenceType, get_scope
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
@@ -73,7 +73,15 @@ def read_sentence(sentence, use_dmrs=False):
 
     sentence = sentence.replace('no,', '')
 
-    if "same reason" in sentence:  # That is wrong for the same reason
+    if "sorry" in sentence and "are wrong" in sentence: # Sorry, b1 and b2 are wrong because you must put red blocks on blue blocks
+        sentence = sentence.replace("sorry,", "").strip()
+        objects, rule_sentence = sentence.split("are wrong because")
+        o1, o2 = objects.strip().split(' and ')
+        rule_message = parse_red_on_blue_rule(rule_sentence.replace("you must", ""))
+
+        return Message('on', rule_message.o1, rule_message.o2, "recover", [o1, o2])
+
+    elif "same reason" in sentence:  # That is wrong for the same reason
         return Message(None, None, None, 'same reason', None)
 
     elif "cannot put more than" in sentence:  # No, you cannot put more than 2 red blocks in a tower
@@ -100,7 +108,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                  domain_file='blocks-domain.pddl', teacher=None, threshold=0.7,
                  update_negative=True, update_once=True, colour_model_type='default',
                  model_config={}, tracker=Tracker(), debug=None, simplified_colour_count=False,
-                 inference_type=InferenceType.SearchInference, max_inference_size=-1):
+                 inference_type=InferenceType.SearchInference, max_inference_size=-1, max_beam_size=-1, p_direct=1, p_indirect=1):
 
         super(PGMCorrectingAgent, self).__init__(world, colour_models, rule_beliefs,
                                                  domain_file, teacher, threshold,
@@ -111,7 +119,8 @@ class PGMCorrectingAgent(CorrectingAgent):
         if debug is not None:
             self.debug.update(debug)
 
-        self.pgm_model = CorrectionPGMModel(inference_type=inference_type, max_inference_size=max_inference_size)
+        self.pgm_model = CorrectionPGMModel(inference_type=inference_type, max_inference_size=max_inference_size,
+                                            max_beam_size=max_beam_size, p_direct=p_direct, p_indirect=p_indirect)
         self.time = 0
         self.last_correction = -1
         self.marks = defaultdict(list)
@@ -119,6 +128,12 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.previous_args = {}
         self.simplified_colour_count = simplified_colour_count
         self.inference_times = []
+        self.p_direct = p_direct
+        self.p_indirect = p_indirect
+
+        print("p direct", self.p_direct)
+        print("p indirect", self.p_indirect)
+        print("inference type", inference_type)
 
     def __repr__(self):
         return "PGMCorrectingAgent"
@@ -127,15 +142,21 @@ class PGMCorrectingAgent(CorrectingAgent):
         return self.__repr__()
 
     def update_goal(self):
-        rule_probs = self.pgm_model.get_rule_probs(update_prior=True)
+        rule_probs = self.pgm_model.get_rule_probs()
         rules = []
         for rule, p in rule_probs.items():
-
-            if p > 0.5:
-                rule = Rule.from_string(rule)
-                rules.append(rule.to_formula())
-                if self.debug['show_rules']:
-                    print(f'Added rule {rule} to goal')
+            try:
+                if p > 0.5:
+                    rule = Rule.from_string(rule)
+                    rules.append(rule.to_formula())
+                    if self.debug['show_rules']:
+                        print(f'Added rule {rule} to goal')
+            except TypeError as e:
+                print(self.pgm_model.ordered_models)
+                for model in self.pgm_model.ordered_models:
+                    print(get_scope(model))
+                print(rule_probs)
+                raise e
 
         self.goal = goals.goal_from_list(rules, self.domain_file)
 
@@ -178,7 +199,27 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def update_model(self, user_input, args):
         message = read_sentence(user_input)
-        if message.T == 'same reason':
+
+        if message.T == 'recover':
+            red = message.o1[0]
+            blue = message.o2[0]
+            rules = Rule.generate_red_on_blue_options(red, blue)
+
+            red_cm = self.add_cm(red)
+            blue_cm = self.add_cm(blue)
+            #
+            # print(message.o3)
+            # print(rules)
+
+            violations = self.pgm_model.add_recovery(message.o3, self.time, rules, red_cm, blue_cm)
+
+            # print(violations)
+
+            data = self.get_colour_data(message.o3)
+            corr = corr_variable_name(self.time)
+            data[corr] = 1
+
+        elif message.T == 'same reason':
 
             for prev_corr, prev_time in self.previous_corrections[::-1]:
                 if 'same reason' not in prev_corr:
@@ -194,7 +235,7 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         elif message.T in ['tower', 'table']:
 
-            if isinstance(self.teacher, FaultyTeacherAgent) and message.T == 'table':
+            if isinstance(self.teacher, FaultyTeacherAgent) and message.T == 'table' and self.teacher.recover_prob > 0:
                 red = message.o1[0]
                 blue = message.o2[0]
                 rules = Rule.generate_red_on_blue_options(red, blue)
@@ -231,8 +272,6 @@ class PGMCorrectingAgent(CorrectingAgent):
             violations = self.build_pgm_model(prev_message, args)
             prev_args = self.previous_args[prev_time]
 
-
-
             if message.o1 == prev_message.o1[0]:
                 curr_negation = f'{message.o1}({args[0]})'
                 prev_negation = f'{message.o1}({prev_args[0]})'
@@ -240,11 +279,10 @@ class PGMCorrectingAgent(CorrectingAgent):
                 curr_negation = f'{message.o1}({args[1]})'
                 prev_negation = f'{message.o1}({prev_args[1]})'
 
-
             data = self.get_relevant_data(args, prev_message)
             data[curr_negation] = 0
             data[prev_negation] = 0
-            print(data)
+            # print(data)
         elif 'colour count' == message.T:
             colour_name = message.o1
             number = message.o2
@@ -336,7 +374,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         else:
             raise NotImplementedError("Invalid or non implemented rule type")
 
-    def get_correction(self, user_input, actions, args, test=False):
+    def get_correction(self, user_input, actions, args, test=False, ask_question=None):
         self.time += 1
         self.last_correction = self.time
 
@@ -352,7 +390,11 @@ class PGMCorrectingAgent(CorrectingAgent):
 
         print(q)
 
-        if max(q.values()) < self.threshold:
+        if ask_question is not None and ask_question:
+            if message.T in ['table', 'tower']:
+                self.ask_question(message, args)
+                q = self.pgm_model.query(list(violations))
+        elif ask_question is None and max(q.values()) < self.threshold:
 
             if message.T in ['table', 'tower']:
                 self.ask_question(message, args)
@@ -412,8 +454,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         red_cm = self.add_cm(message.o1[0])
         blue_cm = self.add_cm(message.o2[0])
 
-
-        if isinstance(self.teacher, FaultyTeacherAgent):
+        if isinstance(self.teacher, FaultyTeacherAgent) and self.teacher.recover_prob > 0:
             table_empty = len(self.world.state.get_objects_on_table()) == 0
         else:
             table_empty = False
@@ -422,7 +463,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         if message.T == 'tower':
             correction_type = CorrectionType.TOWER
         elif message.T == 'table':
-            if isinstance(self.teacher, FaultyTeacherAgent):
+            if isinstance(self.teacher, FaultyTeacherAgent) and self.teacher.recover_prob > 0:
                 correction_type = CorrectionType.UNCERTAIN_TABLE
             else:
                 correction_type = CorrectionType.TABLE

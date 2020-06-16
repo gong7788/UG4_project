@@ -214,7 +214,6 @@ class ResultsFile(object):
         rf = ResultsFile(name=name)
         return rf
 
-
     def write_test(self, data):
         with open(self.test_name, 'a') as f:
             f.write(data)
@@ -269,6 +268,7 @@ class ResultsFile(object):
         rewards = []
         cumulative_rewards = []
         inference_times = []
+        num_corrections = []
         with open(self.name, 'r') as f:
             data = f.readlines()
         for line in data:
@@ -282,17 +282,21 @@ class ResultsFile(object):
                 rewards.append(datum)
             elif 'inference time' in line:
                 inference_times = [int(x) for x in line.replace("inference time:", "").strip().split(',')]
+            elif 'num corrections' in line:
+                datum = extract_data(line)
+                num_corrections.append(datum)
 
         return rewards, cumulative_rewards, inference_times
 
+    def to_df(self, discount=False, use_corrections=False):
+        rewards, _, _, corrections = self.read_file()
 
-    def to_df(self, discount=False):
-        rewards, _, _ = self.read_file()
-        df = pd.DataFrame(data={'rewards': rewards})
+        df = pd.DataFrame(data={'rewards': rewards, 'corrections':corrections})
         if discount:
             df['rewards'] += 10
             df['rewards'] = df['rewards']/2
         df['cumsum'] = df['rewards'].cumsum()
+        df['correction_cumsum'] = df['corrections'].cumsum()
         return df
 
     def plot_cumsum(self, discount=False, save_loc='test.png'):
@@ -308,5 +312,5 @@ class ResultsFile(object):
 
 
     def get_inference_times(self):
-        _, _, inference_times = self.read_file()
+        _, _, inference_times, _ = self.read_file()
         return inference_times

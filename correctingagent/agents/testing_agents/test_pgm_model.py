@@ -7,6 +7,8 @@ from correctingagent.world import world
 from correctingagent.world.rules import ColourCountRule
 
 
+
+
 def test_build_pgm_model():
 
     w = world.PDDLWorld(problem_directory='testing', problem_number=1)
@@ -31,7 +33,9 @@ def test_colour_count_CPD_generation():
 
     cm = KDEColourModel('blue')
 
-    violations = pgm_model.add_colour_count_correction(rule, cm, ['b1', 'b2'], time)
+    new_model = pgm_model.add_new_model()
+
+    violations = pgm_model.add_colour_count_correction(rule, cm, ['b1', 'b2'], time, new_model)
 
     pgm_model.observe({'F(b1)': [1, 1, 1], 'F(b2)': [0, 0, 0], f'corr_{time}': 1})
 

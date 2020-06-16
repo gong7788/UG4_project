@@ -107,7 +107,6 @@ def get_mean(big_id):
 
 
 
-
 def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', axes=None,
                          show_xlabel=True, show_ylabel=True, legend_font=12, **kwargs):
     for experiment, label, marker in zip(list_of_experiments, labels,

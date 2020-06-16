@@ -45,7 +45,6 @@ class PDDLWorld(World):
         elif domain_file == 'blocks-domain-colour-unknown.pddl':
             domain_file = 'blocks-domain.pddl'
 
-
         self.use_metric_ff = ("updated" in domain_file or "unstack" in domain_file)
 
         self.settings = {"domain_file":domain_file,
@@ -77,6 +76,7 @@ class PDDLWorld(World):
         # next set up conditions for drawing of the current state
         self.start_positions = block_plotting.generate_start_position(self.problem)
         self.reward = 0
+        self.num_corrections = 0
 
         self.tmp = data_dir / 'tmp' / 'world'
         n = len(os.listdir(self.tmp))
@@ -180,12 +180,36 @@ class PDDLWorld(World):
 
     def objects_not_in_tower(self):
         out_objects = []
+
         for o in self.objects:
-            if not self.state.predicate_holds('in-tower', [o]):
-                out_objects.append(o)
+            if 'tower' in o:
+                pass
+            elif len(self.state.towers) > 0:
+                if all([not(self.state.predicate_holds('in-tower', [o, t.replace('t', 'tower')])) for t in self.state.towers]):
+                    out_objects.append(o)
+            else:
+                if not self.state.predicate_holds('in-tower', [o]):
+                    out_objects.append(o)
         return out_objects
 
+    def get_objects_in_tower(self, tower):
+        objects = self.state.get_objects_in_tower(tower)
 
+
+        bottom = tower.replace('tower', 't')
+
+        tower_list = [bottom]
+
+        current = bottom
+
+
+        while not self.state.predicate_holds("clear", [current]):
+            for o in objects:
+                if self.state.predicate_holds("on", [o, current]):
+                    tower_list.append(o)
+                    current = o
+
+        return tower_list
 
 
 class RandomColoursWorld(PDDLWorld):

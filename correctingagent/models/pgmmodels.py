@@ -206,7 +206,11 @@ def reduce_model(model, evidence):
     for var, val in evidence.items():
         for factor in model.factors:
             if var in factor.scope():  # and "F(" in var:  # make sure that we only reduce at this stage for continuous values, let the inference algorithm deal with reducing for binary variables
-                factor.reduce([(var, val)])
+                try:
+                    factor.reduce([(var, val)])
+                except ValueError as e:
+                    print(factor)
+                    raise e
 
     new_model = FactorGraph()
 
@@ -248,23 +252,10 @@ def _get_non_zero_states(model):
     # find all non-zero probability states from the relevant factors
     variables = phi.scope()
     nonzero = np.nonzero(phi.values)  # the indexes of non-zero values in phi
+
     assert (len(variables) == len(nonzero))
-    viable = []
-    for i in range(len(nonzero[0])):
-        d = {}
-        for j, var in enumerate(variables):
-            d[var] = nonzero[j][i]
-        viable.append(d)
 
-    new_beams = []
-    for trace in viable:
-        a = []
-        for var in phi.scope():
-            a.append(trace[var])
-        a = tuple(a)
-        new_beams.append((phi.values[a], trace))
-
-    return new_beams
+    return nonzero, variables
 
 
 class SortableDict(dict):
@@ -304,13 +295,17 @@ class ApproximateSearchInference(object):
         self.models = models
         self.previous_inference_time = 0
 
-    def update_beams(self, new_beams, data, models):
+    def update_beams(self, nonzero, variables, data, models):
         model = build_combined_model(models)
 
         q = []
 
-        for v1, old_beam in self.beams:
-            for v2, new_beam in new_beams:
+        for i in range(len(nonzero[0])):
+            new_beam = {}
+            for j, var in enumerate(variables):
+                new_beam[var] = nonzero[j][i]
+
+            for v1, old_beam in self.beams:
 
                 if beams_compatible(old_beam, new_beam):
                     combined_beam = SortableDict()
@@ -325,8 +320,14 @@ class ApproximateSearchInference(object):
         self.beams = normalise_beam(q)
 
     def clamp(self, evidence):
+        # print("before clamp")
+        # for p, beam in self.beams:
+        #     print(p, beam)
         for var, val in evidence.items():
             self.beams = normalise_beam([(p, beam) for p, beam in self.beams if beam[var] == val])
+        # print("after clamp")
+        # for p, beam in self.beams:
+        #     print(p, beam)
 
     def infer(self, evidence, new_evidence):
 
@@ -334,8 +335,8 @@ class ApproximateSearchInference(object):
             self.clamp(new_evidence)
         else:
             evidence.update(new_evidence)
-            beams = get_non_zero_states(self.models[-1], evidence)
-            self.update_beams(beams, evidence, self.models[:-1])
+            nonzero, variables = get_non_zero_states(self.models[-1], evidence)
+            self.update_beams(nonzero, variables, evidence, self.models)
             self.previous_inference_time = len(self.models)
 
     def p(self, var, val):
@@ -349,106 +350,106 @@ class ApproximateSearchInference(object):
             values = [1] * len(variables)
         return {var: self.p(var, val) for var, val in zip(variables, values)}
 
-
-class SearchInference(object):
-
-    def __init__(self, model, beam_size=-1):
-        self.model = model
-        self.beam = [({}, 1)]
-        self.beam_size = beam_size
-        self.norm = 0
-
-    def infer(self, evidence, new_evidence):
-
-        overlapping_vars = False
-        if self.beam:
-            remains = set(new_evidence.keys()) - set(evidence.keys())
-            overlapping_vars = remains.intersection(set(self.beam[0][0].keys()))
-
-        if overlapping_vars:
-            self.clamp({o: new_evidence[o] for o in overlapping_vars})
-
-        evidence.update(new_evidence)
-
-        variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
-        if len(variables) == 0:
-            return
-        # add factor to set of factors if a at least one variable is included in the factors scope (i.e. ignore irrelevant factors
-        factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
-
-        # Reduce factors givent he evidence
-        for var, val in evidence.items():
-            for factor in factors:
-                if var in factor.scope():
-                    factor.reduce([(var, val)])
-
-        # Make continuous factors discrete
-        updated_factors = []
-        for factor in factors:
-            if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
-                factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
-            updated_factors.append(factor)
-
-        # Combine everything into one big factor
-        phi = reduce(lambda x, y: x * y, updated_factors)
-
-        # find all non-zero probability states from the relevant factors
-        variables = phi.scope()
-        nonzero = np.nonzero(phi.values)  # the indexes of non-zero values in phi
-        assert(len(variables) == len(nonzero))
-        viable = []
-        for i in range(len(nonzero[0])):
-            d = {}
-            for j, var in enumerate(variables):
-                d[var] = nonzero[j][i]
-            viable.append(d)
-
-        new_beams = []
-        for trace in viable:
-            a = []
-            for var in phi.scope():
-                a.append(trace[var])
-            a = tuple(a)
-            new_beams.append((trace, phi.values[a]))
-
-        norm = 0
-        out_beams = []
-        for beam, val in self.beam:
-            for new_beam, new_val in new_beams:
-
-                overlap = set(beam.keys()).intersection(set(new_beam.keys()))
-
-                if all([beam[var] == new_beam[var] for var in overlap]):
-                    out_beam = beam.copy()
-                    out_beam.update(new_beam)
-                    out_beam.update(evidence)
-                    p = val * new_val
-                    out_beams.append((out_beam, p))
-                    norm += p
-
-        out_beams = [(b, p/norm) for b, p in out_beams]
-        self.norm = 1
-        self.beam = out_beams
-
-    def p(self, var, val):
-        try:
-            return sum([p for (beam, p) in self.beam if beam[var]==val])/self.norm
-        except KeyError:
-            return None
-
-    def clamp(self, evidence):
-
-        for var, val in evidence.items():
-            self.beam = [(beam, p) for beam, p in self.beam if beam[var] == val]
-        self.norm = sum([p for _, p in self.beam])
-    #
-    # def variable_clamp(self, worlds):
-    #     self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
-
-    def query(self, variables, values=None):
-        if values is None:
-            values = [1]*len(variables)
-        return {var: self.p(var, val) for var, val in zip(variables, values)}
+#
+# class SearchInference(object):
+#
+#     def __init__(self, model, beam_size=-1):
+#         self.model = model
+#         self.beam = [({}, 1)]
+#         self.beam_size = beam_size
+#         self.norm = 0
+#
+#     def infer(self, evidence, new_evidence):
+#
+#         overlapping_vars = False
+#         if self.beam:
+#             remains = set(new_evidence.keys()) - set(evidence.keys())
+#             overlapping_vars = remains.intersection(set(self.beam[0][0].keys()))
+#
+#         if overlapping_vars:
+#             self.clamp({o: new_evidence[o] for o in overlapping_vars})
+#
+#         evidence.update(new_evidence)
+#
+#         variables = set(self.model.nodes()) - set(evidence.keys()) - set(self.model.factors) - set(self.beam[0][0].keys())
+#         if len(variables) == 0:
+#             return
+#         # add factor to set of factors if a at least one variable is included in the factors scope (i.e. ignore irrelevant factors
+#         factors = [factor for factor in self.model.factors if len(set(factor.scope()) - variables) < len(factor.scope())]
+#
+#         # Reduce factors givent he evidence
+#         for var, val in evidence.items():
+#             for factor in factors:
+#                 if var in factor.scope():
+#                     factor.reduce([(var, val)])
+#
+#         # Make continuous factors discrete
+#         updated_factors = []
+#         for factor in factors:
+#             if isinstance(factor, ContinuousFactor) and len(factor.scope()) == 1:
+#                 factor = DiscreteFactor(factor.scope(), [2], [factor.assignment(0), factor.assignment(1)])
+#             updated_factors.append(factor)
+#
+#         # Combine everything into one big factor
+#         phi = reduce(lambda x, y: x * y, updated_factors)
+#
+#         # find all non-zero probability states from the relevant factors
+#         variables = phi.scope()
+#         nonzero = np.nonzero(phi.values)  # the indexes of non-zero values in phi
+#         assert(len(variables) == len(nonzero))
+#         viable = []
+#         for i in range(len(nonzero[0])):
+#             d = {}
+#             for j, var in enumerate(variables):
+#                 d[var] = nonzero[j][i]
+#             viable.append(d)
+#
+#         new_beams = []
+#         for trace in viable:
+#             a = []
+#             for var in phi.scope():
+#                 a.append(trace[var])
+#             a = tuple(a)
+#             new_beams.append((trace, phi.values[a]))
+#
+#         norm = 0
+#         out_beams = []
+#         for beam, val in self.beam:
+#             for new_beam, new_val in new_beams:
+#
+#                 overlap = set(beam.keys()).intersection(set(new_beam.keys()))
+#
+#                 if all([beam[var] == new_beam[var] for var in overlap]):
+#                     out_beam = beam.copy()
+#                     out_beam.update(new_beam)
+#                     out_beam.update(evidence)
+#                     p = val * new_val
+#                     out_beams.append((out_beam, p))
+#                     norm += p
+#
+#         out_beams = [(b, p/norm) for b, p in out_beams]
+#         self.norm = 1
+#         self.beam = out_beams
+#
+#     def p(self, var, val):
+#         try:
+#             return sum([p for (beam, p) in self.beam if beam[var]==val])/self.norm
+#         except KeyError:
+#             return None
+#
+#     def clamp(self, evidence):
+#
+#         for var, val in evidence.items():
+#             self.beam = [(beam, p) for beam, p in self.beam if beam[var] == val]
+#         self.norm = sum([p for _, p in self.beam])
+#     #
+#     # def variable_clamp(self, worlds):
+#     #     self.beam = [(beam, val) for beam, val in self.beam if check_beam_holds(beam, worlds)]
+#
+#     def query(self, variables, values=None):
+#         if values is None:
+#             values = [1]*len(variables)
+#         return {var: self.p(var, val) for var, val in zip(variables, values)}
 
 
 def is_overlap(set1, set2):
@@ -524,9 +525,7 @@ class PGMModel(object):
 
         if self.inference_type == InferenceType.SearchInference:
             self.inference = ApproximateSearchInference(self.max_beam_size, self.ordered_models)
-
-        # elif self.inference_type == InferenceType.SearchInference:
-        #     self.search_inference = SearchInference(self.model)
+            print("Using approximate search inference")
         else:
             self.inference = PGMPYInference(self.model, inference_type=self.inference_type, sampling_type=self.sampling_type)
 
@@ -664,11 +663,13 @@ class PGMModel(object):
 
 class CorrectionPGMModel(PGMModel):
 
-    def __init__(self, **kwargs):
+    def __init__(self, p_direct=1.0, p_indirect=1.0, **kwargs):
         super(CorrectionPGMModel, self).__init__(**kwargs)
         self.known_rules = set()
         self.rule_priors = {}
         self.colours = {}
+        self.p_direct = p_direct
+        self.p_indirect = p_indirect
         # self.reset()
 
     def reset(self):
@@ -683,7 +684,7 @@ class CorrectionPGMModel(PGMModel):
         self.colour_variables.append(red_o1)
         if 't' in block:
             self.model.add_nodes_from([red_o1])
-            red_cm_factor = TabularCPD(red_o1, 2, [[1, 0]])
+            red_cm_factor = TabularCPD(red_o1, 2, [[1, 0]]).to_factor()
             self.add_factor([red_o1], red_cm_factor, model)
             return red_o1
         if red_o1 not in self.model.nodes():
@@ -731,26 +732,43 @@ class CorrectionPGMModel(PGMModel):
             else:
                 raise ValueError(f"Unexpected rule type {type(rule)}")
 
-        self.add_correction_factor(violations, time, model=model)
+        self.add_correction_factor(violations, time, model=model, p=self.p_direct)
 
         return violations
 
-    # def add_no_table_correction(self, args, time):
-    #     if not self.known_rules:
-    #         return
-    #
-    #     model = self.add_new_model()
-    #
-    #     violations = []
-    #
-    #     for rule in self.known_rules:
-    #         red = rule.c1
-    #         blue = rule.c2
-    #         violations.append(self.add_table_violation(rule, self.colours[red], self.colours[blue], args, time, model=model))
-    #
-    #     self.add_correction_factor(violations, time)
-    #
-    #     return violations
+    def add_recovery(self, args: list, time: int, rules: list, red_cm: KDEColourModel, blue_cm: KDEColourModel):
+
+        model = self.add_new_model()
+
+        red_o1 = self.add_cm(red_cm, args[0], model=model)
+        blue_o2 = self.add_cm(blue_cm, args[1], model=model)
+
+        r1, r2 = rules
+
+        self.add_prior(r1, model)
+        self.add_prior(r2, model)
+
+        self.known_rules.add(r1)
+        self.known_rules.add(r2)
+
+        colour_models = [red_o1, blue_o2]
+
+        correction_type = CorrectionType.RECOVER
+
+        violated_r1 = self.add_violation_factor(r1, time, colour_models,
+                                                correction_type=correction_type, model=model)
+        violated_r2 = self.add_violation_factor(r2, time, colour_models,
+                                                correction_type=correction_type,  model=model)
+        self.add_correction_factor([violated_r1, violated_r2], time, model, p=1)
+
+        return violated_r1, violated_r2
+
+    def get_p(self, correction_type):
+        if correction_type == CorrectionType.TOWER:
+            p = self.p_indirect
+        else:
+            p = self.p_direct
+        return p
 
     def add_violation_factor(self, rule, time, colours, correction_type=CorrectionType.TABLE, table_empty=False, model=None):
         """ Adds a factor representing when the rule is violated
@@ -768,8 +786,10 @@ class CorrectionPGMModel(PGMModel):
 
         evidence = colours + [str(rule)]
 
+        p = 1.0  #   self.get_p(correction_type)
+
         violated_rule_cpd = rule.generateCPD(correction_type=correction_type, len_evidence=len(evidence),
-                                             table_empty=table_empty)
+                                             table_empty=table_empty, p=p)
 
         try:
 
@@ -789,21 +809,21 @@ class CorrectionPGMModel(PGMModel):
         self.add_factor([violated_rule_factor_name, rule, rule_violated_factor] + evidence, rule_violated_factor, model=model)
         return violated_rule_factor_name
 
-    def add_correction_factor(self, violations, time, model=None):
+    def add_correction_factor(self, violations, time, model=None, p=1):
         """
         :param violations:
         :param time:
         :return:
         """
         corr = f'corr_{time}'
-        correction_table = variable_or_CPD(len(violations))
+        correction_table = variable_or_CPD(len(violations), p)
         correction = TabularCPD(corr, 2, correction_table, evidence=violations, evidence_card=[2]*len(violations))
         correction_factor = correction.to_factor()
         self.add_factor([corr, correction_factor] + violations, correction_factor, model=model)
         return corr
 
     def add_cc_and_rob(self, colour_count: ColourCountRule, red_on_blue_options: list, red_cm: KDEColourModel,
-                       blue_cm: KDEColourModel, objects_in_tower: list, top_object:str, time:int):
+                       blue_cm: KDEColourModel, objects_in_tower: list, top_object: str, time: int):
 
         model = self.add_new_model()
 
@@ -821,7 +841,10 @@ class CorrectionPGMModel(PGMModel):
 
     def add_joint_violations(self, colour_count: ColourCountRule, red_on_blue_options: list, time: int,
                              colours_in_tower: list, model: FactorGraph):
-        cpds = [colour_count.generateCPD(num_blocks_in_tower=len(colours_in_tower), correction_type=CorrectionType.TABLE)
+
+        p = self.get_p(CorrectionType.TABLE)
+
+        cpds = [colour_count.generateCPD(num_blocks_in_tower=len(colours_in_tower), correction_type=CorrectionType.TABLE, p=p)
                 for rule in red_on_blue_options]
         violated_rule_factor_name1 = f"V_{time}({colour_count} && {red_on_blue_options[0]})"
         violated_rule_factor_name2 = f"V_{time}({colour_count} && {red_on_blue_options[1]})"
@@ -873,7 +896,10 @@ class CorrectionPGMModel(PGMModel):
                                                 correction_type=correction_type, table_empty=table_empty, model=model)
         violated_r2 = self.add_violation_factor(r2, time, colour_models,
                                                 correction_type=correction_type, table_empty=table_empty, model=model)
-        self.add_correction_factor([violated_r1, violated_r2], time, model)
+
+        p = self.p_direct if correction_type == CorrectionType.TOWER else self.p_indirect
+
+        self.add_correction_factor([violated_r1, violated_r2], time, model, p=p)
 
         return violated_r1, violated_r2
 
@@ -902,19 +928,22 @@ class CorrectionPGMModel(PGMModel):
         f = DiscreteFactor(evidence, [2]*len(evidence), t)
         self.add_factor(evidence, f, model)
 
-    def get_rule_probs(self, update_prior=False):
+    def get_rule_probs(self):
         rules = [str(rule) for rule in self.known_rules]
         q = self.query(rules)
-        # for rule, p in q.items():
-        #     if p is None:
-        #         q[rule] = self.rule_priors[rule]
 
-        if update_prior:
-            for rule in rules:
-                try:
-                    self.rule_priors[rule] = q[rule]
-                except KeyError:
-                    q[rule] = self.rule_priors[rule]
+        print("rule priors", self.rule_priors)
+        print("queried rules", q)
+
+
+
+        for rule in rules:
+            try:
+                self.rule_priors[rule] = q[rule]
+            except KeyError:
+                q[rule] = self.rule_priors[rule]
+
+        print("new rule priors", self.rule_priors)
         return q
 
     def get_colour_predictions(self):

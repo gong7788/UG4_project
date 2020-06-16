@@ -69,12 +69,13 @@ def place_objects(objects, state, y_start):
             for predicate in state.get_predicates(o):
                 if predicate.name == 'on':
                     x, y = predicate.args
-                    if y_pos[y] != -1:
-                        if 't' in y:
-                            y_pos[x] = y_pos[y]
-                        else:
-                            y_pos[x] = y_pos[y] + HEIGHT
-                        x_pos[x] = x_pos[y]
+                    if x == o:
+                        if y_pos[y] != -1:
+                            if 't' in y:
+                                y_pos[x] = y_pos[y]
+                            else:
+                                y_pos[x] = y_pos[y] + HEIGHT
+                            x_pos[x] = x_pos[y]
     return [(x_pos[o], y_pos[o]) for o in objects]
 
 

@@ -372,6 +372,8 @@ def test_red_on_blue_directly_on_table():
 
 
 def test_faulty_teacher():
+    # TEST THAT THE INDIRECT VIOLATION IS SKIPPED
+    #
     w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
                         problem_directory="multitower", problem_number=3)
 
@@ -387,5 +389,91 @@ def test_faulty_teacher():
                                                           args=['b0', 't0', 'tower0'])
     possible_corrections = [s for s, c in possible_corrections]
 
-    assert ("No, now you cannot put b4 in the tower because you must put blue blocks on red blocks" in possible_corrections)
+    assert ("no, now you cannot put b4 in the tower because you must put blue blocks on red blocks" in possible_corrections)
     assert ("" == faulty_teacher.correction(w, args=['b0', 't0', 'tower0']))
+
+
+def test_faulty_teacher_direct():
+
+    # TEST THAT A DIRECT VIOLATION IS SKIPPED
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=3)
+
+    w.update('put', ['b1', 't1', 'tower1'])  # red
+    w.update('put', ['b2', 'b1', 'tower1'])  # orange
+
+    #w.update('put', [])
+
+    assert(w.test_failure())
+
+    teacher = ExtendedTeacherAgent()
+    faulty_teacher = FaultyTeacherAgent(recall_failure_prob=0.0, p_miss_direct=1.0)
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True,
+                                                          args=['b2', 'b1', 'tower1'])
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert ("no, put blue blocks on red blocks" in possible_corrections)
+    assert ("" == faulty_teacher.correction(w, args=['b2', 'b1', 'tower1']))
+
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=3)
+
+
+    # TEST THAT A COMBINED r1/r2 r3 INDIRECT VIOLATION IS SKIPPED
+    w.update('put', ['b1', 't1', 'tower1'])  # red
+    w.update('put', ['b0', 'b1', 'tower1'])  # blue
+
+    w.update('put', ['b4', 'b0', 'tower1'])  # red
+    #w.update('put', ['b5', 'b4', 'tower1'])
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True,
+                                                          args=['b2', 'b1', 'tower1'])
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert ("no, you cannot put more than 1 blue blocks in a tower and you must put blue blocks on red blocks" in possible_corrections)
+    assert ("no, you cannot put more than 1 blue blocks in a tower and you must put blue blocks on red blocks" == faulty_teacher.correction(w, args=['b3', 't1', 'tower1']))
+
+    faulty_teacher = FaultyTeacherAgent(recall_failure_prob=1.0, p_miss_direct=1.0)
+
+    assert ("" == faulty_teacher.correction(w, args=['b3', 't1', 'tower1']))
+
+    # TEST THAT A r3 DIRECT VIOLATION IS SKIPPED
+    w.update('put', ['b5', 'b4', 'tower1'])
+
+    correction, possible_corrections = teacher.correction(w, return_possible_corrections=True,
+                                                          args=['b2', 'b1', 'tower1'])
+    possible_corrections = [s for s, c in possible_corrections]
+
+    assert ("no, you cannot put more than 1 blue blocks in a tower" in possible_corrections)
+    assert ("" == faulty_teacher.correction(
+            w, args=['b5', 'b4', 'tower1']))
+
+
+    faulty_teacher.recover_prob = 1
+    assert("no, you cannot put more than 1 blue blocks in a tower and you must put blue blocks on red blocks" in faulty_teacher.skipped_indirect_corrections)
+    assert ("no, you cannot put more than 1 blue blocks in a tower and you must put blue blocks on red blocks" == faulty_teacher.correction(w, args=['b6', 'b5', 'tower1']))
+
+def test_faulty_teacher_recovery_at_end():
+    w = world.PDDLWorld(domain_file='blocks-domain-updated.pddl',
+                        problem_directory="multitower", problem_number=3)
+
+    w.update('put', ['b1', 't1', 'tower1'])  # red
+    w.update('put', ['b2', 'b1', 'tower1'])  # orange
+    w.update('put', ['b0', 'b2', 'tower1'])  # blue
+    w.update('put', ['b4', 'b0', 'tower1'])  # red
+    w.update('put', ['b5', 'b4', 'tower1'])  # blue
+    w.update('put', ['b6', 'b5', 'tower1'])  #
+    w.update('put', ['b7', 'b6', 'tower1'])  #
+    w.update('put', ['b8', 'b7', 'tower1'])  #
+    w.update('put', ['b9', 'b8', 'tower1'])  #
+    w.update('put', ['b3', 'b9', 'tower1'])  #
+
+    assert(w.objects_not_in_tower() == [])
+    assert(len(w.objects_not_in_tower()) == 0)
+
+    faulty_teacher = FaultyTeacherAgent()
+
+    assert(w.get_objects_in_tower('tower1') == ['t1', 'b1', 'b2', 'b0', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9', 'b3'])
+
+    assert("sorry, b0 and b1 are wrong because you must put blue blocks on red blocks" == faulty_teacher.correction(w, ['b3', 'b9', 'tower1']))

@@ -14,25 +14,30 @@ class TeacherType(Enum):
     Extended = 3
     Faulty = 4
 
+
 def tower_correction(obj1, obj2):
     return f"no, put {obj1} blocks on {obj2} blocks"
+
 
 def joint_tower_correction(obj1, obj2):
     return f"you must put {obj1} blocks on {obj2} blocks"
 
+
 def table_correction(obj1, obj2, obj3):
-    return f"No, now you cannot put {obj3} in the tower because you must put {obj1} blocks on {obj2} blocks"
+    return f"no, now you cannot put {obj3} in the tower because you must put {obj1} blocks on {obj2} blocks"
 
 
 def not_correction(obj1, obj2):
-    return f"No, don't put {obj1} blocks on {obj2} blocks"
+    return f"no, don't put {obj1} blocks on {obj2} blocks"
 
 
 def table_not_correction(obj1, obj2, obj3):
-    return f"No, now you cannot put {obj3} in the tower because you cannot put {obj1} blocks on {obj2} blocks"
+    return f"no, now you cannot put {obj3} in the tower because you cannot put {obj1} blocks on {obj2} blocks"
+
 
 def colour_count_correction(colour, number):
     return f"no, you cannot put more than {number} {colour} blocks in a tower"
+
 
 def get_rules(goal):
     """Returns the individual rules which make up the goal"""
@@ -116,7 +121,7 @@ def get_tower_correction(rule: Rule, wrld: PDDLWorld, tower: str):
         return Correction(rule, [out_tower], correction_str)
 
 
-def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None, tower: str = None):
+def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None, tower: str = None, consider_top_block=False):
     if isinstance(rule, RedOnBlueRule):
 
         if rule.rule_type == 1:
@@ -124,17 +129,24 @@ def get_table_correction(rule: Rule, wrld: PDDLWorld, rules: list = None, tower:
         else:
             colour = rule.c2
 
+        top_block_returned = False
+
         o3 = wrld.state.get_block_with_colour(colour)
         if o3 is None:
             towers = [t.replace('t', 'tower') for t in wrld.state.towers if t.replace('t', 'tower') != tower]
             o3 = [top for top, second in
                   [wrld.state.get_top_two(t) for t in towers]
                   if wrld.state.predicate_holds(colour, [top])][0]
+            top_block_returned = True
 
         o1, o2 = wrld.state.get_top_two(tower)
 
         corr = Correction(rule, [o1, o2, o3], table_correction(rule.c1, rule.c2, o3))
-        return corr
+        if consider_top_block:
+            return corr, top_block_returned
+        else:
+            return corr
+
     elif isinstance(rule, ColourCountRule):
         for tower in wrld.state.towers:
             tower = tower.replace('t', 'tower')
@@ -271,13 +283,27 @@ class ExtendedTeacherAgent(TeacherAgent):
 
 class FaultyTeacherAgent(Teacher):
 
-    def __init__(self, recall_failure_prob=0.5, recover_prob=0.1):
+    def __init__(self, recall_failure_prob=0.5, recover_prob=0.1, p_miss_direct=0, p_add_direct=0, p_recover_direct=0, add_random_rule=False, signal_repairs=False):
+        """
+
+        :param recall_failure_prob: the probability at which the teacher will miss indirect violations 0 implies perfect recall
+        :param recover_prob: probability that the teacher will attempt a repair on a random action after an indirect violation has been made
+
+        """
         self.recall_failure_prob = recall_failure_prob
         self.recover_prob = recover_prob
-        self.skipped_corrections = []
+        self.skipped_indirect_corrections = []
+        self.skipped_direct_corrections = []
+        self.signal_repairs = signal_repairs
+
+        self.p_miss_direct = p_miss_direct
+        self.p_add_direct = p_add_direct
+        self.fail_on_random_rule = add_random_rule
+        self.p_recover_direct = p_recover_direct
 
     def reset(self):
-        self.skipped_corrections = []
+        self.skipped_indirect_corrections = []
+        self.skipped_direct_corrections = []
 
     def correction(self, w, args):
 
@@ -293,37 +319,108 @@ class FaultyTeacherAgent(Teacher):
         # a->b, a -b
         # b-> a b -a
         rules = Rule.get_rules(w.problem.goal)
+
+        direct_failure_value = np.random.rand()
+
+        skipped_correction = False
+
         for rule in rules:
             rule_violated = rule.check_tower_violation(w.state, tower)
             if rule_violated:
-                return get_tower_correction(rule, w, tower).sentence
+                if direct_failure_value >= self.p_miss_direct:
+                    if isinstance(rule, ColourCountRule):
+                        o, _ = w.state.get_top_two(tower)
+                        if w.state.predicate_holds(rule.colour_name, [o]):
+                            return get_tower_correction(rule, w, tower).sentence
+                    else:
+                        return get_tower_correction(rule, w, tower).sentence
+                else:
+                    self.skipped_direct_corrections.append(get_tower_correction(rule, w, tower).sentence)
+                    #skipped_correction = True
 
-        r = np.random.rand()
+        recall_value = np.random.rand()
 
         for rule in rules:
             if rule.check_table_violation(w.state, rules, tower):
-                if r > self.recall_failure_prob:
-                    return get_table_correction(rule, w, rules, tower).sentence
+                if recall_value > self.recall_failure_prob:
+                    corr, top_block_returned = get_table_correction(rule, w, rules, tower, consider_top_block=True)
+                    if not top_block_returned:
+                        return corr.sentence
+                    elif len(self.skipped_direct_corrections) > 0:
+                        get_recovery_correction(w, rules)
+                    else:
+                        raise NotImplementedError("I don't think we should get here")
+
                 else:
-                    self.skipped_corrections.append(get_table_correction(rule, w, rules, tower))
+                    self.skipped_indirect_corrections.append(get_table_correction(rule, w, rules, tower).sentence)
+                    #skipped_correction = True
 
-        if len(w.state.get_objects_on_table()) == 0:
-            if not w.test_success():
-                rules = Rule.get_rules(w.problem.goal)
-                for rule in rules:
-                    if rule.rule_type == 2:
-                        for tower in w.state.towers:
-                            tower = tower.replace('t', 'tower')
-                            top, _ = w.state.get_top_two(tower)
-                            if w.state.predicate_holds(rule.c2, [top]):
-                                return get_tower_correction(rule, w, tower).sentence
+        # if len(w.state.get_objects_on_table()) == 0:
+        #     if not w.test_success():
+        #         rules = Rule.get_rules(w.problem.goal)
+        #         for rule in rules:
+        #             if rule.rule_type == 2:
+        #                 for tower in w.state.towers:
+        #                     tower = tower.replace('t', 'tower')
+        #                     top, _ = w.state.get_top_two(tower)
+        #                     if w.state.predicate_holds(rule.c2, [top]):
+        #                         return get_tower_correction(rule, w, tower).sentence
 
-        if len(self.skipped_corrections) > 0:
+        add_correction_value = np.random.rand()
+        if add_correction_value < self.p_add_direct:
+            if self.fail_on_random_rule:
+                rule = Rule.generate_random_rule()
+            else:
+                rule = random.choice(Rule.get_rules(w.problem.goal))
+
+            return get_tower_correction(rule, w, tower).sentence
+
+        if len(self.skipped_indirect_corrections) > 0 and skipped_correction is False:
             r = np.random.rand()
             if r < self.recover_prob:
-                correction = np.random.choice(self.skipped_corrections)
-                self.skipped_corrections.remove(correction)
-                return correction
+                correction = np.random.choice(self.skipped_indirect_corrections)
+                self.skipped_indirect_corrections.remove(correction)
+                if self.signal_repairs:
+                    correction_sentence = "sorry, " + correction
+                else:
+                    correction_sentence = correction
+                return correction_sentence
+
+        if len(self.skipped_direct_corrections) > 0 and skipped_correction is False:
+            r = np.random.rand()
+            if r < self.p_recover_direct:
+                correction = np.random.choice(self.skipped_direct_corrections)
+                self.skipped_direct_corrections.remove(correction)
+                if self.signal_repairs:
+                    correction_sentence = "sorry, " + correction
+                else:
+                    correction_sentence = correction
+                return correction_sentence
+
+        if len(w.objects_not_in_tower()) == 0:
+            return get_recovery_correction(w, rules)
 
         return ""
 
+
+def get_recovery_correction(w, rules):
+    objects_in_towers = {t: w.get_objects_in_tower(t.replace('t', 'tower')) for t in w.state.towers}
+    for rule in rules:
+        if isinstance(rule, RedOnBlueRule):
+            c1 = rule.c1
+            c2 = rule.c2
+            offending_object1 = None
+            offending_object2 = None
+            for (t, objects) in objects_in_towers.items():
+                for i, o in enumerate(objects):
+                    c1_holds = w.state.predicate_holds(c1, [o])
+                    c2_holds = w.state.predicate_holds(c2, [o])
+                    c2_o2_holds = (i == 0 or not w.state.predicate_holds(c2, [objects[i - 1]]))
+                    c1_o1_holds = ((i + 1) == len(objects) or not w.state.predicate_holds(c1, [objects[i + 1]]))
+                    if offending_object1 is None and c1_holds and c2_o2_holds:
+                        offending_object1 = o
+                    elif offending_object2 is None and c2_holds and c1_o1_holds:
+                        offending_object2 = o
+
+            if offending_object1 is not None and offending_object2 is not None:
+                return f"sorry, {offending_object1} and {offending_object2} are wrong because " + joint_tower_correction(c1, c2)

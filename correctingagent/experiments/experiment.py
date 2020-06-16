@@ -38,8 +38,7 @@ def get_agent(config):
                   'agents.PerfectColourAgent': PerfectColoursAgent,
                   'agents.NoLanguageAgent': NoLanguageAgent,
                   'NoLanguageAgent': NoLanguageAgent,
-                  'PGMAgent': PGMAgent.PGMCorrectingAgent,
-                  'InitialAdvice': PGMAgent.ClassicalAdviceBaseline}
+                  'PGMAgent': PGMAgent.PGMCorrectingAgent}
     return agent_dict[config['agent']]
 
 
@@ -111,7 +110,7 @@ class Debug(object):
 def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                  threshold, update_negative, update_once, debug_agent, domain_file,
                  simplified_colour_count=False, inference_type=InferenceType.SearchInference,
-                 max_inference_size=-1):
+                 max_inference_size=-1, max_beam_size=-1, p_direct=1.0, p_indirect=1.0):
     if agent in [agents.CorrectingAgent, agents.NoLanguageAgent, PGMAgent.PGMCorrectingAgent]:
         if colour_model_type == 'kde':
             if colour_model_config_name is None:
@@ -122,7 +121,8 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
         agent = agent(w, teacher=teacher, threshold=threshold, update_negative=update_negative, update_once=update_once,
                       colour_model_type=colour_model_type, model_config=colour_model_config, debug=debug_agent,
                       domain_file=domain_file, simplified_colour_count=simplified_colour_count,
-                      inference_type=inference_type, max_inference_size=max_inference_size)
+                      inference_type=inference_type, max_inference_size=max_inference_size, max_beam_size=max_beam_size,
+                      p_direct=p_direct, p_indirect=p_indirect)
         print(colour_model_config_name)
         print(colour_model_config)
     else:
@@ -171,6 +171,7 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
                 break
             elif no_correction_update:
                 agent.no_correction(a, args)
+    return num_corrections
 
 
 def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
@@ -178,11 +179,13 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
                     teacher_type=TeacherType.Old, results_file=None, world_type='PDDL', use_hsv=False, debug_agent=None,
                     domain_file='blocks-domain.pddl', simplified_colour_count=False,
                     recall_failure_prob=0.0, recovery_prob=0.0, num_allowed_corrections=-1,
-                    inference_type=InferenceType.SearchInference, max_inference_size=-1, **kwargs):
+                    inference_type=InferenceType.SearchInference, max_inference_size=-1, max_beam_size=-1, p_direct_skip=0.0,
+                    p_direct_add=0.0, p_direct_recover=0.0, add_random_rule=False, signal_recovery=False, p_direct=1, p_indirect=1, **kwargs):
     config = get_config()
     data_location = Path(config['data_location'])
 
     total_reward = 0
+    total_corrections = 0
     problem_dir = data_location / problem_name
 
     problems = os.listdir(problem_dir)
@@ -204,20 +207,22 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     elif teacher_type == TeacherType.Human:
         teacher = HumanTeacher()
     elif teacher_type == TeacherType.Faulty:
-        teacher = FaultyTeacherAgent(recall_failure_prob, recovery_prob)
+        teacher = FaultyTeacherAgent(recall_failure_prob=recall_failure_prob, recover_prob=recovery_prob, p_miss_direct=p_direct_skip,
+                                     p_add_direct=p_direct_add, p_recover_direct=p_direct_recover, signal_repairs=signal_recovery, add_random_rule=add_random_rule)
     else:
         raise ValueError("Invalid teacher type")
 
     agent = create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                          threshold, update_negative, update_once, debug_agent, domain_file,
-                         simplified_colour_count, inference_type=inference_type, max_inference_size=max_inference_size)
+                         simplified_colour_count, inference_type=inference_type, max_inference_size=max_inference_size,
+                         max_beam_size=max_beam_size, p_direct=p_direct, p_indirect=p_indirect)
 
     if results_file is not None:
         results_file.write(f'Results for {problem_name}\n')
 
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
-        do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update,
+        num_corrections = do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update,
                     num_allowed_corrections=num_allowed_corrections)
 
         # if debug and not 'Random' in config['agent']:
@@ -225,14 +230,17 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
         #     debugger.update_cm_params(agent)
 
         total_reward += w.reward
+
         print(f'{problem_name} reward: {w.reward}')
         if results_file is not None:
             results_file.write(f'{problem_name} reward: {w.reward}\n')
             results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
+            results_file.write(f"{problem_name} num corrections: {num_corrections}\n")
+
     if results_file is not None:
         results_file.write(f'total reward: {total_reward}\n')
         if agent.inference_times is not None:
-            inference_times = [x for x in agent.inference_times if x is not None]
+            inference_times = [str(x) for x in agent.inference_times if x is not None]
             results_file.write(f"inference time: {','.join(inference_times)}")
     #
     # if debug and not 'Random' in config['agent']:
@@ -286,7 +294,15 @@ def get_experiment_config(config_name, colour_model_config):
         "recovery_prob": config.getfloat('recovery_prob'),
         "num_allowed_corrections": config.getint('num_allowed_corrections'),
         "inference_type": inference_type[config['inference_type']],
-        "max_inference_size": config.getint("max_inference_size")
+        "max_inference_size": config.getint("max_inference_size"),
+        "max_beam_size": config.getint("max_beam_size"),
+        "p_direct_skip": config.getfloat("p_direct_skip"),
+        "p_direct_recover": config.getfloat("p_direct_recover"),
+        "p_direct_add": config.getfloat("p_direct_add"),
+        "add_random_rule": config.getboolean("add_random_rule"),
+        "signal_recovery": config.getboolean("signal_recovery"),
+        "p_direct": config.getfloat("p_direct"),
+        "p_indirect": config.getfloat("p_indirect")
     }
     return config_dict
 

@@ -92,17 +92,18 @@ def binary_flip(n):
     return out
 
 
-def variable_or_CPD(n):
+def variable_or_CPD(n, p=1.0):
     if n == 0:
         return []
     flippings = binary_flip(n)
-    CPD = np.zeros((2, len(flippings)), dtype=np.int32)
+    CPD = np.zeros((2, len(flippings)), dtype=np.float)
     for i, l in enumerate(flippings):
         correction = int(reduce(lambda x, y: x or y, l))
         # correction should happen (C=1)
-        CPD[1][i] = correction
+        value = p if correction else 1-p
+        CPD[1][i] = value
         # correction should not happen (C=0)
-        CPD[0][i] = 1-correction
+        CPD[0][i] = 1-value
     return CPD
 
 

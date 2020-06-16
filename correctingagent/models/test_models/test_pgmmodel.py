@@ -102,30 +102,30 @@ def test_table_cpd_creation_r2():
     assert (cpd.p({'red(o1)': 0, 'blue(o2)': 1, 'red(o3)': 0, 'blue(o3)': 0,
                    rule: 1, violated_rule_factor_name: 1}) == 0.0)
 
-
-def test_add_cm():
-    pgm_model = CorrectionPGMModel()
-
-    red_cm = KDEColourModel('red')
-    blue_cm = KDEColourModel('blue')
-
-    red_b3 = pgm_model.add_cm(red_cm, 'b3')
-    blue_t0 = pgm_model.add_cm(blue_cm, 't0')
-
-    assert(red_b3 == 'red(b3)')
-    assert(blue_t0 == 'blue(t0)')
-
-    pgm_model.observe({'F(b3)':[1,1,1], 'blue(t0)':0})
-    # pgm_model.infer()
-
-    query = pgm_model.query(['red(b3)'], [1])
-    assert(query['red(b3)'] == 0.5)
-
-    rule = RedOnBlueRule('red', 'blue', 1)
-
-    pgm_model.add_prior(str(rule))
-
-    assert(pgm_model.get_rule_prior(str(rule)) == 0.1)
+#
+# def test_add_cm():
+#     pgm_model = CorrectionPGMModel()
+#
+#     red_cm = KDEColourModel('red')
+#     blue_cm = KDEColourModel('blue')
+#
+#     red_b3 = pgm_model.add_cm(red_cm, 'b3')
+#     blue_t0 = pgm_model.add_cm(blue_cm, 't0')
+#
+#     assert(red_b3 == 'red(b3)')
+#     assert(blue_t0 == 'blue(t0)')
+#
+#     pgm_model.observe({'F(b3)':[1,1,1], 'blue(t0)':0})
+#     # pgm_model.infer()
+#
+#     query = pgm_model.query(['red(b3)'], [1])
+#     assert(query['red(b3)'] == 0.5)
+#
+#     rule = RedOnBlueRule('red', 'blue', 1)
+#
+#     pgm_model.add_prior(str(rule))
+#
+#     assert(pgm_model.get_rule_prior(str(rule)) == 0.1)
 
 
 def test_extend_model():

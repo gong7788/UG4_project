@@ -1,7 +1,12 @@
 
 #python run_experiments.py naive_faulty_onerule fixed_bw_0.05
 
-python run_experiments.py faulty_onerule fixed_bw_0.05
+#python run_experiments.py faulty_onerule_indirect0.5 fixed_bw_0.05
+#python run_experiments.py faulty_onerule_direct_skip0.1 fixed_bw_0.05
+#python run_experiments.py faulty_onerule_notfaulty fixed_bw_0.05
+#python run_experiments.py faulty_onerule_direct_add0.1 fixed_bw_0.05
+#python run_experiments.py faulty_onerule_direct0.1 fixed_bw_0.05
+python run_experiments.py faulty_onerule_both fixed_bw_0.05
 #python run_experiments.py faulty_onerule fixed_bw_0.05
 #python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_BP fixed_bw_0.05
 

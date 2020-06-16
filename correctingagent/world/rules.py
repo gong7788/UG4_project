@@ -10,6 +10,7 @@ import pythonpddl
 from nltk import Valuation, Model
 from pythonpddl.pddl import Predicate, TypedArgList, Formula
 
+from correctingagent.util import colour_dict
 from correctingagent.util.CPD_generation import binary_flip
 from correctingagent.pddl import pddl_functions
 from correctingagent.pddl.pddl_functions import make_variable_list, PDDLState, ColourCount
@@ -20,6 +21,9 @@ class CorrectionType(Enum):
     TOWER = 1
     TABLE = 2
     UNCERTAIN_TABLE = 3
+    RECOVER = 4
+    UNCERTAIN_TOWER = 5
+
 
 def split_rule(rule):
     bits = rule.split('.(')
@@ -130,6 +134,15 @@ class Rule(object):
     def generate_red_on_blue_options(c1, c2):
         return [RedOnBlueRule(c1, c2, rule_type=1), RedOnBlueRule(c1, c2, rule_type=2)]
 
+    @staticmethod
+    def generate_random_rule(use_colour_count=False):
+        if use_colour_count is True:
+            raise NotImplementedError()
+        c1 = np.random.choice(colour_dict.keys())
+        c2 = np.random.choice(colour_dict.keys())
+        while c1 == c2:
+            c2 = np.random.choice(colour_dict.keys())
+        return np.random.choice(Rule.generate_red_on_blue_options(c1, c2))
 
     @staticmethod
     def from_string(rule_string):
@@ -239,6 +252,9 @@ class ColourCountRule(Rule):
         #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
         if correction_type == CorrectionType.TOWER:
             return self.generate_tower_cpd(num_blocks_in_tower)
+
+        elif correction_type == CorrectionType.UNCERTAIN_TOWER:
+            return self.generate_uncertain_tower_cpd(num_blocks_in_tower)
         else:
             # return self.generate_table_cpd(num_blocks_in_tower, num_blocks_on_table, second_rule)
             return self.generate_table_cpd(num_blocks_in_tower)
@@ -269,6 +285,19 @@ class ColourCountRule(Rule):
                 rule_violated = int(top and rule)
             else:
                 rule_violated = int(sum(l[:-1]) == (self.number + 1)) * l[-1]
+            CPD[1][i] = rule_violated
+            CPD[0][i] = 1 - rule_violated
+        return CPD
+
+    def generate_uncertain_tower_cpd(self, num_blocks_in_tower):
+        flippings = binary_flip(num_blocks_in_tower)
+        CPD = np.zeros((2, len(flippings)), dtype=np.int32)
+        for i, l in enumerate(flippings):
+            if num_blocks_in_tower == 2:
+                top, rule = l
+                rule_violated = int(top and rule)
+            else:
+                rule_violated = int(sum(l[:-1]) > self.number) * l[-1]
             CPD[1][i] = rule_violated
             CPD[0][i] = 1 - rule_violated
         return CPD
@@ -340,19 +369,20 @@ class RedOnBlueRule(Rule):
         return Formula([subformula], op='forall',
                        variables=pddl_functions.make_variable_list([variables.args[0].arg_name]))
 
-    def generate_tower_cpd(self):
+    def generate_tower_cpd(self, p=1.0):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
         for red_o1 in range(2):
             for blue_o2 in range(2):
                 for r_in_goal in range(2):
                     result = r_in_goal * (1 - int(self.evaluate_rule(red_o1, blue_o2)))
-                    cpd_line_corr1.append(result)
-                    cpd_line_corr0.append(1 - result)
+                    value = p if result else 1-p
+                    cpd_line_corr1.append(value)
+                    cpd_line_corr0.append(1 - value)
 
         return [cpd_line_corr0, cpd_line_corr1]
 
-    def generate_empty_table_tower_cpd(self):
+    def generate_empty_table_tower_cpd(self, p=1.0):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
         for red_o1 in range(2):
@@ -362,8 +392,9 @@ class RedOnBlueRule(Rule):
                         result = r_in_goal * (1 - int(self.evaluate_rule(red_o1, blue_o2)))
                         if self.rule_type == 2:
                             result = int(result or (blue_o1 and r_in_goal))
-                        cpd_line_corr1.append(result)
-                        cpd_line_corr0.append(1 - result)
+                        value = p if result else 1-p
+                        cpd_line_corr1.append(value)
+                        cpd_line_corr0.append(1 - value)
         return [cpd_line_corr0, cpd_line_corr1]
 
 
@@ -382,17 +413,19 @@ class RedOnBlueRule(Rule):
         g = nltk.sem.Assignment(dom)
         return m.evaluate(str(self), g)
 
-    def generateCPD(self, correction_type=CorrectionType.TOWER, len_evidence=0, table_empty=False, **kwargs):
+    def generateCPD(self, correction_type=CorrectionType.TOWER, len_evidence=0, table_empty=False, p=1, **kwargs):
         if correction_type == CorrectionType.TABLE:
-            return self.generate_table_cpd()
+            return self.generate_table_cpd(p)
         elif correction_type == CorrectionType.TOWER and table_empty is True:
-            return self.generate_empty_table_tower_cpd()
+            return self.generate_empty_table_tower_cpd(p)
         elif correction_type == CorrectionType.TOWER:
-            return self.generate_tower_cpd()
+            return self.generate_tower_cpd(p)
         elif correction_type == CorrectionType.UNCERTAIN_TABLE:
-            return self.generate_uncertain_table_cpd(len_evidence=len_evidence)
+            return self.generate_uncertain_table_cpd(len_evidence=len_evidence, p=p)
+        elif correction_type == CorrectionType.RECOVER:
+            return self.generate_fixing_cpd(p)
 
-    def generate_table_cpd(self):
+    def generate_table_cpd(self, p):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
 
@@ -405,11 +438,12 @@ class RedOnBlueRule(Rule):
                                 result = r1 * int(not (redo1) and blueo2 and redo3)
                             elif self.rule_type == 2:
                                 result = r1 * int(redo1 and not (blueo2) and blueo3)
-                            cpd_line_corr1.append(result)
-                            cpd_line_corr0.append(1 - result)
+                            value = p if result else 1-p
+                            cpd_line_corr1.append(value)
+                            cpd_line_corr0.append(1 - value)
         return [cpd_line_corr0, cpd_line_corr1]
 
-    def generate_uncertain_table_cpd(self, len_evidence=6):
+    def generate_uncertain_table_cpd(self, len_evidence=6, p=1):
         cpd_line_corr0 = []
         cpd_line_corr1 = []
 
@@ -434,9 +468,22 @@ class RedOnBlueRule(Rule):
                 truth = blue_o3 and a and rule
             else:
                 raise ValueError(f"Incorect rule type {self.rule_type}")
-            cpd_line_corr0.append(1 - int(truth))
-            cpd_line_corr1.append(int(truth))
+            value = p if truth else 1-p
+            cpd_line_corr0.append(1 - value)
+            cpd_line_corr1.append(value)
         return [cpd_line_corr0, cpd_line_corr1]
+
+    def generate_fixing_cpd(self, p):
+        cpd_line_corr0 = []
+        cpd_line_corr1 = []
+        for red_o1 in range(2):
+            for blue_o2 in range(2):
+                for rule in range(2):
+                    v = int(red_o1 and blue_o2 and rule)
+                    value = p if v else 1-p
+                    cpd_line_corr1.append(value)
+                    cpd_line_corr0.append(1-value)
+        return np.array([cpd_line_corr0, cpd_line_corr1])
 
     def check_tower_violation(self, state: PDDLState, tower: str = None):
 
