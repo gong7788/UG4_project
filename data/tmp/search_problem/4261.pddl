@@ -28,6 +28,8 @@
 		(clear t0)
 		(done tower0)
 		(tower tower0)
+		(orange b0)
+		(orange b2)
 		(= (red-count tower0) 0)
 		(= (blue-count tower0) 0)
 		(= (green-count tower0) 0)

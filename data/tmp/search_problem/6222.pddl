@@ -36,5 +36,5 @@
 		(= (orange-count tower0) 0)
 		(= (pink-count tower0) 0)
 	)
-	(:goal (and (forall (?x) (done ?x)) (forall (?y) (or (not (blue ?y)) (exists (?x) (and (red ?x) (on ?x ?y)))))))
+	(:goal (forall (?x) (done ?x)))
 )
