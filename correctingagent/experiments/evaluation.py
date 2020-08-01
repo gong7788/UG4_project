@@ -5,6 +5,8 @@ import webcolors
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+
+from correctingagent.agents.PGMAgent import PGMCorrectingAgent
 from ..util.colour_dict import colour_dict
 from ..util.util import get_config, config_location
 from ..agents import agents, PGMAgent
@@ -162,6 +164,14 @@ def extract_data(line):
     data = int(line.split(':')[1])
     return data
 
+def split_mistakes_reward_line(s):
+
+    name = s.split()[0]
+    _, mistakes, reward = s.split(name)
+    num_mistakes = int(mistakes.split(":")[1])
+    reward = int(reward.split(":")[1])
+    return num_mistakes, reward
+
 
 class ResultsFile(object):
     def __init__(self, config=None, name=None):
@@ -176,7 +186,10 @@ class ResultsFile(object):
             suite = config['problem_name']
             agent = config['agent']
             if not isinstance(agent, str):
-                agent = str(agent)
+                if isinstance(agent, PGMCorrectingAgent):
+                    agent = "PGMCorrectingAgent"
+                else:
+                    agent = str(agent)
             threshold = str(config['threshold'])
             dir_ = ResultsFile.get_dir(suite, agent, threshold)
             # dir_ = 'results/{}/{}/{}'.format(suite, agent, threshold)
@@ -192,8 +205,14 @@ class ResultsFile(object):
             raise AttributeError('No config or name given')
 
     def get_number(dir_):
-        return len([x for x in os.listdir(dir_) if 'experiment' in x])
-
+        def split_file(x):
+            x = x.replace("experiment", "")
+            x = x.replace(".out", "")
+            return int(x)
+        try:
+            return max([split_file(x) for x in os.listdir(dir_) if 'experiment' in x]) + 1
+        except ValueError:
+            return 0
 
     def get_dir(suite, agent, threshold):
         return os.path.join(results_location, suite, agent, threshold)
@@ -269,27 +288,35 @@ class ResultsFile(object):
         cumulative_rewards = []
         inference_times = []
         num_corrections = []
+        num_mistakes = []
         with open(self.name, 'r') as f:
             data = f.readlines()
         for line in data:
             if 'total reward' in line:
                 pass
+            elif "num mistakes" in line and "reward" in line:
+                mistakes, reward = split_mistakes_reward_line(line)
+                num_mistakes.append(mistakes)
+                rewards.append(reward)
             elif 'cumulative reward' in line:
                 datum = extract_data(line)
                 cumulative_rewards.append(datum)
             elif 'reward' in line:
                 datum = extract_data(line)
                 rewards.append(datum)
-            elif 'inference time' in line:
-                inference_times = [int(x) for x in line.replace("inference time:", "").strip().split(',')]
+            # elif 'inference time' in line:
+            #     inference_times = [float(x) for x in line.replace("inference time:", "").strip().split(',')]
             elif 'num corrections' in line:
                 datum = extract_data(line)
                 num_corrections.append(datum)
+            elif 'num mistakes' in line:
+                datum = extract_data(line)
+                num_mistakes.append(datum)
 
-        return rewards, cumulative_rewards, inference_times
+        return rewards, cumulative_rewards, inference_times, num_corrections, num_mistakes
 
     def to_df(self, discount=False, use_corrections=False):
-        rewards, _, _, corrections = self.read_file()
+        rewards, _, _, corrections, mistakes = self.read_file()
 
         df = pd.DataFrame(data={'rewards': rewards, 'corrections':corrections})
         if discount:
@@ -312,5 +339,5 @@ class ResultsFile(object):
 
 
     def get_inference_times(self):
-        _, _, inference_times, _ = self.read_file()
+        _, _, inference_times, _, _ = self.read_file()
         return inference_times

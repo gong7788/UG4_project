@@ -54,11 +54,19 @@ class Teacher(object):
     def reset(self):
         pass
 
-    def answer_question(self, question, world_, tower):
+    def answer_question(self, question, world_, tower, colours):
         if "Is the top object" in question:
             colour = question.replace("Is the top object", '').replace("?", '').strip()
             o1, o2 = world_.state.get_top_two(tower)
             o1_is_colour = world_.state.predicate_holds(colour, [o1])
+
+            o2_is_colour = world_.state.predicate_holds(colours[1], [o2])
+
+            if not o1_is_colour and not o2_is_colour:
+                return "sorry, neither is"
+            elif o1_is_colour and o2_is_colour:
+                return "sorry, both are"
+
             if o1_is_colour:
                 return "yes"
             else:
@@ -67,7 +75,7 @@ class Teacher(object):
 
 class HumanTeacher(Teacher):
 
-    def correction(self, world_, args):
+    def correction(self, world, action, args):
         return input('Correction?')
 
     def answer_question(self, question, world_, tower):
@@ -76,7 +84,7 @@ class HumanTeacher(Teacher):
 
 class TeacherAgent(Teacher):
 
-    def correction(self, w, args):
+    def correction(self, w, action, args):
         failure = w.test_failure()
         if len(args) == 3:
             tower = args[-1]
@@ -175,7 +183,7 @@ class ExtendedTeacherAgent(TeacherAgent):
         self.rules_corrected = set()
         self.dialogue_history = []
 
-    def correction(self, wrld, args, return_possible_corrections=False):
+    def correction(self, wrld, action, args, return_possible_corrections=False):
         failure = wrld.test_failure()
 
         if len(args) == 3:
@@ -283,7 +291,7 @@ class ExtendedTeacherAgent(TeacherAgent):
 
 class FaultyTeacherAgent(Teacher):
 
-    def __init__(self, recall_failure_prob=0.5, recover_prob=0.1, p_miss_direct=0, p_add_direct=0, p_recover_direct=0, add_random_rule=False, signal_repairs=False):
+    def __init__(self, recall_failure_prob=0.0, recover_prob=0.0, p_miss_direct=0, p_add_direct=0, p_recover_direct=0, add_random_rule=False, signal_repairs=False):
         """
 
         :param recall_failure_prob: the probability at which the teacher will miss indirect violations 0 implies perfect recall
@@ -305,13 +313,16 @@ class FaultyTeacherAgent(Teacher):
         self.skipped_indirect_corrections = []
         self.skipped_direct_corrections = []
 
-    def correction(self, w, args):
+    def correction(self, w, action, args):
 
         failure = w.test_failure()
         if len(args) == 3:
             tower = args[-1]
         else:
             tower = None
+
+        if action == "unstack":
+            return ""
 
         if not failure:
             return ""
@@ -346,10 +357,8 @@ class FaultyTeacherAgent(Teacher):
                     corr, top_block_returned = get_table_correction(rule, w, rules, tower, consider_top_block=True)
                     if not top_block_returned:
                         return corr.sentence
-                    elif len(self.skipped_direct_corrections) > 0:
-                        get_recovery_correction(w, rules)
                     else:
-                        raise NotImplementedError("I don't think we should get here")
+                        return get_recovery_correction(w, rules)
 
                 else:
                     self.skipped_indirect_corrections.append(get_table_correction(rule, w, rules, tower).sentence)

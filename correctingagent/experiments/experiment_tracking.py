@@ -73,7 +73,8 @@ def get_rfs(big_experiment_id):
     for experiment in experiments.index:
         yield get_results_file(experiments_df, experiment)
 
-def load_big_experiments(list_of_experiments):
+
+def load_big_experiments(list_of_experiments, use_nr_corrections=False, use_mistakes=False):
     """plot the cumulative reward for a number of experiments listed on the same axis"""
     if isinstance(list_of_experiments, pd.core.frame.DataFrame):
         list_of_experiments = list_of_experiments.index
@@ -82,29 +83,38 @@ def load_big_experiments(list_of_experiments):
     experiments = []
     for experiment in list_of_experiments:
         rf = get_results_file(experiments_df, experiment)
-        experiments.append(rf.read_file()[0])
-    return np.array(experiments)  # [[experiment-i]]
+        if use_nr_corrections:
+            experiments.append(rf.read_file()[3])
+        elif use_mistakes:
+            experiments.append(rf.read_file()[4])
+        else:
+            experiments.append(rf.read_file()[0])
+    return np.array(experiments)
 
 
-def get_discounted_data(big_id):
+def get_discounted_data(big_id, use_nr_corrections=False, use_mistakes=False):
     experiments = get_experiments(big_id)
-    raw_data = load_big_experiments(experiments)
-    discounted_data = -0.5 * (raw_data + 10)
-    return discounted_data
+    raw_data = load_big_experiments(experiments,
+                                    use_nr_corrections=use_nr_corrections,
+                                    use_mistakes=use_mistakes)
+    if use_nr_corrections is False and use_mistakes is False:
+        discounted_data = -0.5 * (raw_data + 10)
+        return discounted_data
+    else:
+        return raw_data
 
 
-def get_cumsum(big_id):
-    discounted_data = get_discounted_data(big_id)
+def get_cumsum(big_id, use_nr_corrections=False, use_mistakes=False):
+    discounted_data = get_discounted_data(big_id, use_nr_corrections, use_mistakes)
     cumsum = np.cumsum(discounted_data, axis=1)
     return cumsum
 
 
-def get_mean(big_id):
-    cumsum = get_cumsum(big_id)
+def get_mean(big_id, use_nr_corrections=False, use_mistakes=False):
+    cumsum = get_cumsum(big_id, use_nr_corrections, use_mistakes=use_mistakes)
     mean = np.mean(cumsum, axis=0)
 
     return mean
-
 
 
 def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', axes=None,

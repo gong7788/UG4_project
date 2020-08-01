@@ -318,13 +318,31 @@ class ApproximateSearchInference(object):
                     if len(q) > self.beam_size > 0:
                         heapq.heappop(q)
         self.beams = normalise_beam(q)
+        # print("len beams", len(self.beams))
+        # if len(self.beams) <= 8:
+        #     for p, beam in self.beams:
+        #         print("Beam prob:", p)
+        #         for val, var in beam.items():
+        #             print(val, var)
 
     def clamp(self, evidence):
         # print("before clamp")
         # for p, beam in self.beams:
         #     print(p, beam)
         for var, val in evidence.items():
-            self.beams = normalise_beam([(p, beam) for p, beam in self.beams if beam[var] == val])
+            try:
+                self.beams = normalise_beam([(p, beam) for p, beam in self.beams if beam[var] == val])
+            except ValueError:
+                print(self.beams)
+                print()
+                print(var, val)
+        # print("len beams (clamp)", len(self.beams))
+        # if len(self.beams) <= 8:
+        #     for p, beam in self.beams:
+        #         print("Beam prob:", p)
+        #         for val, var in beam.items():
+        #             print(val, var)
+
         # print("after clamp")
         # for p, beam in self.beams:
         #     print(p, beam)
@@ -340,15 +358,14 @@ class ApproximateSearchInference(object):
             self.previous_inference_time = len(self.models)
 
     def p(self, var, val):
-        try:
-            return sum([p for (p, beam) in self.beams if beam[var] == val])
-        except KeyError:
-            return None
+
+        return sum([p for (p, beam) in self.beams if beam[var] == val])
 
     def query(self, variables, values=None):
         if values is None:
             values = [1] * len(variables)
-        return {var: self.p(var, val) for var, val in zip(variables, values)}
+        keys = set(self.beams[0][1].keys())
+        return {var: self.p(var, val) for var, val in zip(variables, values) if var in keys}
 
 #
 # class SearchInference(object):
@@ -525,7 +542,7 @@ class PGMModel(object):
 
         if self.inference_type == InferenceType.SearchInference:
             self.inference = ApproximateSearchInference(self.max_beam_size, self.ordered_models)
-            print("Using approximate search inference")
+            # print("Using approximate search inference")
         else:
             self.inference = PGMPYInference(self.model, inference_type=self.inference_type, sampling_type=self.sampling_type)
 
@@ -707,14 +724,16 @@ class CorrectionPGMModel(PGMModel):
         rule_prior = DiscreteFactor([str(rule)], [2], [1-rule_prior_value, rule_prior_value])
         self.add_factor([str(rule)], rule_prior, model)
 
-    def add_no_correction(self, args, time, rules, model=None):
+    def add_no_correction(self, args, time, rules):
         if not rules:
             return
         o1, o2 = args[:2]
 
+        model = self.add_new_model()
+
         violations = []
 
-        print("no correction", args, time, rules)
+        # print("no correction", args, time, rules)
 
         for rule in rules:
 
@@ -724,7 +743,8 @@ class CorrectionPGMModel(PGMModel):
                 colour_models = self.add_cms(self.colours[red], self.colours[blue], [o1, o2],
                                              correction_type=CorrectionType.TOWER, model=model)
 
-                Vrule = self.add_violation_factor(rule, time, colour_models, correction_type=CorrectionType.TOWER, model=model)
+                Vrule = self.add_violation_factor(rule, time, colour_models,
+                                                  correction_type=CorrectionType.TOWER, model=model)
 
                 violations.append(Vrule)
             elif isinstance(rule, ColourCountRule):
@@ -809,8 +829,10 @@ class CorrectionPGMModel(PGMModel):
         self.add_factor([violated_rule_factor_name, rule, rule_violated_factor] + evidence, rule_violated_factor, model=model)
         return violated_rule_factor_name
 
-    def add_correction_factor(self, violations, time, model=None, p=1):
+    def add_correction_factor(self, violations, time, model=None, p=1.0):
         """
+        :param p:
+        :param model:
         :param violations:
         :param time:
         :return:
@@ -866,12 +888,13 @@ class CorrectionPGMModel(PGMModel):
         self.add_factor([violated_rule_factor_name2, rule_violated_factor2, red_on_blue_options[1], colour_count], rule_violated_factor2, model)
         return [violated_rule_factor_name1, violated_rule_factor_name2]
 
-    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int, model: FactorGraph):
+    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int, model: FactorGraph, faulty_teacher=False):
         self.known_rules.add(rule)
         colour_variables = []
         for obj in objects_in_tower:
             colour_variables.append(self.add_cm(cm, obj))
-        violations = [self.add_violation_factor(rule, time, colour_variables)]
+        correction_type = CorrectionType.UNCERTAIN_TOWER if faulty_teacher else CorrectionType.TOWER
+        violations = [self.add_violation_factor(rule, time, colour_variables, correction_type=correction_type)]
         self.add_correction_factor(violations, time, model)
         return violations
 
@@ -932,10 +955,8 @@ class CorrectionPGMModel(PGMModel):
         rules = [str(rule) for rule in self.known_rules]
         q = self.query(rules)
 
-        print("rule priors", self.rule_priors)
-        print("queried rules", q)
-
-
+        # print("rule priors", self.rule_priors)
+        # print("queried rules", q)
 
         for rule in rules:
             try:
@@ -943,7 +964,8 @@ class CorrectionPGMModel(PGMModel):
             except KeyError:
                 q[rule] = self.rule_priors[rule]
 
-        print("new rule priors", self.rule_priors)
+        # print("new rule priors", self.rule_priors)
+        # print(self.rule_priors)
         return q
 
     def get_colour_predictions(self):

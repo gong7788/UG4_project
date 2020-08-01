@@ -46,5 +46,7 @@
 		(purple b8)
 		(green b9)
 	)
-	(:goal (and (forall (?x) (done ?x)) (forall (?y) (or (not (yellow ?y)) (exists (?x) (and (purple ?x) (on ?x ?y)))))))
+	(:goal (and (forall (?x) (done ?x))
+	(forall (?y) (or (not (yellow ?y))
+	(exists (?x) (and (purple ?x) (on ?x ?y)))))))
 )

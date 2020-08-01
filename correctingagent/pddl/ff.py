@@ -28,19 +28,10 @@ def ff(domain, problem, use_metric_ff=False):
         ff_location = config['metric_ff_location']
     else:
         ff_location = config['ff_location']
-    process = subprocess.Popen([ff_location,
-    '-o', domain,
-    '-f', problem],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE)
-    # out = subprocess.run(
-    # [ff_location,
-    # '-o', domain,
-    # '-f', problem],
-    # stdout=subprocess.PIPE,
-    # stderr=subprocess.PIPE)
+    process = subprocess.Popen(["nice", "-n15", ff_location, '-o', domain, '-f', problem],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    for i in range(50000):
+    for i in range(5000):
         code = process.poll()
         if code == 0 or code == 1:
             break

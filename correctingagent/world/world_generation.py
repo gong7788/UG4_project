@@ -11,7 +11,8 @@ from collections import defaultdict
 import numpy as np
 import json
 from .colours import colour_generators
-
+from IPython.display import clear_output
+from tqdm import tqdm
 
 def sample_colour(colour_dict):
     category = random.choice(list(colour_dict.keys()))
@@ -126,6 +127,7 @@ def generate_from_colour_count(rules, colour_count):
 
 
 def generate_random_colour_from_colour_count(colour_count):
+    print("generating rules")
     colours = []
     for colour, count in colour_count.items():
         for i in range(count):
@@ -306,12 +308,18 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
                                            domain_name="blocksworld-updated", num_towers=2):
     directory = Path(directory)
 
-    os.makedirs(directory, exist_ok=True)
+    progress = tqdm(total=50, )
 
+    os.makedirs(directory, exist_ok=True)
+    print("generating dataset")
     scenarios = []
     while len(scenarios) < N:
+
+        print(N)
         if use_random_colours:
+            print("generating colour counts")
             cc = generate_colour_count_scenario(rules)
+            print("generating colours")
             colours = generate_random_colour_from_colour_count(cc)
             colour_object_dict = {f"b{i}": tuple(hsv) for i, (colour, hsv) in enumerate(colours)}
             colours = [colour for colour, hsv in colours]
@@ -326,7 +334,10 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
         domain_file = 'blocks-domain-unstackable.pddl' if domain_name == 'blocksworld-unstack' \
             else 'blocks-domain-updated.pddl'
         w = world.PDDLWorld(domain_file, problem_file='../data/tmp/generation.pddl')
+        print("testing scenario")
+        clear_output()
         if not w.test_failure():
+            print("found plan, adding")
             file_name = directory / f"problem{len(scenarios)+1}.pddl"
             json_name = directory / f"colours{len(scenarios)+1}.json"
             os.rename('../data/tmp/generation.pddl', file_name)
@@ -334,6 +345,8 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
                 with open(json_name, 'w') as f:
                     json.dump(colour_object_dict, f)
             scenarios.append(file_name)
+            progress.update(n=1)
+
 
 
 def generate_colour_count(max_num=4, exact_num=None):

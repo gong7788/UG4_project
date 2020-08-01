@@ -123,8 +123,8 @@ def create_agent(agent, colour_model_config_name, colour_model_type, w, teacher,
                       domain_file=domain_file, simplified_colour_count=simplified_colour_count,
                       inference_type=inference_type, max_inference_size=max_inference_size, max_beam_size=max_beam_size,
                       p_direct=p_direct, p_indirect=p_indirect)
-        print(colour_model_config_name)
-        print(colour_model_config)
+        # print(colour_model_config_name)
+        # print(colour_model_config)
     else:
         agent = agent(w, teacher=teacher, threshold=threshold)
 
@@ -140,6 +140,9 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
         world_scenario.draw()
     agent.new_world(world_scenario)
     num_corrections = 0
+    num_mistakes = 0
+    found_mistake = False
+    tried_reset = False
     while not world_scenario.test_success():
         if num_allowed_corrections != -1 and num_corrections >= num_allowed_corrections:
             try:
@@ -147,9 +150,15 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
             except NoPlanError:
                 world_scenario.reset()
                 plan = world_scenario.find_plan()
+                if tried_reset:
+                    with open("/home/mappelgren/Desktop/correcting-agent/error.txt", "a") as f:
+                        f.write(str(world_scenario.problem_file))
+                    break
+                else:
+                    tried_reset = True
         else:
             plan = agent.plan()
-        print(plan)
+        # print(plan)
         if len(plan) == 0:
             raise PlanningError("No plan was found and teacher did not attempt to correct.")
         for a, args in plan:
@@ -158,20 +167,27 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
             world_scenario.update(a, args)
             if vis:
                 world_scenario.draw()
-            correction = agent.teacher.correction(world_scenario, args)
+
+
+            failure = world_scenario.test_failure()
+            if failure and not found_mistake:
+                num_mistakes += 1
+                found_mistake = True
+            correction = agent.teacher.correction(world_scenario, a, args)
             if correction:
+                found_mistake = False
                 num_corrections += 1
                 if break_on_correction:
                     return
                 # logger.info("T: " + correction)
-                print(f"T: {correction}")
+                # print(f"T: {correction}")
                 agent.get_correction(correction, a, args)
                 if vis:
                     world_scenario.draw()
                 break
             elif no_correction_update:
                 agent.no_correction(a, args)
-    return num_corrections
+    return num_corrections, num_mistakes
 
 
 def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, agent=None, vis=False, update_once=True,
@@ -196,13 +212,13 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
     w = world.get_world(problem_name, 1, world_type=world_type, domain_file=domain_file,
                         use_hsv=use_hsv)
 
-    print(colour_model_config_name)
+    # print(colour_model_config_name)
 
     if teacher_type == TeacherType.Extended:
-        print("NEW TEACHER!")
+        # print("NEW TEACHER!")
         teacher = ExtendedTeacherAgent()
     elif teacher_type == TeacherType.Old:
-        print("old teacher :(")
+        # print("old teacher :(")
         teacher = TeacherAgent()
     elif teacher_type == TeacherType.Human:
         teacher = HumanTeacher()
@@ -222,7 +238,7 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
     for i in range(num_problems):
         w = world.get_world(problem_name, i+1, world_type=world_type, domain_file=domain_file)
-        num_corrections = do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update,
+        num_corrections, num_mistakes = do_scenario(agent, w, vis=vis, no_correction_update=no_correction_update,
                     num_allowed_corrections=num_allowed_corrections)
 
         # if debug and not 'Random' in config['agent']:
@@ -231,11 +247,12 @@ def _run_experiment(problem_name=None, threshold=0.5, update_negative=False, age
 
         total_reward += w.reward
 
-        print(f'{problem_name} reward: {w.reward}')
+        # print(f'{problem_name} reward: {w.reward}')
         if results_file is not None:
             results_file.write(f'{problem_name} reward: {w.reward}\n')
             results_file.write(f'{problem_name} cumulative reward: {total_reward}\n')
             results_file.write(f"{problem_name} num corrections: {num_corrections}\n")
+            results_file.write(f"{problem_name} num mistakes: {num_mistakes}\n")
 
     if results_file is not None:
         results_file.write(f'total reward: {total_reward}\n')

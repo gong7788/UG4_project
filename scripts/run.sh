@@ -1,12 +1,34 @@
 
 #python run_experiments.py naive_faulty_onerule fixed_bw_0.05
 
-#python run_experiments.py faulty_onerule_indirect0.5 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.1_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.25_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.1_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.25_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.5_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:1.0_pds:0_rl:False_pmatch:True fixed_bw_0.05
+
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.1_rl:False_pmatch:True fixed_bw_0.05
+nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.25_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.1_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.25_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.5_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:1.0_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+
+
+#nice -n15 python run_experiments.py big_tworules_random_colours_new_teacher_no_correction fixed_bw_0.05
+
+
+#nice -n15 python run_experiments.py faulty_onerule_indirect0.5 fixed_bw_0.05
 #python run_experiments.py faulty_onerule_direct_skip0.1 fixed_bw_0.05
 #python run_experiments.py faulty_onerule_notfaulty fixed_bw_0.05
 #python run_experiments.py faulty_onerule_direct_add0.1 fixed_bw_0.05
 #python run_experiments.py faulty_onerule_direct0.1 fixed_bw_0.05
-python run_experiments.py faulty_onerule_both fixed_bw_0.05
+#nice -n15 python run_experiments.py faulty_onerule_both fixed_bw_0.05
 #python run_experiments.py faulty_onerule fixed_bw_0.05
 #python run_experiments.py big_tworules_random_colours_new_teacher_no_correction_BP fixed_bw_0.05
 

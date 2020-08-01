@@ -131,9 +131,9 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.p_direct = p_direct
         self.p_indirect = p_indirect
 
-        print("p direct", self.p_direct)
-        print("p indirect", self.p_indirect)
-        print("inference type", inference_type)
+        # print("p direct", self.p_direct)
+        # print("p indirect", self.p_indirect)
+        # print("inference type", inference_type)
 
     def __repr__(self):
         return "PGMCorrectingAgent"
@@ -161,6 +161,7 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.goal = goals.goal_from_list(rules, self.domain_file)
 
     def no_correction(self, action, args):
+
         if action.lower() == 'unstack':
             return
         # print("no correction", self.time)
@@ -199,7 +200,7 @@ class PGMCorrectingAgent(CorrectingAgent):
 
     def update_model(self, user_input, args):
         message = read_sentence(user_input)
-
+        # print("correction ", message.T, args)
         if message.T == 'recover':
             red = message.o1[0]
             blue = message.o2[0]
@@ -224,8 +225,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             for prev_corr, prev_time in self.previous_corrections[::-1]:
                 if 'same reason' not in prev_corr:
                     break
-            print("Same reason", self.time)
-            print(prev_corr, prev_time)
+            # print("Same reason", self.time)
+            # print(prev_corr, prev_time)
 
             prev_message = read_sentence(prev_corr, use_dmrs=False)
             user_input = prev_corr
@@ -236,6 +237,8 @@ class PGMCorrectingAgent(CorrectingAgent):
         elif message.T in ['tower', 'table']:
 
             if isinstance(self.teacher, FaultyTeacherAgent) and message.T == 'table' and self.teacher.recover_prob > 0:
+                # print(self.teacher.recover_prob)
+
                 red = message.o1[0]
                 blue = message.o2[0]
                 rules = Rule.generate_red_on_blue_options(red, blue)
@@ -261,7 +264,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                 data[corr] = 1
 
         elif 'partial.neg' == message.T:
-            print("partial.neg", self.time)
+            # print("partial.neg", self.time)
             for i, (prev_corr, prev_time) in enumerate(self.previous_corrections[::-1]):
                 if message.o1 in prev_corr:
                     break
@@ -293,7 +296,8 @@ class PGMCorrectingAgent(CorrectingAgent):
             top, _ = self.world.state.get_top_two(tower_name)
             if self.simplified_colour_count:
                 objects = [top]
-            violations = self.pgm_model.add_colour_count_correction(rule, cm, objects, self.time)
+
+            violations = self.pgm_model.add_colour_count_correction(rule, cm, objects, self.time, faulty_teacher=isinstance(self.teacher, FaultyTeacherAgent))
             data = self.get_colour_data(objects)
             corr = f"corr_{self.time}"
             data[corr] = 1
@@ -330,18 +334,31 @@ class PGMCorrectingAgent(CorrectingAgent):
             print(question)
             if isinstance(message.o1, list):
                 red = f'{message.o1[0]}({args[0]})'
+                blue = f'{message.o2[0]}({args[1]})'
+                blue_c = message.o2[0]
+                red_c = message.o1[0]
             else:
                 red = f'{message.o1}({args[0]}'
+                blue = f'{message.o2[0]}({args[1]})'
+                blue_c = message.o2
+                red_c = message.o1
 
             if len(args) == 3:
                 tower = args[-1]
             else:
                 tower = None
-            answer = self.teacher.answer_question(question, self.world, tower)
+            answer = self.teacher.answer_question(question, self.world, tower, [red_c, blue_c])
             # dialogue.info("T: " + answer)
-            print(answer)
-            bin_answer = int(answer.lower() == 'yes')
-            time = self.pgm_model.observe({red: bin_answer})
+            # print(answer)
+            if "sorry" in answer:
+                if "neither" in answer:
+                    data = {red: 0, blue: 0}
+                else:
+                    data = {red: 1, blue: 1}
+            else:
+                bin_answer = int(answer.lower() == 'yes')
+                data = {red: bin_answer}
+            time = self.pgm_model.observe(data)
             self.inference_times.append(time)
 
     def mark_block(self, most_likely_violation, message, args):
@@ -378,23 +395,28 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.time += 1
         self.last_correction = self.time
 
-        not_on_xy = pddl_functions.create_formula('on', args[:2], op='not')
-        self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
-
         violations, data, message = self.update_model(user_input, args)
+
+        if "sorry" not in user_input:
+            not_on_xy = pddl_functions.create_formula('on', args[:2], op='not')
+            self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
+
+        else:
+            on_xy = pddl_functions.create_formula('on', message.o3)
+            self.tmp_goal = goals.update_goal(self.tmp_goal, on_xy)
 
         time = self.pgm_model.observe(data)
         self.inference_times.append(time)
 
         q = self.pgm_model.query(list(violations))
 
-        print(q)
+        # print(q)
 
         if ask_question is not None and ask_question:
             if message.T in ['table', 'tower']:
                 self.ask_question(message, args)
                 q = self.pgm_model.query(list(violations))
-        elif ask_question is None and max(q.values()) < self.threshold:
+        elif ask_question is None and max(q.values()) < self.threshold and min(q.values()) > 1-self.threshold:
 
             if message.T in ['table', 'tower']:
                 self.ask_question(message, args)
@@ -469,7 +491,7 @@ class PGMCorrectingAgent(CorrectingAgent):
                 correction_type = CorrectionType.TABLE
         else:
             raise ValueError(f"Invalid message type, expected tower or table, not {message.T}")
-        print("table correction?", is_table_correction)
+        # print("table correction?", is_table_correction)
         if is_table_correction:
             args = args[:2]
             args += [message.o3]

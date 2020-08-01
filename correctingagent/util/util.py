@@ -10,8 +10,6 @@ except KeyError:
     config_location = '/home/mappelgren/Desktop/correcting-agent/config'
 
 
-
-
 def get_config():
     config = configparser.ConfigParser()
     config.read(path.join(config_location, 'default.ini'))
@@ -22,6 +20,7 @@ def get_config():
         return config['ubuntu']
     else:
         return config['laptop']
+
 
 def add_config_option(config_file='experiments.ini', category='DEFAULT', option=None, value=None):
     """category (DEFAULT): the name of file to change
@@ -39,6 +38,7 @@ def add_config_option(config_file='experiments.ini', category='DEFAULT', option=
     with open(config_file, 'w') as configfile:
         config.write(configfile)
 
+
 def create_experiment(name, options={}):
     """Creates the config for an experiment
 
@@ -48,9 +48,11 @@ def create_experiment(name, options={}):
     for option, value in options.items():
         add_config_option(config_file='experiments.ini', category=name, option=option, value=value)
 
+
 def create_neural_experiment(name, options={}):
     for option, value in options.items():
         add_config_option(config_file='neural.ini', category=name, option=option, value=value)
+
 
 def create_kde_experiment(name, options={}):
     for option, value in options.items():
