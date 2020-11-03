@@ -1,24 +1,51 @@
 
 #python run_experiments.py naive_faulty_onerule fixed_bw_0.05
 
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.1_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.25_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.1_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.25_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.5_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_onerule_faulty_prf:1.0_pds:0_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.1_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.25_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.1_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.25_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.5_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:1.0_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
 
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.1_rl:False_pmatch:True fixed_bw_0.05
-nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.25_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.1_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.25_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.5_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:1.0_pds:0_rl:False_pmatch:True fixed_bw_0.05
-#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.1_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.25_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.1_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.25_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.5_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:1.0_pds:0_rl:False_pmatch:1.0 fixed_bw_0.05
 
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.1_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.25_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.1_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.25_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:0.5_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_onerule_faulty_prf:1.0_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.1_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.25_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.1_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.25_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:0.5_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_prf:1.0_pds:0_rl:False_pmatch:0.9 fixed_bw_0.05
+
+nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+nice -n15 python run_experiments.py big_onerule_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+
+nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.5_rl:False_pmatch:True fixed_bw_0.05
+
+#nice python continue_experiment.py 744 # currently running
+
+#nice python continue_experiment.py 714
+#nice python continue_experiment.py 715
+
+#nice -n15 python run_experiments.py big_onerule_faulty_no_language fixed_bw_0.05
+#nice -n15 python run_experiments.py big_tworules_faulty_no_language fixed_bw_0.05
 
 #nice -n15 python run_experiments.py big_tworules_random_colours_new_teacher_no_correction fixed_bw_0.05
 
@@ -36,7 +63,6 @@ nice -n15 python run_experiments.py big_tworules_faulty_prf:0_pds:0.25_rl:False_
 #python run_experiments.py colour_count_random DEFAULT
 #python run_experiments.py big_two_rules_random DEFAULT
 
-#python continue_experiment.py 214
 #python run_experiments.py big_threerules_random_colours_new_teacher fixed_bw_0.05
 #python run_experiments.py big_threerules_random_colours_new_teacher_no_correction fixed_bw_0.05
 #python run_experiments.py big_three_rules_random fixed_bw_0.05

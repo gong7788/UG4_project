@@ -185,9 +185,9 @@ def do_ttest_rel_4way(old, old_nocorr, new, new_nocorr):
     print('new vs new no corr')
     print(ttest_rel(total_new, total_new_no_corr), np.mean(total_new), np.mean(total_new_no_corr))
 
-def do_ttest_rel(a, b):
-    total_a = get_cumsum(a)[:, -1]
-    total_b = get_cumsum(b)[:, -1]
+def do_ttest_rel(a, b, use_mistakes=False):
+    total_a = get_cumsum(a, use_mistakes=use_mistakes)[:, -1]
+    total_b = get_cumsum(b, use_mistakes=use_mistakes)[:, -1]
     print("Min for a:", np.min(total_a), "Max for a:", np.max(total_a))
     print("Min for b:", np.min(total_b), "Max for b:", np.max(total_b))
 

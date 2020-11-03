@@ -73,6 +73,7 @@ concepts = {
     "speed": "speed",
     "energy": "energy",
     "curviness": "curviness",
+    "middle": "curivness"
 }
 
 
@@ -96,12 +97,9 @@ class Concept(object):
         if name in ["curviness", "speed", "energy"]:
             self.default_concept = True
 
-
     def evaluate(self, point, truth_value=1):
         if truth_value == 1:
             return norm.pdf(point, self.mean, self.variance)
-
-
 
     def generate(self):
 
@@ -213,5 +211,6 @@ class Behaviour(object):
         energy = self.energy_concept.generate()
 
         return BehaviourCurve(curviness, speed, energy)
+
 
 

@@ -367,6 +367,16 @@ class ApproximateSearchInference(object):
         keys = set(self.beams[0][1].keys())
         return {var: self.p(var, val) for var, val in zip(variables, values) if var in keys}
 
+    def faulty_query(self, variables):
+
+        results = {}
+
+        for model in self.models:
+            vars = get_scope(model)
+            if len(set(vars).intersection(variables)) > 0:
+                data = {v: 1 for v in variables}
+                options = {}
+
 #
 # class SearchInference(object):
 #
@@ -524,6 +534,9 @@ def build_combined_model(relevant_models):
     return new_model
 
 
+class InferenceFailedError(Exception):
+    pass
+
 class PGMModel(object):
 
     def __init__(self, inference_type=InferenceType.SearchInference, sampling_type=SamplingType.LikelihoodWeighted, max_inference_size=-1, max_beam_size=0):
@@ -636,7 +649,10 @@ class PGMModel(object):
     def query(self, variables, values=None):
 
         if self.inference_type == InferenceType.SearchInference:
-            return self.inference.query(variables, values=values)
+            try:
+                return self.inference.query(variables, values=values)
+            except IndexError:
+                raise InferenceFailedError("Impossible to find valid inference for given evidence")
 
         elif self.max_inference_size > 0:
 

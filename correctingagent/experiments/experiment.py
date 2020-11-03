@@ -160,14 +160,27 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
             plan = agent.plan()
         # print(plan)
         if len(plan) == 0:
-            raise PlanningError("No plan was found and teacher did not attempt to correct.")
+            #
+            # print(tried_reset)
+            # for p in world_scenario.state.get_objects_in_tower("tower0"):
+            #     print(p)
+            # print(a, args)
+            # print("correction:", agent.teacher.correction(world_scenario, a, args))
+
+            print("doing the thing")
+
+            correction = agent.teacher.correction(world_scenario, a, args)
+            agent.get_correction(correction, a, args, ask_question=True)
+            try:
+                plan = agent.plan()
+            except NoPlanError:
+                raise PlanningError("No plan was found and teacher did not attempt to correct.")
         for a, args in plan:
             if a == 'reach-goal':
                 break
             world_scenario.update(a, args)
             if vis:
                 world_scenario.draw()
-
 
             failure = world_scenario.test_failure()
             if failure and not found_mistake:

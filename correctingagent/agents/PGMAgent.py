@@ -7,7 +7,7 @@ from correctingagent.experiments.colour_model_evaluation import evaluate_colour_
 from correctingagent.pddl import pddl_functions
 from correctingagent.util.CPD_generation import get_violation_type, get_predicate
 from correctingagent.world import goals
-from correctingagent.models.pgmmodels import CorrectionPGMModel, InferenceType, get_scope
+from correctingagent.models.pgmmodels import CorrectionPGMModel, InferenceType, get_scope, InferenceFailedError
 from correctingagent.models.prob_model import KDEColourModel
 from collections import namedtuple, defaultdict
 
@@ -180,7 +180,10 @@ class PGMCorrectingAgent(CorrectingAgent):
             time = self.pgm_model.observe(data)
             self.inference_times.append(time)
             # self.pgm_model.infer()
-            self.update_cms()
+            try:
+                self.update_cms()
+            except InferenceFailedError:
+                return
 
     def get_relevant_data(self, args, message):
         args_for_model = args.copy()
@@ -396,10 +399,15 @@ class PGMCorrectingAgent(CorrectingAgent):
         self.last_correction = self.time
 
         violations, data, message = self.update_model(user_input, args)
+        tmp_goal = None
+        mark_block = True
+        ignore_correction = False
+
+        print(user_input)
 
         if "sorry" not in user_input:
-            not_on_xy = pddl_functions.create_formula('on', args[:2], op='not')
-            self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
+            tmp_goal = pddl_functions.create_formula('on', args[:2], op='not')
+            #self.tmp_goal = goals.update_goal(self.tmp_goal, not_on_xy)
 
         else:
             on_xy = pddl_functions.create_formula('on', message.o3)
@@ -408,27 +416,49 @@ class PGMCorrectingAgent(CorrectingAgent):
         time = self.pgm_model.observe(data)
         self.inference_times.append(time)
 
-        q = self.pgm_model.query(list(violations))
-
+        try:
+            q = self.pgm_model.query(list(violations))
+        except InferenceFailedError:
+            self.world.back_track()
+            return
         # print(q)
 
         if ask_question is not None and ask_question:
             if message.T in ['table', 'tower']:
                 self.ask_question(message, args)
-                q = self.pgm_model.query(list(violations))
-        elif ask_question is None and max(q.values()) < self.threshold and min(q.values()) > 1-self.threshold:
+                try:
+                    q = self.pgm_model.query(list(violations))
+                except InferenceFailedError:
+                    self.world.back_track()
+                    return
+
+        elif all([v < 1-self.threshold for v in q.values()]): # and "sorry" not in user_input:
+            print("ignoring correction")
+            tmp_goal = None
+            mark_block = False
+            ignore_correction = True
+
+        elif ask_question is None and max(q.values()) < self.threshold: #min(q.values()) > 1-self.threshold:
 
             if message.T in ['table', 'tower']:
                 self.ask_question(message, args)
-                q = self.pgm_model.query(list(violations))
+                try:
+                    q = self.pgm_model.query(list(violations))
+                except InferenceFailedError:
+                    self.world.back_track()
+                    return
 
-        most_likely_violation = max(q, key=q.get)
+        if tmp_goal is not None:
+            self.tmp_goal = goals.update_goal(self.tmp_goal, tmp_goal)
 
-        self.mark_block(most_likely_violation, message, args)
+        if mark_block is True:
+            most_likely_violation = max(q, key=q.get)
+            self.mark_block(most_likely_violation, message, args)
 
         self.update_cms()
         self.update_goal()
-        self.world.back_track()
+        if ignore_correction is not True:
+            self.world.back_track()
 
     def update_cms(self):
         colours = self.pgm_model.get_colour_predictions()
