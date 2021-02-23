@@ -13,3 +13,5 @@ data/image_data/
 .idea
 results
 data/tmp
+results_*
+.vscode/*

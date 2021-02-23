@@ -1,4 +1,4 @@
-Metadata-Version: 1.0
+Metadata-Version: 1.1
 Name: CorrectingAgent
 Version: 0.1.dev0
 Summary: UNKNOWN
@@ -9,3 +9,5 @@ License: Creative Commons Attribution-Noncommercial-Share Alike license
 Description: My PhD work on teaching agents through correction
         
 Platform: UNKNOWN
+Requires: numpy
+Requires: scipy

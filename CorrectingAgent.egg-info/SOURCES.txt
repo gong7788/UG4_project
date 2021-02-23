@@ -5,3 +5,12 @@ CorrectingAgent.egg-info/SOURCES.txt
 CorrectingAgent.egg-info/dependency_links.txt
 CorrectingAgent.egg-info/top_level.txt
 correctingagent/__init__.py
+gently/BezierCurves.py
+gently/__init__.py
+gently/agent.py
+gently/concepts.py
+gently/environment.py
+gently/experiment.py
+gently/models.py
+gently/teacher.py
+gently/util.py

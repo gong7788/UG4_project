@@ -169,7 +169,8 @@ class PDDLWorld(World):
     def test_failure(self):
         try:
             plan = self.find_plan()
-        except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError):
+        except (NoPlanError, IDontKnowWhatIsGoingOnError, ImpossibleGoalError) as e:
+            print(e)
             return True
         except Solved:
             return False

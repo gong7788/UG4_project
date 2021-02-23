@@ -6,6 +6,7 @@ import pythonpddl
 from skimage.color import rgb2hsv
 
 from correctingagent.util.colour_dict import colour_names, colour_dict
+from correctingagent.util.colour_dict import fruit_names, fruit_dict
 from correctingagent.world.colours import get_colour
 
 
@@ -235,7 +236,7 @@ class PDDLState(object):
     def get_colour_name(self, obj):
         predicates = self.get_predicates(obj)
         try:
-            return [predicate.name for predicate in predicates if predicate.name in colour_dict.keys()][0]
+            return [predicate.name for predicate in predicates if predicate.name in fruit_dict.keys()][0]
         except IndexError:
             return None
 
@@ -244,22 +245,27 @@ class PDDLState(object):
 
         colours = {}
         for obj in objects:
-            colours[obj] = [pred.name for pred in self.get_predicates(obj) if pred.name in colour_names]
+            colours[obj] = [pred.name for pred in self.get_predicates(obj) if pred.name in fruit_names]
 
+        # print(colours.items())
         for obj, colour_list in colours.items():
             if len(colour_list) > 1:
+                # print(obj)
+                # print(colour_list)
                 for c_i in colour_list:
-                    if c_i not in colour_dict.keys():
+                    if c_i not in fruit_dict.keys():
                         colours[obj] = c_i
             else:
+                # print(obj)
+                # print(colour_list)
                 colours[obj] = colour_list[0]
-        if use_hsv:
-            return {o:rgb2hsv(get_colour(colours[o])) for o in objects}
-        else:
-            return {o:get_colour(colours[o]) for o in objects}
+        # if use_hsv:
+        #     return {o:rgb2hsv(get_colour(colours[o])) for o in objects}
+        # else:
+        #     return {o:get_colour(colours[o]) for o in objects}
 
     def obscure_state(self):
-        predicates = [predicate for predicate in self.predicates if predicate.name not in colour_names]
+        predicates = [predicate for predicate in self.predicates if predicate.name not in fruit_names]
         return PDDLState(predicates, self.fexpressions, self.objects, self.towers)
 
     def get_top_two(self, tower=None):

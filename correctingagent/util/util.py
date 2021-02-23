@@ -7,7 +7,7 @@ from os import path
 try:
     config_location = os.environ['CONFIG-LOCATION']
 except KeyError:
-    config_location = '/home/mappelgren/Desktop/correcting-agent/config'
+    config_location = '/home/yucheng/Desktop/project/correcting-agent//config'
 
 
 def get_config():
@@ -18,6 +18,8 @@ def get_config():
         return config['inf.ed.ac.uk']
     elif 'mappelgren-HP-EliteDesk-800-G2-SFF' == hostname:
         return config['ubuntu']
+    elif hostname == 'yucheng-GL553VE':
+        return config['yucheng']
     else:
         return config['laptop']
 

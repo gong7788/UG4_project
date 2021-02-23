@@ -7,10 +7,13 @@ import random
 import os
 from correctingagent.world import problem_def
 from ..util.colour_dict import colour_dict
+from correctingagent.util.colour_dict import fruit_dict
 from collections import defaultdict
 import numpy as np
 import json
 from .colours import colour_generators
+from .colours import fruit_select
+from .colours import label_to_id
 from IPython.display import clear_output
 from tqdm import tqdm
 
@@ -128,13 +131,17 @@ def generate_from_colour_count(rules, colour_count):
 
 def generate_random_colour_from_colour_count(colour_count):
     print("generating rules")
-    colours = []
-    for colour, count in colour_count.items():
-        for i in range(count):
-            colours.append((colour, colour_generators[colour]()))
+    # colours = []
+    # print("cc: " + str(colour_count))
+    # for colour, count in colour_count.items():
+    #     for i in range(count):
+    #         print(colour_generators[colour]())
+    #         colours.append((colour, colour_generators[colour]()))
 
-    random.shuffle(colours)
-    return colours
+    fruits = []
+    fruits = fruit_select(colour_count) # fruit_count
+    random.shuffle(fruits)
+    return fruits
 
 
 def generate_colour(p_primary_colour=0.8):
@@ -234,7 +241,7 @@ def generate_bijection(p_primary_colour=1.0):
 def generate_dataset_set(N_datasets, N_data, num_rules, dataset_name, colour_dict=colour_dict,
                          p_primary_colour=0.8, use_random_colours=True, create_bijection=False,
                          domain_name="blocksdomain"):
-    data_path = '/home/mappelgren/Desktop/correcting-agent/data'
+    data_path = '/home/yucheng/Desktop/project/correcting-agent/data'
     top_path = os.path.join(data_path, dataset_name)
 
     try:
@@ -269,8 +276,11 @@ def generate_colour_count_scenario(rules, num_tower=2):
                 bigger_equal_constraint[rule.c2] = rule.c1
             else:
                 bigger_equal_constraint[rule.c1] = rule.c2
-
-    colour_counts = {colour: 0 for colour in ['red', 'green', 'blue', 'purple', 'orange', 'pink', 'yellow']}
+    # print(less_than_constraints)
+    # colour_counts = {colour: 0 for colour in ['red', 'green', 'blue', 'purple', 'orange', 'pink', 'yellow']}
+    # colour_counts = {colour: 0 for colour in list(label_to_id.keys())}
+    colour_counts = {colour: 0 for colour in ['apple', 'banana', 'blueberry', 'corn', 'eggplant', 'kaki', 'lemon', 'mango', 'orange', 'pear']}
+    # print(colour_counts)
     for colour, number in less_than_constraints.items():
         if colour not in bigger_equal_constraint.keys() and colour not in bigger_equal_constraint.values():
             colour_counts[colour] = random.choice(range(number, num_tower*number + 1))
@@ -301,6 +311,7 @@ def generate_colour_count_scenario(rules, num_tower=2):
         colour = random.choice(list(colour_counts.keys()))
         if colour not in less_than_constraints.keys() and colour not in bigger_equal_constraint.keys() and colour not in bigger_equal_constraint.values():
             colour_counts[colour] += 1
+    # print(colour_counts)
     return colour_counts
 
 
@@ -321,26 +332,29 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
             cc = generate_colour_count_scenario(rules)
             print("generating colours")
             colours = generate_random_colour_from_colour_count(cc)
+            # print(colours)
             colour_object_dict = {f"b{i}": tuple(hsv) for i, (colour, hsv) in enumerate(colours)}
             colours = [colour for colour, hsv in colours]
         else:
             cc = generate_biased_colour_counts(rules)
             colours = generate_from_colour_count(rules, cc)
 
-        with open('../data/tmp/generation.pddl', 'w') as f:
+        with open('/home/yucheng/Desktop/project/correcting-agent/data/tmp/generation.pddl', 'w') as f:
             problem = problem_def.ExtendedBlocksWorldProblem.generate_problem(colours, rules, domainname=domain_name,
                                                                               num_towers=num_towers).asPDDL()
             f.write(problem)
-        domain_file = 'blocks-domain-unstackable.pddl' if domain_name == 'blocksworld-unstack' \
-            else 'blocks-domain-updated.pddl'
-        w = world.PDDLWorld(domain_file, problem_file='../data/tmp/generation.pddl')
+        # domain_file = 'blocks-domain-unstackable.pddl' if domain_name == 'blocksworld-unstack' \
+        #     else 'blocks-domain-updated.pddl'
+        if domain_name == 'fruitsworld':
+            domain_file = 'fruits-domain-updated.pddl'
+        w = world.PDDLWorld(domain_file, problem_file='/home/yucheng/Desktop/project/correcting-agent/data/tmp/generation.pddl')
         print("testing scenario")
         clear_output()
         if not w.test_failure():
             print("found plan, adding")
             file_name = directory / f"problem{len(scenarios)+1}.pddl"
             json_name = directory / f"colours{len(scenarios)+1}.json"
-            os.rename('../data/tmp/generation.pddl', file_name)
+            os.rename('/home/yucheng/Desktop/project/correcting-agent/data/tmp/generation.pddl', file_name)
             if use_random_colours:
                 with open(json_name, 'w') as f:
                     json.dump(colour_object_dict, f)
@@ -350,7 +364,10 @@ def generate_biased_dataset_w_colour_count(N, rules, directory, use_random_colou
 
 
 def generate_colour_count(max_num=4, exact_num=None):
-    colour = random.choice(list(colour_dict.keys()))
+    # colour = random.choice(list(colour_dict.keys()))
+    colour = random.choice(list(fruit_dict.keys()))
+    # print("colour1")
+    # print(colour)
     if exact_num is not None:
         number = exact_num
     else:
@@ -361,9 +378,11 @@ def generate_colour_count(max_num=4, exact_num=None):
 def generate_consistent_red_on_blue(rules):
     rule = random.choice(rules)
     colour = rule.colour_name
-    colour2 = random.choice(list(colour_dict.keys()))
+    # colour2 = random.choice(list(colour_dict.keys()))
+    colour2 = random.choice(list(fruit_dict.keys()))
     while colour == colour2:
-        colour2 = random.choice(list(colour_dict.keys()))
+        # colour2 = random.choice(list(colour_dict.keys()))
+        colour2 = random.choice(list(fruit_dict.keys()))
     rule_type = random.choice([1,2])
     return RedOnBlueRule(colour, colour2, rule_type)
 
@@ -373,7 +392,7 @@ def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count,
                                         colour_dict=colour_dict, use_random_colours=True,
                                         cc_num=2, cc_exact_num=None, num_towers=2,
                                         domain_name="blocksdomain-updated"):
-    data_path = Path('/home/mappelgren/Desktop/correcting-agent/data')
+    data_path = Path('/home/yucheng/Desktop/project/correcting-agent/data')
     top_path = data_path / dataset_name
     try:
         num_datasets = len(os.listdir(top_path))
@@ -393,7 +412,11 @@ def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count,
             red_on_blue = [generate_rule(p_primary_colour=1.0) for i in range(num_redonblue)]
         rules = colour_count + red_on_blue
 
-        dataset_path = top_path / f'{dataset_name}{num_datasets}'
+        # print("colour_count")
+        # print(colour_count)
+        # print("rules:")
+        # print(rules)
+        dataset_path = top_path / f'{dataset_name}-{num_colour_count}c{num_redonblue}r-{num_datasets}'
         os.makedirs(dataset_path, exist_ok=True)
 
         generate_biased_dataset_w_colour_count(N_data, rules, dataset_path,

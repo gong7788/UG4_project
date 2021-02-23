@@ -102,7 +102,9 @@ class ExtendedBlocksWorldProblem(BlocksWorldProblem):
                 initstate.append(pddl_functions.create_formula('clear', [obj]))
 
         for tower in towers:
-            for colour in ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink']:
+            # for colour in ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink']:
+            for colour in ['apple', 'banana', 'blueberry', 'corn', 'eggplant', 'kaki', 
+            'lemon', 'mango', 'orange', 'pear']:
                 initstate.append(pddl_functions.ColourCount(colour, tower, 0).to_formula())
             initstate.append(pddl_functions.create_formula('tower', [tower]))
         return initstate

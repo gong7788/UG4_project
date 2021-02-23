@@ -1,3 +1,18 @@
+fruit_dict = {'apple': ['apple'],
+'banana' : ['banana'],
+'blueberry' : ['blueberry'],
+'corn' : ['corn'],
+'eggplant': ['eggplant'],
+'kaki': ['kaki'],
+'lemon': ['lemon'],
+'mango': ['mango'],
+'orange' : ['orange'],
+'pear': ['pear']}
+
+fruit_names = []
+for v in fruit_dict.values():
+    fruit_names.extend(v)
+
 colour_dict = {'red': ['red', 'darkred', 'maroon', 'firebrick', 'crimson'],
 'green': ['olivedrab', 'yellowgreen', 'darkolivegreen', 'greenyellow', 'lawngreen', 'palegreen', 'forestgreen', 'limegreen', 'green', 'seagreen'],
 'blue': ['cornflowerblue', 'royalblue', 'midnightblue', 'navy', 'darkblue', 'blue', 'mediumblue', 'dodgerblue', 'deepskyblue'],
@@ -18,3 +33,4 @@ simple_colour_dict = {'red': ['red'],
 'purple': ['purple'],
 'pink': ['pink'],
 'orange': ['orange']}
+

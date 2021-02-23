@@ -358,13 +358,15 @@ class KDEColourModel(ColourModel):
             r = train_data[:,0]
             g = train_data[:,1]
             b = train_data[:,2]
+            four = train_data[:,3]
             #print('r', r)
-            weights = np.concatenate([weights, weights, weights])
+            weights = np.concatenate([weights, weights, weights, weights])
             bw = self.bw(data)
             r_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(r, weights=weights)
             g_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(g, weights=weights)
             b_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(b, weights=weights)
-            model = (r_model, g_model, b_model)
+            four_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(four, weights=weights)
+            model = (r_model, g_model, b_model, four_model)
             return model
         else:
             assert(data.shape[1] == 3)
@@ -375,18 +377,20 @@ class KDEColourModel(ColourModel):
     def evaluate_model(self, model, fx, split=False):
         if not self.use_3d:
             r, g, b = fx
-            r_model, g_model, b_model = model
+            r_model, g_model, b_model, four_model = model
             try:
                 p_r = r_model.evaluate(np.array(r))
                 p_g = g_model.evaluate(np.array(g))
                 p_b = b_model.evaluate(np.array(b))
+                p_four = four_model.evaluate(np.array(four))
             except ValueError:
                 p_r = r_model.evaluate(np.array([r]))[0]
                 p_g = g_model.evaluate(np.array([g]))[0]
                 p_b = b_model.evaluate(np.array([b]))[0]
+                p_four = four_model.evaluate(np.array([four]))[0]
             if not split:
                 if self.num_channels == 3:
-                    return 3*p_r * 3*p_g * 3*p_b
+                    return 3*p_r * 3*p_g * 3*p_b * 3*p_four
                 elif self.num_channels == 2:
                     return 3*p_r * 3 * p_g
                 elif self.num_channels == 1:
