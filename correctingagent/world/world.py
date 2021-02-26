@@ -218,15 +218,36 @@ class RandomColoursWorld(PDDLWorld):
         super().__init__(domain_file, problem_directory=problem_directory,
                          problem_number=problem_number, problem_file=problem_file, use_hsv=use_hsv)
         colour_file = self.data_dir / problem_directory / f'colours{problem_number}.json'
+        self.data = self.load_data(colour_file)
         self.colours = self.load_colours(colour_file)
 
     def load_colours(self, colour_file):
         colours = json.load(open(colour_file))
+        dict1 = {}
+        for (obj, data) in colours.items():
+            dict1[obj] = data[4:]
+
         if not self.use_hsv:
-            colours = {o: np.array(hsv2rgb([[colour]])[0][0]) for o, colour in colours.items()}
+            colours = {o: np.array(hsv2rgb([[colour]])[0][0]) for o, colour in dict1.items()}
         else:
-            colours = {o: np.array(colour) for o, colour in colours.items()}
+            colours = {o: np.array(colour) for o, colour in dict1.items()}
         return colours
+    
+    def load_data(self, colour_file):
+        all_data = json.load(open(colour_file))
+        mydata = {}
+        for (obj, data) in all_data.items():
+            mydata.update({obj: data[:4]}) 
+        return mydata
+    
+    def sense(self, obscure=True):
+        # relations = block_plotting.get_predicates(self.objects, self.state, obscure=obscure)
+        if obscure:
+            obscured_state = self.state.obscure_state()
+        else:
+            obscured_state = copy.deepcopy(self.state)
+
+        return Observation(self.objects, self.data, obscured_state)
 
 
 class CNNPDDLWorld(PDDLWorld):

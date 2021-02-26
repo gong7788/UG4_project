@@ -248,16 +248,26 @@ class ColourCountRule(Rule):
                     continue
         return False
 
-    def generateCPD(self, num_blocks_in_tower=2, correction_type=CorrectionType.TOWER, **kwargs):
+    # def generateCPD(self, num_blocks_in_tower=2, correction_type=CorrectionType.TOWER, **kwargs):
+    #     #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
+    #     if correction_type == CorrectionType.TOWER:
+    #         return self.generate_tower_cpd(num_blocks_in_tower)
+
+    #     elif correction_type == CorrectionType.UNCERTAIN_TOWER:
+    #         return self.generate_uncertain_tower_cpd(num_blocks_in_tower)
+    #     else:
+    #         # return self.generate_table_cpd(num_blocks_in_tower, num_blocks_on_table, second_rule)
+    #         return self.generate_table_cpd(num_blocks_in_tower)
+
+    def generateCPD(self, len_evidence=2, correction_type=CorrectionType.TOWER, **kwargs):
         #return self.generate_tower_cpd(num_blocks_in_tower=num_blocks_in_tower, table_correction=table_correction)
         if correction_type == CorrectionType.TOWER:
-            return self.generate_tower_cpd(num_blocks_in_tower)
-
+            return self.generate_tower_cpd(len_evidence)
         elif correction_type == CorrectionType.UNCERTAIN_TOWER:
-            return self.generate_uncertain_tower_cpd(num_blocks_in_tower)
+            return self.generate_uncertain_tower_cpd(len_evidence)
         else:
             # return self.generate_table_cpd(num_blocks_in_tower, num_blocks_on_table, second_rule)
-            return self.generate_table_cpd(num_blocks_in_tower)
+            return self.generate_table_cpd(len_evidence - 2)
 
     def generate_table_cpd(self, num_blocks_in_tower):
         flippings = binary_flip(num_blocks_in_tower + 1 + 1)

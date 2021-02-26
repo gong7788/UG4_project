@@ -288,6 +288,8 @@ class CorrectingAgent(Agent):
     def plan(self):
         print(self.domain_file, self.world.use_metric_ff)
         observation, results = self.sense()
+        # print('observation', observation)
+        # print('results', results)
         planner = search.Planner(results, observation, self.goal, self.tmp_goal,
                                  self.problem, domain_file=self.domain_file, use_metric_ff=self.world.use_metric_ff)
         step = time.time()

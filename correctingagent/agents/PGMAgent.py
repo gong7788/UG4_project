@@ -472,6 +472,7 @@ class PGMCorrectingAgent(CorrectingAgent):
             if 't' in arg:
                 continue
             fx = self.get_colour_data([arg])[f'F({arg})']
+            # print(fx)
 
             if p > 0.7:
                 self.colour_models[colour].update(fx, p)
@@ -532,8 +533,11 @@ class PGMCorrectingAgent(CorrectingAgent):
         return violations
 
     def get_colour_data(self, args):
-        observation = self.world.sense()
-        colour_data = observation.colours
+        # observation = self.world.sense()
+        # print('observation', observation)
+        # colour_data = observation.colours
+        colour_data = self.world.data
+        # print('colour_data', colour_data)
         data = {f'F({arg})': colour_data[arg] for arg in args if 't' not in arg}
         return data
 

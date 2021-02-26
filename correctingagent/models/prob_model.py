@@ -349,18 +349,18 @@ class KDEColourModel(ColourModel):
         self.model_neg = self.fit_model(self.data_neg, self.weights_neg)
 
     def fit_model(self, data, weights):
-        #print('data', data)
+        # print('data', data)
         if not self.use_3d:
 
             train_data = np.concatenate([data, -data, 2-data])
-            #print('train data', train_data)
+            # print('train data', train_data)
 
             r = train_data[:,0]
             g = train_data[:,1]
             b = train_data[:,2]
             four = train_data[:,3]
             #print('r', r)
-            weights = np.concatenate([weights, weights, weights, weights])
+            weights = np.concatenate([weights, weights, weights])
             bw = self.bw(data)
             r_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(r, weights=weights)
             g_model = NaiveKDE(kernel=self.kernel, bw=bw).fit(g, weights=weights)
@@ -376,7 +376,8 @@ class KDEColourModel(ColourModel):
 
     def evaluate_model(self, model, fx, split=False):
         if not self.use_3d:
-            r, g, b = fx
+            # print('eval fx', fx)
+            r, g, b, four = fx
             r_model, g_model, b_model, four_model = model
             try:
                 p_r = r_model.evaluate(np.array(r))
@@ -412,6 +413,7 @@ class KDEColourModel(ColourModel):
         if fx is None:
             return [1, 0][c]
         p_c_0 = 1-p_c
+        # print('fx', fx)
         p_f_c1 = self.evaluate_model(self.model, fx) if self.model else 1
         p_f_c0 = self.evaluate_model(self.model_neg, fx) if self.model_neg else 1
         p1 = p_c * p_f_c1

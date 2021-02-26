@@ -193,7 +193,7 @@ def do_scenario(agent, world_scenario, vis=False, no_correction_update=False, br
                 if break_on_correction:
                     return
                 # logger.info("T: " + correction)
-                # print(f"T: {correction}")
+                print(f"T: {correction}")
                 agent.get_correction(correction, a, args)
                 if vis:
                     world_scenario.draw()

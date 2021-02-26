@@ -904,13 +904,24 @@ class CorrectionPGMModel(PGMModel):
         self.add_factor([violated_rule_factor_name2, rule_violated_factor2, red_on_blue_options[1], colour_count], rule_violated_factor2, model)
         return [violated_rule_factor_name1, violated_rule_factor_name2]
 
-    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int, model: FactorGraph, faulty_teacher=False):
+    # def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int, model: FactorGraph, faulty_teacher=False):
+    #     self.known_rules.add(rule)
+    #     colour_variables = []
+    #     for obj in objects_in_tower:
+    #         colour_variables.append(self.add_cm(cm, obj))
+    #     correction_type = CorrectionType.UNCERTAIN_TOWER if faulty_teacher else CorrectionType.TOWER
+    #     violations = [self.add_violation_factor(rule, time, colour_variables, correction_type=correction_type)]
+    #     self.add_correction_factor(violations, time, model)
+    #     return violations
+
+    def add_colour_count_correction(self, rule: ColourCountRule, cm: KDEColourModel, objects_in_tower: list, time: int, faulty_teacher=False):
+        model = self.add_new_model()
         self.known_rules.add(rule)
         colour_variables = []
         for obj in objects_in_tower:
-            colour_variables.append(self.add_cm(cm, obj))
+            colour_variables.append(self.add_cm(cm, obj, model=model))
         correction_type = CorrectionType.UNCERTAIN_TOWER if faulty_teacher else CorrectionType.TOWER
-        violations = [self.add_violation_factor(rule, time, colour_variables, correction_type=correction_type)]
+        violations = [self.add_violation_factor(rule, time, colour_variables, correction_type=correction_type, model=model)]
         self.add_correction_factor(violations, time, model)
         return violations
 

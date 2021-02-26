@@ -247,7 +247,9 @@ class PDDLState(object):
         for obj in objects:
             colours[obj] = [pred.name for pred in self.get_predicates(obj) if pred.name in fruit_names]
 
+        # print('===================================')
         # print(colours.items())
+
         for obj, colour_list in colours.items():
             if len(colour_list) > 1:
                 # print(obj)
