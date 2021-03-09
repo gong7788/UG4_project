@@ -13,8 +13,8 @@ import cv2
 import random
 
 test_num = 100
-num = 400 # train number
-k = 400
+num = 400 # loaded number
+k = 5  # replace this
 if k == 5:
     batchsize = 1
 else:
@@ -24,8 +24,9 @@ num = 400
 groups = {}
 groups[0] = list(range(10))
 
-PATH = "/home/yucheng/Desktop/project/correcting-agent/results_0128"
-model_name = "model_k{}_0".format(k)
+# replace this
+PATH = "/home/yucheng/Desktop/project/correcting-agent/fruit-models"
+model_name = "model_k{}_L4".format(k)
 latent_n = 4
 
 def namedtuple_to_rgb(rgb):

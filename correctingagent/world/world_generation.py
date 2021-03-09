@@ -416,7 +416,7 @@ def generate_dataset_set_w_colour_count(N_datasets, N_data, num_colour_count,
         # print(colour_count)
         # print("rules:")
         # print(rules)
-        dataset_path = top_path / f'{dataset_name}-{num_colour_count}c{num_redonblue}r-{num_datasets}'
+        dataset_path = top_path / f'{dataset_name}-{num_datasets}'
         os.makedirs(dataset_path, exist_ok=True)
 
         generate_biased_dataset_w_colour_count(N_data, rules, dataset_path,

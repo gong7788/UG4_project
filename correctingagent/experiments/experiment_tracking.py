@@ -118,11 +118,13 @@ def get_mean(big_id, use_nr_corrections=False, use_mistakes=False):
 
 
 def plot_big_experiments(list_of_experiments, labels, title='', fname='default.png', axes=None,
-                         show_xlabel=True, show_ylabel=True, legend_font=12, **kwargs):
+                         show_xlabel=True, show_ylabel=True, legend_font=12, size=50, **kwargs):
     for experiment, label, marker in zip(list_of_experiments, labels,
                                          ['--', '-', '-.', ':']):  #::['_', 'x', '+', '|']):
         cumsum = get_mean(experiment)
-        plt.plot(range(1, 51), cumsum, label=label, linestyle=marker, linewidth=3)  # marker=marker)
+        cumsum = cumsum[:size]
+        # print(len(cumsum))
+        plt.plot(range(1, 1+size), cumsum, label=label, linestyle=marker, linewidth=3)  # marker=marker)
     # if axes is not None:
     #     print("this here")
     #     axes.set_ylabel('regret')
